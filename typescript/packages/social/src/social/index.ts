@@ -98,6 +98,10 @@ export class Social extends Service {
     present(tx: SqliteTransaction, request: PresentationRequest) {
         return this.ctx.socialRepository.present(tx, request);
     }
+    /** tick 边界批处理：等待本代已登记的批处理完成。 */
+    afterTick() {
+        return this.ctx.socialRepository.afterTick();
+    }
     /**
      * 规则干预：对正文包含目标话题标签的帖子按研究随机流抽样施加标记标签。
      * 事务由调用者提供，抽样地址固定为 (run, actor, operation, stream, post ordinal)，

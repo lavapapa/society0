@@ -6,7 +6,7 @@ import '@society0/core/actors';
 import '@society0/core/sqlite';
 import '@society0/core/artifacts-local';
 import type { SqliteRow } from '@society0/core/sqlite/contracts';
-import type { Json, SocialReader, SqliteTransaction, SocialPost, NewPost, PageRequest, PresentationRequest, DomainVersion, SocialReadPort } from '../contracts.js';
+import type { Json, SocialReader, SqliteTransaction, SocialPost, NewPost, PageRequest, Page, PresentationRequest, DomainVersion, SocialReadPort } from '../contracts.js';
 import { after, page, bytes } from '../paging.js';
 export * from './schema.js';
 export const Config = Schema.object({
@@ -42,12 +42,19 @@ interface VersionSource {
     users: number;
     done?: () => void;
 }
+export interface ActivePoolOptions {
+    fullScanUntil: number;
+    recentKeepCount: number;
+    topEngagementKeepCount: number;
+    minLifetimeTicks: number;
+}
 export class SocialRepository extends Service {
     static Config = Config;
     static inject = ['database', 'actors', 'artifacts'];
     private config: ReturnType<typeof Config>;
     private versionSources = new Set<VersionSource>();
     private contentListeners = new Set<(tx: SqliteTransaction, post: SocialPost) => Promise<void>>();
+    private tickListeners = new Set<() => Promise<void>>();
     constructor(ctx: Context, input = {}) {
         super(ctx, 'socialRepository');
         this.config = Config(input);
@@ -57,6 +64,21 @@ export class SocialRepository extends Service {
         return this.ctx.effect(() => () => {
             this.contentListeners.delete(listener);
         });
+    }
+    get maxContentBytes() {
+        return this.config.maxContentBytes;
+    }
+    /** 注册 tick 边界批处理；run 卸载时按注册身份撤销。 */
+    onAfterTick(listener: () => Promise<void>) {
+        this.tickListeners.add(listener);
+        return this.ctx.effect(() => () => {
+            this.tickListeners.delete(listener);
+        });
+    }
+    /** 等待当前已登记的批处理真实结束；不启动新批次。 */
+    async afterTick() {
+        for (const listener of [...this.tickListeners])
+            await listener();
     }
     async contentChanged(tx: SqliteTransaction, post: SocialPost) {
         for (const listener of [...this.contentListeners])
@@ -534,6 +556,64 @@ export class SocialRepository extends Service {
             sql: 'INSERT INTO social_recommended VALUES(?,?,?) ON CONFLICT(actor) DO UPDATE SET input_id=excluded.input_id,ids=excluded.ids', parameters: [request.actorId, request.inputId, JSON.stringify(request.itemIds)]
         });
         await this.bump(tx, 'social/exposure');
+    }
+    /**
+     * 活跃池：帖子数不超过 fullScanUntil 时全量，否则取最新、最高互动及仍在最小
+     * 生命周期内的帖子并集。返回稳定倒序分页；排序使用原始互动计数。
+     */
+    async activePool(reader: SocialReader, request: PageRequest, time: string, options: ActivePoolOptions) {
+        const now = BigInt(time);
+        if (now < 0n)
+            throw Error('SOCIAL_TIME');
+        for (const value of [options.fullScanUntil, options.recentKeepCount, options.topEngagementKeepCount, options.minLifetimeTicks])
+            if (!Number.isSafeInteger(value) || value < 0)
+                throw Error('SOCIAL_ACTIVE_POOL_OPTIONS');
+        const [countRow] = await reader.query({
+            sql: 'SELECT count(*) AS n FROM social_posts'
+        }, {
+            maxRows: 1, maxBytes: 1024
+        });
+        const posts = Number(countRow!.n), heat = '(p.likes+p.replies+p.reposts)', full = posts <= options.fullScanUntil;
+        let prefix = '', source = 'social_posts p', bindings: (string | number | bigint)[] = [], total: number;
+        if (full) {
+            total = posts;
+        } else {
+            const since = now - BigInt(options.minLifetimeTicks), sinceText = String(since);
+            prefix = `WITH candidates(id) AS MATERIALIZED (
+                SELECT id FROM (SELECT id FROM social_posts ORDER BY created_time DESC,id DESC LIMIT ?)
+                UNION SELECT id FROM (SELECT id FROM social_posts ORDER BY (likes+replies+reposts) DESC,created_time DESC,id DESC LIMIT ?)
+                ${since >= 0n ? 'UNION SELECT id FROM social_posts WHERE length(created_time)>? OR (length(created_time)=? AND created_time>?)' : ''}
+            ) `;
+            source = 'candidates c CROSS JOIN social_posts p ON p.id=c.id';
+            bindings = [options.recentKeepCount, options.topEngagementKeepCount];
+            if (since >= 0n)
+                bindings.push(sinceText.length, sinceText.length, sinceText);
+            const [pool] = await reader.query({
+                sql: prefix + 'SELECT count(*) AS n FROM candidates', parameters: [...bindings]
+            }, {
+                maxRows: 1, maxBytes: 1024
+            });
+            total = Number(pool!.n);
+        }
+        const identity = {
+            kind: 'active-pool', runId: reader.runId, time, options,
+            versions: await this.versions(reader, ['social/content', 'social/engagement'])
+        };
+        const last = after(request.cursor, identity), parameters = [...bindings];
+        let where = '';
+        if (last) {
+            const [createdTime, interacted, id] = JSON.parse(last) as [string, string, string];
+            where = ` WHERE (length(p.created_time)<? OR (length(p.created_time)=? AND (p.created_time<? OR (p.created_time=? AND (${heat}<? OR (${heat}=? AND p.id<?))))))`;
+            parameters.push(createdTime.length, createdTime.length, createdTime, createdTime, BigInt(interacted), BigInt(interacted), id);
+        }
+        const rows = await reader.query({
+            sql: `${prefix}SELECT p.* FROM ${source}${where} ORDER BY length(p.created_time) DESC,p.created_time DESC,${heat} DESC,p.id DESC LIMIT ?`,
+            parameters: [...parameters, request.maxItems + 1]
+        }, {
+            maxRows: request.maxItems + 1, maxBytes: Math.max(this.config.maxContentBytes + 65536, request.maxResponseBytes * 2)
+        });
+        const key = (item: SocialPost) => JSON.stringify([item.createdTime, String(BigInt(item.likes) + BigInt(item.replies) + BigInt(item.reposts)), item.id]);
+        return page(rows.map(post), String(total), reader.revision ?? '0', request, identity, key);
     }
     async trending(reader: SocialReader, request: PageRequest, input: {
         time: string;

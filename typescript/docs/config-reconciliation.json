@@ -1291,6 +1291,22 @@
       "state": "deferred",
       "limitation": "物理任务不响应abort时关闭等待无上限；会无限等待，下一轮必做",
       "design": "docs/design-amendments.md#cr-02批准的配置缺口"
+    },
+    "@society0/social/social-recommendations/fullScanUntil": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-recommendations/index.ts:152"
+    },
+    "@society0/social/social-recommendations/recentKeepCount": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-recommendations/index.ts:152"
+    },
+    "@society0/social/social-recommendations/topEngagementKeepCount": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-recommendations/index.ts:153"
+    },
+    "@society0/social/social-recommendations/minLifetimeTicks": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-recommendations/index.ts:153"
     }
   },
   "plugins": {},

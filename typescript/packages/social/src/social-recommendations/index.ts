@@ -3,13 +3,23 @@ import { Context, Service } from '@society0/host';
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 export const Config = Schema.object({
-    sources: Schema.array(Schema.string()).default(['social/posts/v1']), cacheBytes: Schema.natural().min(1).default(4194304)
+    sources: Schema.array(Schema.string()).default(['social/posts/v1']), cacheBytes: Schema.natural().min(1).default(4194304),
+    fullScanUntil: Schema.natural().min(1).default(5000), recentKeepCount: Schema.natural().min(1).default(1000),
+    topEngagementKeepCount: Schema.natural().min(1).default(500), minLifetimeTicks: Schema.natural().default(50)
 });
 export const metadata: PluginMetadata = {
     "title": "social-recommendations", "summary": "social-recommendations", "scope": "generation", "hostAbi": "society0/host/1", "configVersion": 1, "configPolicy": [{
             "path": "/sources", "mode": "new-run", "affectsResults": true
         }, {
             "path": "/cacheBytes", "mode": "new-run", "affectsResults": true
+        }, {
+            "path": "/fullScanUntil", "mode": "new-run", "affectsResults": true
+        }, {
+            "path": "/recentKeepCount", "mode": "new-run", "affectsResults": true
+        }, {
+            "path": "/topEngagementKeepCount", "mode": "new-run", "affectsResults": true
+        }, {
+            "path": "/minLifetimeTicks", "mode": "new-run", "affectsResults": true
         }]
 };
 export const api: ApiEntry = {
@@ -41,7 +51,8 @@ import '../social-repository/index.js';
 import { validateRanking } from '../social-ranking/index.js';
 import { registerNamed, acquireNamed, sourceVersion } from '../registry.js';
 import { after, page, bytes, sized } from '../paging.js';
-import type { RecommendationSource, RecommendationInput, RecommendationPreparation, DiscoveryScope, Invocation, Lease, DomainVersion, PageRequest, Json, SocialReader } from '../contracts.js';
+import { socialTime } from '../clock.js';
+import type { RecommendationSource, RecommendationInput, RecommendationPreparation, DiscoveryScope, Invocation, Lease, DomainVersion, Page, PageRequest, Json, SocialReader } from '../contracts.js';
 declare module '@society0/host' {
     interface Context {
         recommendations: Recommendations;
@@ -116,21 +127,31 @@ export class Recommendations extends Service {
     constructor(ctx: Context, input = {}) {
         super(ctx, 'recommendations');
         this.config = Config(input);
+        const config = this.config;
         new RecommendationSources(ctx);
+        const features = async (scope: DiscoveryScope, reader: SocialReader, posts: Page<any>) => {
+            const following = new Set(await ctx.socialRepository.adjacent(reader, scope.actorId, 'following'));
+            const member = await ctx.socialRepository.requireMember(reader, scope.actorId);
+            return {
+                ...posts, items: posts.items.map((post: any) => ({
+                    id: post.id, authorId: post.authorId, features: {
+                        content: post.content, tags: post.tags, createdTime: post.createdTime, textVersion: post.textVersion, likes: post.likes, replies: post.replies, reposts: post.reposts, metadata: post.metadata, following: following.has(post.authorId), preferences: member.preferences
+                    }
+                }))
+            };
+        };
         ctx.recommendationSources.register({
-            id: 'social/posts/v1', version: 1, dependencies: ['social/content', 'social/relations', 'social/preferences'], versions: reader => ctx.socialRepository.versions(reader), collect: async (scope, reader, request) => {
-                const posts = await ctx.socialRepository.posts(reader, request, {
-                    excludeAuthor: scope.actorId
-                });
-                const following = new Set(await ctx.socialRepository.adjacent(reader, scope.actorId, 'following'));
-                const member = await ctx.socialRepository.requireMember(reader, scope.actorId);
-                return {
-                    ...posts, items: posts.items.map(post => ({
-                        id: post.id, authorId: post.authorId, features: {
-                            content: post.content, tags: post.tags, createdTime: post.createdTime, textVersion: post.textVersion, likes: post.likes, replies: post.replies, reposts: post.reposts, metadata: post.metadata, following: following.has(post.authorId), preferences: member.preferences
-                        }
-                    }))
-                };
+            id: 'social/posts/v1', version: 1, dependencies: ['social/content', 'social/relations', 'social/preferences'], versions: reader => ctx.socialRepository.versions(reader), collect: async (scope, reader, request) => features(scope, reader, await ctx.socialRepository.posts(reader, request, {
+                excludeAuthor: scope.actorId
+            }))
+        });
+        ctx.recommendationSources.register({
+            id: 'social/active-pool/v1', version: 1, dependencies: ['social/content', 'social/relations', 'social/preferences'], versions: reader => ctx.socialRepository.versions(reader), collect: async (scope, reader, request) => {
+                const time = socialTime(scope.query && typeof scope.query === 'object' && 'time' in scope.query ? (scope.query as any).time : undefined);
+                return features(scope, reader, await ctx.socialRepository.activePool(reader, request, time, {
+                    fullScanUntil: config.fullScanUntil, recentKeepCount: config.recentKeepCount,
+                    topEngagementKeepCount: config.topEngagementKeepCount, minLifetimeTicks: config.minLifetimeTicks
+                }));
             }
         });
         ctx.effect(() => async () => {
