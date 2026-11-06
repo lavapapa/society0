@@ -1307,6 +1307,14 @@
     "@society0/social/social-recommendations/minLifetimeTicks": {
       "state": "added",
       "consumer": "typescript/packages/social/src/social-recommendations/index.ts:153"
+    },
+    "@society0/social/social/pairingGroups": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social/index.ts:183"
+    },
+    "@society0/social/social/pairingSessionMinutes": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social/index.ts:210"
     }
   },
   "plugins": {},

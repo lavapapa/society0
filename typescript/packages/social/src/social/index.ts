@@ -2,7 +2,8 @@ import { Context, Service } from '@society0/host';
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 export const Config = Schema.object({
-    propagation: Schema.string().default('neighbor-broadcast/v1'), mediaEnabled: Schema.boolean().default(true), contentLengthLimit: Schema.union([Schema.const(-1), Schema.natural()]).default(250)
+    propagation: Schema.string().default('neighbor-broadcast/v1'), mediaEnabled: Schema.boolean().default(true), contentLengthLimit: Schema.union([Schema.const(-1), Schema.natural()]).default(250),
+    pairingGroups: Schema.array(Schema.array(Schema.string())).default([]), pairingSessionMinutes: Schema.natural().min(1).max(120).default(10)
 });
 export const metadata: PluginMetadata = {
     "title": "social", "summary": "social", "scope": "generation", "hostAbi": "society0/host/1", "configVersion": 1, "configPolicy": [{
@@ -11,6 +12,10 @@ export const metadata: PluginMetadata = {
             "path": "/mediaEnabled", "mode": "new-run", "affectsResults": true
         }, {
             "path": "/contentLengthLimit", "mode": "new-run", "affectsResults": true
+        }, {
+            "path": "/pairingGroups", "mode": "new-run", "affectsResults": true
+        }, {
+            "path": "/pairingSessionMinutes", "mode": "new-run", "affectsResults": true
         }]
 };
 export const api: ApiEntry = {
@@ -49,7 +54,7 @@ import type { ActionDefinition, ActionExecutionContext } from '@society0/core/co
 import type { Random } from '@society0/core/contracts/random';
 import type { StoredValue } from '@society0/core/contracts/data';
 import type { PropagationStrategy, Json, PresentationRequest, SqliteTransaction, SqliteReadView, DiscoveryScope, PageRequest, Page, NewPost } from '../contracts.js';
-import { transactionRequest, page, sized } from '../paging.js';
+import { transactionRequest, page, sized, after } from '../paging.js';
 import { socialTime } from '../clock.js';
 function socialTextFault(field: string) { return Object.assign(new Error(`SOCIAL_TEXT_NOT_WELL_FORMED: ${field} contains a lone surrogate`), { code: 'SOCIAL_TEXT_NOT_WELL_FORMED', field }); }
 export const propagationSlot = slotKey<PropagationStrategy>('society/social-propagation');
@@ -75,6 +80,30 @@ export interface InterventionReport {
     flaggedPostIds: readonly string[];
     timestamp: string;
 }
+export interface PairingView {
+    actorId: string;
+    group: number;
+    currentPartner: string | null;
+    currentRound: number;
+    totalRounds: number;
+    canConverse: boolean;
+    partnerHistory: readonly string[];
+    sessionDurationMinutes: number;
+}
+export interface PairingRoundResult {
+    round: number;
+    pairs: readonly (readonly [string, string])[];
+    successfulPairs: number;
+}
+export interface PairingMessage {
+    id: string;
+    ordinal: string;
+    sender: string;
+    receiver: string;
+    round: number;
+    createdTime: string;
+    content: string;
+}
 export class Social extends Service {
     static Config = Config;
     static inject = ['actions', 'information', 'actors', 'socialRepository', 'slots'];
@@ -82,6 +111,7 @@ export class Social extends Service {
     constructor(ctx: Context, input = {}) {
         super(ctx, 'social');
         this.config = Config(input);
+        this.assertPairingConfig();
         ctx.provide('socialPresentation', {
             present: (tx: SqliteTransaction, request: PresentationRequest) => this.present(tx, request)
         });
@@ -93,6 +123,7 @@ export class Social extends Service {
             }
         });
         this.installActions();
+        this.installPairingActions();
         this.installInformation();
     }
     present(tx: SqliteTransaction, request: PresentationRequest) {
@@ -147,6 +178,260 @@ export class Social extends Service {
             tagApplied: request.tagToApply, totalPosts: String(total), postsFlagged: flagged.length,
             flaggedPostIds: flagged, timestamp: time
         };
+    }
+    private assertPairingConfig() {
+        const groups = this.config.pairingGroups as string[][];
+        if (!groups.length)
+            return;
+        const size = groups[0]!.length, seen = new Set<string>();
+        if (size < 2 || size > 20 || size % 2)
+            throw Error('SOCIAL_PAIRING_CONFIG');
+        for (const group of groups) {
+            if (group.length !== size)
+                throw Error('SOCIAL_PAIRING_CONFIG');
+            for (const actor of group) {
+                if (!actor || seen.has(actor))
+                    throw Error('SOCIAL_PAIRING_CONFIG');
+                seen.add(actor);
+            }
+        }
+    }
+    private async ensurePairing(tx: SqliteTransaction) {
+        const [head] = await tx.query({
+            sql: 'SELECT current_round,total_rounds FROM social_pair_head WHERE id=1'
+        }, { maxRows: 1, maxBytes: 1024 });
+        if (head)
+            return;
+        const groups = this.config.pairingGroups as string[][];
+        if (!groups.length)
+            throw Error('SOCIAL_PAIRING_CONFIG');
+        const size = groups[0]!.length, total = size - 1;
+        await tx.execute({
+            sql: 'INSERT INTO social_pair_head VALUES(1,?,?,?,0)', parameters: [total ? 1 : 0, total, this.config.pairingSessionMinutes]
+        });
+        let ordinal = 0;
+        for (const [groupNo, group] of groups.entries()) {
+            for (const [index, actor] of group.entries())
+                await tx.execute({
+                    sql: 'INSERT INTO social_pair_members VALUES(?,?,?,?,NULL,0)', parameters: [actor, groupNo, index, total ? 1 : 0]
+                });
+            for (const [round, pairs] of schedule(group).entries())
+                for (const [first, second] of pairs)
+                    await tx.execute({
+                        sql: 'INSERT INTO social_pair_schedule VALUES(?,?,?,?,?)', parameters: [ordinal++, groupNo, round + 1, first, second]
+                    });
+        }
+    }
+    /** 开始一轮配对；同一轮重入保留既有配对，拒绝回退。 */
+    async startRound(tx: SqliteTransaction, round: number): Promise<PairingRoundResult> {
+        await this.ensurePairing(tx);
+        const [head] = await tx.query({
+            sql: 'SELECT current_round,total_rounds FROM social_pair_head WHERE id=1'
+        }, { maxRows: 1, maxBytes: 1024 });
+        const current = Number(head!.current_round), total = Number(head!.total_rounds);
+        if (!Number.isSafeInteger(round) || round < 1 || round > total || round < current)
+            throw Error('SOCIAL_PAIRING_ROUND');
+        if (round === current) {
+            const [active] = await tx.query({
+                sql: 'SELECT 1 AS present FROM social_pair_members WHERE active=1 LIMIT 1'
+            }, { maxRows: 1, maxBytes: 1024 });
+            if (active)
+                return { round, pairs: [], successfulPairs: 0 };
+        }
+        await tx.execute({ sql: 'UPDATE social_pair_head SET current_round=? WHERE id=1', parameters: [round] });
+        await tx.execute({ sql: 'UPDATE social_pair_members SET partner=NULL,round_no=?,active=0', parameters: [round] });
+        const scheduleRows = await tx.query({
+            sql: 'SELECT first,second FROM social_pair_schedule WHERE round_no=? ORDER BY ordinal', parameters: [round]
+        }, { maxRows: total * 10 + 1, maxBytes: 1048576 });
+        const pairs: [string, string][] = [];
+        for (const row of scheduleRows) {
+            const first = String(row.first), second = String(row.second);
+            const [a, b] = first < second ? [first, second] : [second, first];
+            const [started] = await tx.query({
+                sql: 'SELECT 1 AS present FROM social_pair_started WHERE first=? AND second=?', parameters: [a, b]
+            }, { maxRows: 1, maxBytes: 1024 });
+            if (started)
+                continue;
+            await tx.execute({ sql: 'INSERT INTO social_pair_started VALUES(?,?,?)', parameters: [a, b, round] });
+            for (const [actor, partner] of [[first, second], [second, first]])
+                await tx.execute({
+                    sql: 'UPDATE social_pair_members SET partner=?,active=1 WHERE actor=?', parameters: [partner, actor]
+                });
+            const [history] = await tx.query({
+                sql: 'SELECT coalesce(max(ordinal),0)+1 AS n FROM social_pair_history'
+            }, { maxRows: 1, maxBytes: 1024 });
+            await tx.execute({
+                sql: 'INSERT INTO social_pair_history VALUES(?,?,?,?)', parameters: [Number(history!.n), first, second, round]
+            });
+            const [next] = await tx.query({
+                sql: 'SELECT coalesce(max(ordinal),0)+1 AS n FROM social_pair_history'
+            }, { maxRows: 1, maxBytes: 1024 });
+            await tx.execute({
+                sql: 'INSERT INTO social_pair_history VALUES(?,?,?,?)', parameters: [Number(next!.n), second, first, round]
+            });
+            pairs.push([first, second]);
+        }
+        return { round, pairs, successfulPairs: pairs.length };
+    }
+    /** 推进到下一轮；本轮尚未开始的配对由后续 startRound 决定。 */
+    async advanceRound(tx: SqliteTransaction) {
+        await this.ensurePairing(tx);
+        const [head] = await tx.query({
+            sql: 'SELECT current_round,total_rounds FROM social_pair_head WHERE id=1'
+        }, { maxRows: 1, maxBytes: 1024 });
+        const current = Number(head!.current_round), total = Number(head!.total_rounds);
+        if (current >= total)
+            return { status: 'completed' as const, newRound: current };
+        const next = current + 1;
+        await tx.execute({ sql: 'UPDATE social_pair_head SET current_round=? WHERE id=1', parameters: [next] });
+        await tx.execute({ sql: 'UPDATE social_pair_members SET partner=NULL,round_no=?,active=0', parameters: [next] });
+        const rows = await tx.query({
+            sql: 'SELECT first,second FROM social_pair_schedule WHERE round_no=? ORDER BY ordinal', parameters: [next]
+        }, { maxRows: total * 10 + 1, maxBytes: 1048576 });
+        return {
+            status: 'advanced' as const, newRound: next,
+            pairingsAvailable: rows.map(row => [String(row.first), String(row.second)] as [string, string])
+        };
+    }
+    /** 重置当前轮收件箱可见起点；历史消息仍保留。 */
+    async resetRoundMessages(tx: SqliteTransaction, round: number) {
+        await this.ensurePairing(tx);
+        const [head] = await tx.query({
+            sql: 'SELECT current_round FROM social_pair_head WHERE id=1'
+        }, { maxRows: 1, maxBytes: 1024 });
+        if (!Number.isSafeInteger(round) || round !== Number(head!.current_round))
+            throw Error('SOCIAL_PAIRING_ROUND');
+        const [tail] = await tx.query({
+            sql: 'SELECT coalesce(max(ordinal),0) AS n FROM social_messages'
+        }, { maxRows: 1, maxBytes: 1024 });
+        await tx.execute({ sql: 'UPDATE social_pair_head SET inbox_after=? WHERE id=1', parameters: [Number(tail!.n)] });
+        return { status: 'initialized' as const, round };
+    }
+    async pairing(reader: SqliteReadView | SqliteTransaction, actorId: string): Promise<PairingView | undefined> {
+        const [head] = await reader.query({
+            sql: 'SELECT current_round,total_rounds,session_minutes FROM social_pair_head WHERE id=1'
+        }, { maxRows: 1, maxBytes: 1024 });
+        if (!head)
+            return undefined;
+        const [member] = await reader.query({
+            sql: 'SELECT group_no,partner,round_no,active FROM social_pair_members WHERE actor=?', parameters: [actorId]
+        }, { maxRows: 1, maxBytes: 1024 });
+        if (!member)
+            return undefined;
+        const [historyCount] = await reader.query({
+            sql: 'SELECT count(*) AS n FROM social_pair_history WHERE actor=?', parameters: [actorId]
+        }, { maxRows: 1, maxBytes: 1024 });
+        const history = await reader.query({
+            sql: 'SELECT partner FROM social_pair_history WHERE actor=? ORDER BY ordinal', parameters: [actorId]
+        }, { maxRows: Math.max(1, Number(historyCount!.n)), maxBytes: Number(historyCount!.n) * 128 + 4096 });
+        return {
+            actorId, group: Number(member.group_no), currentPartner: member.partner === null ? null : String(member.partner),
+            currentRound: Number(member.round_no), totalRounds: Number(head.total_rounds), canConverse: !!member.active,
+            partnerHistory: history.map(row => String(row.partner)), sessionDurationMinutes: Number(head.session_minutes)
+        };
+    }
+    async groupView(reader: SqliteReadView | SqliteTransaction, actorId: string) {
+        const view = await this.pairing(reader, actorId);
+        if (!view)
+            return undefined;
+        const members = await reader.query({
+            sql: 'SELECT actor FROM social_pair_members WHERE group_no=? ORDER BY ordinal', parameters: [view.group]
+        }, { maxRows: 1000, maxBytes: 65536 });
+        const [planCount] = await reader.query({
+            sql: 'SELECT count(*) AS n FROM social_pair_schedule WHERE group_no=? AND round_no>=? AND (first=? OR second=?)',
+            parameters: [view.group, view.currentRound, actorId, actorId]
+        }, { maxRows: 1, maxBytes: 1024 });
+        const plan = await reader.query({
+            sql: 'SELECT round_no,first,second FROM social_pair_schedule WHERE group_no=? AND round_no>=? AND (first=? OR second=?) ORDER BY round_no,ordinal',
+            parameters: [view.group, view.currentRound, actorId, actorId]
+        }, { maxRows: Math.max(1, Number(planCount!.n)), maxBytes: Number(planCount!.n) * 128 + 4096 });
+        return {
+            members: members.map(row => String(row.actor)),
+            upcoming: plan.map(row => ({
+                round: Number(row.round_no), partner: String(row.first) === actorId ? String(row.second) : String(row.first)
+            })),
+            currentRound: view.currentRound
+        };
+    }
+    async conversation(reader: SqliteReadView | SqliteTransaction, actorId: string, request: PageRequest, history = false) {
+        const [head] = await reader.query({
+            sql: 'SELECT current_round,inbox_after FROM social_pair_head WHERE id=1'
+        }, { maxRows: 1, maxBytes: 1024 });
+        const identity = { kind: history ? 'conversation-history' : 'conversation', runId: (reader as SqliteReadView).runId, actorId, round: head ? Number(head.current_round) : 0 };
+        const last = after(request.cursor, identity) || '0';
+        if (!head) {
+            return page([], '0', (reader as SqliteReadView).revision ?? '0', request, identity, (item: PairingMessage) => item.ordinal);
+        }
+        const current = Number(head.current_round), inbox = Number(head.inbox_after);
+        const where = history ? 'receiver=?' : 'receiver=? AND round_no=? AND ordinal>?';
+        const parameters: (string | number | bigint)[] = history ? [actorId] : [actorId, current, inbox];
+        const [count] = await reader.query({
+            sql: `SELECT count(*) AS n FROM social_messages WHERE ${where}`, parameters
+        }, { maxRows: 1, maxBytes: 1024 });
+        const rows = await reader.query({
+            sql: `SELECT * FROM social_messages WHERE ${where} AND ordinal>? ORDER BY ordinal LIMIT ?`,
+            parameters: [...parameters, BigInt(last), request.maxItems + 1]
+        }, { maxRows: request.maxItems + 1, maxBytes: Math.max(65536, request.maxResponseBytes * 2) });
+        const items: PairingMessage[] = rows.map(row => ({
+            id: String(row.id), ordinal: String(row.ordinal), sender: String(row.sender), receiver: String(row.receiver),
+            round: Number(row.round_no), createdTime: String(row.created_time), content: String(row.content)
+        }));
+        return page(items, String(count!.n), (reader as SqliteReadView).revision ?? '0', request, identity, item => item.ordinal);
+    }
+    private async message(tx: SqliteTransaction, context: ActionExecutionContext, input: any, broadcast: boolean) {
+        if (typeof input.content !== 'string' || !input.content.trim())
+            throw Error('SOCIAL_MESSAGE_EMPTY');
+        if (Buffer.byteLength(input.content) > this.ctx.socialRepository.maxContentBytes)
+            throw Error('SOCIAL_MESSAGE_BUDGET');
+        const [member] = await tx.query({
+            sql: 'SELECT group_no,partner,round_no,active FROM social_pair_members WHERE actor=?', parameters: [context.actorId]
+        }, { maxRows: 1, maxBytes: 1024 });
+        if (!member || !member.active)
+            throw Error('SOCIAL_PAIRING_INACTIVE');
+        const round = Number(member.round_no), receivers = broadcast ? (await tx.query({
+            sql: 'SELECT actor FROM social_pair_members WHERE group_no=? AND actor<>? ORDER BY ordinal', parameters: [Number(member.group_no), context.actorId]
+        }, { maxRows: 1000, maxBytes: 65536 })).map(row => String(row.actor)) : [String(member.partner)];
+        const delivered: { receiver: string; messageId: string }[] = [];
+        for (const receiver of receivers) {
+            const id = context.operationId + '/' + receiver;
+            await tx.execute({
+                sql: 'INSERT INTO social_messages(id,sender,receiver,round_no,created_time,content) VALUES(?,?,?,?,?,?)',
+                parameters: [id, context.actorId, receiver, round, socialTime(context.logicalTime), input.content]
+            });
+            delivered.push({ receiver, messageId: id });
+        }
+        return broadcast ? { round, delivered } : { round, sentTo: String(member.partner), messageId: delivered[0]!.messageId, delivered };
+    }
+    private async pairingActive(reader: SqliteReadView | SqliteTransaction, actorId: string) {
+        return !!(await this.pairing(reader, actorId))?.canConverse;
+    }
+    private installPairingActions() {
+        if (!this.config.pairingGroups.length)
+            return;
+        const properties = { content: { type: 'string' } } as Record<string, Json>;
+        for (const [name, broadcast] of [['sendPartnerMessage', false], ['broadcastToGroup', true]] as const) {
+            this.ctx.actions.register({
+                name: 'social.' + name,
+                inputSchema: { type: 'object', properties, required: ['content'], additionalProperties: false },
+                outputSchema: { type: 'object' },
+                effect: 'world',
+                available: async (scope, reader) => this.pairingActive(reader, scope.actorId),
+                execute: async (input, context) => {
+                    this.assertText(properties, input);
+                    const operationId = context.operationId + '/social/' + name;
+                    const result = await context.transaction(transactionRequest(operationId), tx => this.message(tx, context, input, broadcast));
+                    return { operationId, status: 'completed', value: result.value as Json, original: input, artifacts: [] };
+                }
+            });
+        }
+    }
+    private async pairingInformation(input: Json, scope: DiscoveryScope, view: SqliteReadView, request: PageRequest) {
+        const value = await this.pairing(view, scope.actorId);
+        return page(value ? [value as unknown as Json] : [], value ? '1' : '0', view.revision ?? '0', request, { kind: 'pairing', actorId: scope.actorId }, () => '1');
+    }
+    private async pairingPlanInformation(input: Json, scope: DiscoveryScope, view: SqliteReadView, request: PageRequest) {
+        const value = await this.groupView(view, scope.actorId);
+        return page(value ? [value as unknown as Json] : [], value ? '1' : '0', view.revision ?? '0', request, { kind: 'pairing-plan', actorId: scope.actorId }, () => '1');
     }
     private assertText(properties: Record<string, any>, input: any) {
         for (const [field, property] of Object.entries(properties)) {
@@ -308,7 +593,7 @@ export class Social extends Service {
         const available = async (scope: {
             actorId: string;
         }, reader: SqliteReadView | SqliteTransaction) => !!await this.ctx.socialRepository.member(reader, scope.actorId);
-        for (const id of ['feed', 'profile', 'network', 'notifications', 'posts', 'trending'])
+        for (const id of ['feed', 'profile', 'network', 'notifications', 'posts', 'trending', ...(this.config.pairingGroups.length ? ['pairing', 'pairingPlan', 'conversation', 'conversationHistory', 'conversationMembers'] : [])])
             this.ctx.information.register({
                 id: 'social/' + id, schema: id === 'posts' ? {
                     type: 'object', properties: { id: { type: 'string' }, authorId: { type: 'string' } }
@@ -332,6 +617,11 @@ export class Social extends Service {
             case 'notifications': return this.notificationInformation(input, scope, view, request);
             case 'posts': return this.postInformation(input, scope, view, request);
             case 'trending': return this.trendingInformation(input, view, request);
+            case 'pairing': return this.pairingInformation(input, scope, view, request);
+            case 'pairingPlan': return this.pairingPlanInformation(input, scope, view, request);
+            case 'conversation': return this.conversation(view, scope.actorId, request);
+            case 'conversationHistory': return this.conversation(view, scope.actorId, request, true);
+            case 'conversationMembers': return this.pairingPlanInformation(input, scope, view, request);
             default: throw Error('SOCIAL_INFORMATION_SOURCE');
         }
     }
@@ -388,5 +678,17 @@ export class Social extends Service {
             await selection.release();
         }
     }
+}
+/** 圆桌轮转：每轮每人恰好配对一次，n 人共 n-1 轮且任意两人恰好配对一次。 */
+export function schedule(group: readonly string[]): [string, string][][] {
+    const rotation = [...group], rounds: [string, string][][] = [];
+    for (let round = 0; round < group.length - 1; round++) {
+        const pairs: [string, string][] = [];
+        for (let i = 0; i < group.length / 2; i++)
+            pairs.push([rotation[i]!, rotation[group.length - 1 - i]!]);
+        rounds.push(pairs);
+        rotation.splice(0, rotation.length, rotation[0]!, rotation[rotation.length - 1]!, ...rotation.slice(1, -1));
+    }
+    return rounds;
 }
 export default Social;
