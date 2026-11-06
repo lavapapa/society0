@@ -33,10 +33,14 @@ export const api: ApiEntry = {
 };
 import { Service } from '@society0/cordis';
 import type { Context } from '@society0/cordis';
+import { join } from 'node:path';
 import type { SqliteTransaction } from '../sqlite/contracts.js';
-import type { PublicRegistry, PublicWriter } from '../contracts/public.js';
+import type { PublicRegistry, PublicWriter, PublicDiagnostics } from '../contracts/public.js';
 import { Registry } from './registry.js';
 import { publicWriter } from './writer.js';
+import { AudienceResolver } from './audience.js';
+import { RenderCache } from './cache.js';
+import { PublicMount } from './mount.js';
 import '../sqlite/index.js';
 import '../artifacts-local/index.js';
 
@@ -56,17 +60,47 @@ export class PublicRepository extends Service {
     static Config = Config;
     static inject = ['slots', 'database', 'artifacts'];
     readonly registry: PublicRegistry;
+    readonly cache: RenderCache;
+    readonly audiences: AudienceResolver;
+    readonly mount: PublicMount;
     constructor(ctx: Context, readonly options: PublicOptions) {
         super(ctx, 'public');
         this.registry = new Registry(ctx);
+        const registry = this.registry as Registry;
+        this.cache = new RenderCache(options.cacheDir || join(ctx.database.directory, 'public-cache'), options.renderCacheBytes);
+        this.audiences = new AudienceResolver(() => [...registry.audiences.values()]);
+        this.mount = new PublicMount({
+            prefix: options.mount,
+            ctx,
+            cache: this.cache,
+            audiences: this.audiences,
+            tables: registry.tables,
+            docs: registry.docs,
+            momentViews: () => ctx.get('momentViews', false)
+        });
+    }
+    async [Service.init]() {
+        const exploration = this.ctx.get('exploration', false);
+        if (!exploration)
+            return;
+        this.ctx.effect(() => {
+            const dispose = exploration.register(this.mount);
+            return () => dispose();
+        });
     }
     writer(tx: SqliteTransaction): PublicWriter {
         const registry = this.registry as Registry;
         return publicWriter(tx, registry.tables, registry.docs);
+    }
+    diagnostics(): PublicDiagnostics {
+        return { cache: this.cache.diagnostics(), audiences: this.audiences.size };
     }
 }
 export default PublicRepository;
 export { publicMigration } from './schema.js';
 export * from './canonical.js';
 export { readRows, readFile, readFiles, readNode, readChildren, renderRows } from './store.js';
-export type { Public, PublicTableDecl, PublicDocDecl, PublicWriter, PublicRegistry, PublicFile, PublicNode, PublicRow } from '../contracts/public.js';
+export { AudienceResolver } from './audience.js';
+export { RenderCache } from './cache.js';
+export { PublicMount, etagOf } from './mount.js';
+export type { Public, PublicTableDecl, PublicDocDecl, PublicWriter, PublicRegistry, PublicAudienceProvider, PublicFile, PublicNode, PublicRow, PublicDiagnostics, PublicCacheDiagnostics } from '../contracts/public.js';
