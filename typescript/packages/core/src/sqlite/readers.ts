@@ -8,6 +8,6 @@ export class ReaderPool {
  }
  async ready(){await Promise.all(this.workers.map(worker=>worker.call('ready')))}
  pick(){return this.workers[this.next++%this.workers.length]!}
- diagnostics(){return {workers:this.workers.length,requests:this.workers.map(worker=>worker.snapshot().requests)}}
+ diagnostics(){const workers=this.workers.map(worker=>worker.snapshot());return {workers:workers.length,active:workers.reduce((count,worker)=>count+worker.active,0),pending:workers.reduce((count,worker)=>count+worker.pending,0),queuedBytes:workers.reduce((count,worker)=>count+worker.queuedBytes,0),requests:workers.reduce((count,worker)=>count+worker.requests,0),exited:workers.some(worker=>worker.exited)}}
  close(){return this.closing??=(async()=>{await Promise.allSettled(this.workers.map(worker=>worker.close()))})()}
 }
