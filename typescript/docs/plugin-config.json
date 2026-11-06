@@ -643,6 +643,11 @@
           ]
         },
         {
+          "exportPath": "./metrics",
+          "title": "metrics",
+          "fields": []
+        },
+        {
           "exportPath": "./generation-views",
           "title": "generation-views",
           "fields": []

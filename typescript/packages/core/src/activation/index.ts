@@ -3,6 +3,7 @@ import Schema from '@society0/schemastery';
 import type { TaskScope } from '@society0/host/tasks';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 import type { ActivationIntent, ActivationAdmission, ActivationResult, ExecutionContext, Json } from '../contracts/runtime.js';
+import { metricsOf } from '../contracts/metrics.js';
 import { activationKey } from '../activation-mailbox/index.js';
 import '../drivers/index.js';
 import '../actor-eligibility/index.js';
@@ -106,6 +107,11 @@ export class ActivationService extends Service {
         b.admission = next.catch(() => {
         });
         await next;
+        if (result.kind !== 'rejected') {
+            const metrics = metricsOf(this.ctx);
+            metrics?.count('activations.total');
+            metrics?.count('activations.bySource.' + intent.source);
+        }
         this.pump(b);
         return result;
     }

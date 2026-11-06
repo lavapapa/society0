@@ -3,6 +3,7 @@ import Schema from '@society0/schemastery';
 import { randomUUID } from 'node:crypto';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 import type { AdvanceResult, GenerationView, ExecutionContext, CompletePoint, Proposal, Json, BoundaryLease } from '../contracts/runtime.js';
+import { metricsOf } from '../contracts/metrics.js';
 import type { RuntimeFrontier } from '../sqlite/contracts.js';
 import '../generation-views/index.js';
 import '../sqlite-history/index.js';
@@ -314,8 +315,7 @@ export class RunController extends Service {
             required.add(operation);
         }
     }
-    private async completeProposal(session: RunSession, proposal: Proposal, reservation: ExecutionReservation, logicalTime: Json, result: AdvanceResult) {
-        const acknowledgements = [...this.pending, proposal].filter(item => item.reservation).map(item => ({
+    private async completeProposal(session: RunSession, proposal: Proposal, reservation: ExecutionReservation, logicalTime: Json, result: AdvanceResult) {        const acknowledgements = [...this.pending, proposal].filter(item => item.reservation).map(item => ({
             source: item.reservation!.source, reservationId: item.reservation!.id, proposalId: item.id
         }));
         session.frontier = {
@@ -328,7 +328,18 @@ export class RunController extends Service {
         session.required.add(operationId);
         this.complete = true;
     }
+    /** 指标是观测：失败不改变推进、恢复与终止结果。 */
+    private async flushMetrics(session: RunSession): Promise<void> {
+        const metrics = metricsOf(this.ctx);
+        if (!metrics) return;
+        try {
+            await metrics.tick({ sequence: session.frontier.completedCount, logicalTime: session.frontier.logicalTime as Json });
+        }
+        catch {
+        }
+    }
     private async advanceBoundary(session: RunSession, view: GenerationView, result: AdvanceResult): Promise<RunResult | undefined> {
+        await this.flushMetrics(session);
         if (session.proposal!.reservation)
             this.pending.push(session.proposal!);
         session.proposal = undefined;

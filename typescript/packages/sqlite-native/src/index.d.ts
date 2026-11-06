@@ -4,7 +4,7 @@ export interface QueryBounds {maxRows?:number;maxBytes?:number}
 export interface StreamBounds {chunkBytes?:number;maxBytes?:number}
 export interface StreamResult {bytes:number;calls:number;maxNativeChunk:number;maxIoChunk:number}
 export interface ConnectionOptions {path:string;readOnly?:boolean;maxInlineBytes?:number;timeoutMs?:number;maxCapturedBytes?:number;maxInputBytes?:number;control?:Int32Array<SharedArrayBuffer>}
-export interface ConnectionState {closed:boolean;dirty:boolean;session:'none'|'active'|'retired';autocommit?:boolean;transaction?:boolean;failed?:boolean;pendingSegment?:boolean;sessionBytes?:number;retiredSessionBytes?:number;capturePeak?:number;stopReason?:string;authorizationDenied?:string;tableValidationCount?:number;schemaValidationSqlCount?:number;sessionAttachCount?:number;sessionMetadataPrepareCount?:number;lastError?:{code:string;sqliteCode?:number;message:string;operation:string}}
+export interface ConnectionState {closed:boolean;dirty:boolean;session:'none'|'active'|'retired';autocommit?:boolean;transaction?:boolean;failed?:boolean;pendingSegment?:boolean;sessionBytes?:number;retiredSessionBytes?:number;capturePeak?:number;stopReason?:string;authorizationDenied?:string;tableValidationCount?:number;schemaValidationSqlCount?:number;sessionAttachCount?:number;sessionMetadataPrepareCount?:number;sqlRowsRead?:number;rowsRead?:number;lastError?:{code:string;sqliteCode?:number;message:string;operation:string}}
 export declare function createInterruptControl():Int32Array<SharedArrayBuffer>;
 /** 全进程同SQLite库实例共享；返回原限额，0表示解除。 */
 export declare function configureHeapLimit(bytes:number):number;

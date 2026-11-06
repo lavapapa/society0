@@ -233,6 +233,11 @@
                   "config": {}
                 }
               ]
+            },
+            {
+              "id": "metrics",
+              "name": "@society0/core/metrics",
+              "config": {}
             }
           ]
         }

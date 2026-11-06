@@ -1236,6 +1236,11 @@
       "design": "docs/design-amendments.md#cr-02批准的配置缺口"
     }
   },
-  "plugins": {},
+  "plugins": {
+    "@society0/core/metrics": {
+      "state": "added-plugin",
+      "design": "docs/design-amendments.md#c-性能观测"
+    }
+  },
   "source": "inputs/society0_next_refactor_v3/catalog/plan.json"
 }
