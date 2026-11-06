@@ -74,10 +74,10 @@ export async function driverFixture({text = 'x'.repeat(300), crashAfter, message
         if (messages !== undefined && crashAfter === undefined) {
             if (!observe) return {value: selected.value, release: () => selected.release()};
             const stream = selected.value.streamFn;
-            return {value: {...selected.value, streamFn: (...input) => {observe(structuredClone(input[1].messages)); return stream(...input); }}, release: () => selected.release()};
+            return {value: {...selected.value, streamFn: (...input) => {observe(structuredClone(input[1].messages), input[2] ? {...input[2]} : {}); return stream(...input); }}, release: () => selected.release()};
         }
         const fail = crashAfter !== undefined && calls === 1;
-        return {value: {...selected.value, streamFn: (...input) => {observe?.(structuredClone(input[1].messages)); return deltaStream(text, {failAfter: fail ? crashAfter : undefined}); }}, release: () => selected.release()};
+        return {value: {...selected.value, streamFn: (...input) => {observe?.(structuredClone(input[1].messages), input[2] ? {...input[2]} : {}); return deltaStream(text, {failAfter: fail ? crashAfter : undefined}); }}, release: () => selected.release()};
     };
     ctx.modelProviders.register('replay/v1', provider);
     await run.host.ctx.plugin(DriverLlm, {name: 'llm/c1', provider: 'replay/v1', model: 'driver', maxRequests: 4, maxToolCalls: 2, ...driver});

@@ -152,6 +152,14 @@
       "state": "added",
       "consumer": "typescript/packages/core/src/driver-llm/activation.ts:134"
     },
+    "@society0/core/driver-llm/toolChoice": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:242"
+    },
+    "@society0/core/driver-llm/textualToolCallRetries": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:242"
+    },
     "@society0/core/driver-llm/threadLifetime": {
       "state": "added",
       "consumer": "typescript/packages/core/src/driver-llm/activation.ts:176"

@@ -73,6 +73,8 @@ export type InferenceStopReason =
   | 'transport_unknown' | 'persistence_unknown' | 'persistence_error';
 export interface InferenceOutcome {
   readonly status: 'completed' | 'incomplete';
+  /** 正文被识别为工具调用的次数；只作诊断，不执行正文。 */
+  readonly textualToolCall?: number;
   readonly reason: InferenceStopReason;
   readonly requests: number;
   readonly actionReceipts: readonly InferenceActionReceipt[];
@@ -107,6 +109,10 @@ export interface InferenceRequest {
   readonly selection: ResolvedModelSelection;
   readonly budget: InferenceBudget;
   readonly requiredActions: readonly RequiredAction[];
+  /** required-first 只用于线程第一次请求；默认 auto。 */
+  readonly toolChoice?: 'auto' | 'required-first';
+  /** 正文工具调用纠正重试次数；默认 1。 */
+  readonly textualToolCallRetries?: number;
 }
 /** 每次activation创建独立AgentContext；selection/extensions的lease由调用者持有至run结算。 */
 export interface AgentRuntime {

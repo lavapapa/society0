@@ -1506,6 +1506,22 @@
               "secret": false
             },
             {
+              "name": "toolChoice",
+              "type": "union",
+              "default": "auto",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "textualToolCallRetries",
+              "type": "number",
+              "default": 1,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
               "name": "persistDeltas",
               "type": "union",
               "default": "none",
