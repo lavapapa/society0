@@ -4,7 +4,7 @@ import type { TaskScope } from '@society0/host/tasks';
 import { posix, matchesGlob } from 'node:path';
 import type { Invocation, Lease, Json } from '../contracts/common.js';
 import type { DiscoveryScope, PageRequest } from '../contracts/data.js';
-import type { ExplorationNode, ExplorationMount, WritableExplorationMount, ExplorationSession, ExplorationMatch, ExplorationMutation, ExplorationContent } from '../contracts/exploration.js';
+import { explorationBackend, type ExplorationNode, type ExplorationMount, type WritableExplorationMount, type ExplorationSession, type ExplorationMatch, type ExplorationMutation, type ExplorationContent } from '../contracts/exploration.js';
 import type { ActionExecutionContext } from '../contracts/domain.js';
 import type { SqliteReadView, SqliteSnapshot } from '../sqlite/contracts.js';
 import { after, identity, page, fail, equal } from '../information/page.js';
@@ -154,7 +154,7 @@ export class ExplorationView implements ExplorationSession {
             if (!this.matches(node, request.glob))
                 continue;
             total++;
-            // 游标记录上一次返回的最后一个路径；遍历顺序是深度优先，按“走到该路径之后”继续，
+            // 游标记录上一次返回的最后一个路径；walk 是深度优先，按“走到该路径之后”继续，
             // 不能用字典序比较（'/x/a.txt' 与 '/x/a/z' 的字典序和遍历序不同）。
             if (!seen) {
                 if (node.path === String(last))
@@ -249,8 +249,11 @@ export class ExplorationView implements ExplorationSession {
     mutate(request: ExplorationMutation, context: ActionExecutionContext) {
         return this.track(async () => {
             const path = request.kind === 'rename' ? request.from : request.path, mount = this.writable(path);
-            if (request.kind === 'rename' && this.mount(request.to) !== mount)
-                return fail('EXPLORATION_CROSS_MOUNT');
+            if (request.kind === 'rename' && this.mount(request.to) !== mount) {
+                const backend = (mount as any)[explorationBackend], target = (this.mount(request.to) as any)[explorationBackend];
+                if (!backend || backend !== target)
+                    return fail('EXPLORATION_CROSS_MOUNT');
+            }
             await mount.mutate(request, this.scope, context);
             await this.advanceLease();
         });
@@ -259,6 +262,9 @@ export class ExplorationView implements ExplorationSession {
         if (posix.basename(name) !== name || !name)
             return fail('EXPLORATION_RESULT_NAME');
         const path = '/results/' + name;
-        return this.track(() => this.writable(path).writeFile(path, jsonLines(rows, this.options.maxInlineFileBytes), null, this.scope, context, provenance));
+        const source = provenance !== null && typeof provenance === 'object' && !Array.isArray(provenance)
+            ? { kind: 'save-result', ...(provenance as Record<string, Json>) }
+            : { kind: 'save-result' };
+        return this.track(() => this.writable(path).writeFile(path, jsonLines(rows, this.options.maxInlineFileBytes), null, this.scope, context, source));
     }
 }

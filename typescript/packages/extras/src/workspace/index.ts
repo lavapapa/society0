@@ -18,7 +18,7 @@ import '@society0/core/sqlite';
 export function workspaceMigration(source: Readonly<Record<string, unknown>>): SqliteMigration { return { owner: 'workspace', from: 0, to: 1, after: ['artifacts-local'], source, statements: [{ sql: `CREATE TABLE workspace_nodes(actor_id TEXT NOT NULL,path TEXT NOT NULL,parent TEXT NOT NULL,node_id TEXT NOT NULL,kind TEXT NOT NULL,version INTEGER NOT NULL,artifact TEXT,PRIMARY KEY(actor_id,path),UNIQUE(actor_id,node_id));CREATE INDEX workspace_parent ON workspace_nodes(actor_id,parent,path);CREATE TABLE workspace_provenance(actor_id TEXT NOT NULL,node_id TEXT NOT NULL,body TEXT NOT NULL,PRIMARY KEY(actor_id,node_id),FOREIGN KEY(actor_id,node_id) REFERENCES workspace_nodes(actor_id,node_id) ON DELETE CASCADE);` }] }; }
 async function initializeWorkspaceRoots(tx: SqliteTransaction, actorId: string) {
     for (const path of ['/workspace', '/results'])
-        await tx.execute({ sql: "INSERT INTO workspace_nodes VALUES(?,?,?,?,'directory',1,NULL) ON CONFLICT(actor_id,path) DO NOTHING", parameters: [actorId, path, '', randomUUID()] });
+        await tx.execute({ sql: "INSERT INTO workspace_nodes VALUES(?,?,?,?,'directory',1,NULL) ON CONFLICT(actor_id,path) DO NOTHING", parameters: [actorId, path, '', (path === '/results' ? 'results:' : 'workspace:') + randomUUID()] });
 }
 
 export function workspaceInitializer(options: { readonly id?: string; readonly after: readonly string[] }): Initializer {
@@ -72,7 +72,8 @@ export class Workspace extends Service {
             return fail('WORKSPACE_PATH');
         return path;
     }
-    private node(row: any): ExplorationNode { return { path: String(row.path), objectId: String(row.node_id), kind: row.kind, versions: [{ owner: 'workspace:' + this.options.root + ':' + row.actor_id, version: String(row.version) }], ...(row.artifact ? { rawBytes: JSON.parse(row.artifact).bytes } : {}), ...(row.provenance ? { provenance: JSON.parse(row.provenance) } : {}) }; }
+    private rootTag(path: string) { return path === '/results' || path.startsWith('/results/') ? 'results' : 'workspace'; }
+    private node(row: any): ExplorationNode { return { path: String(row.path), objectId: String(row.node_id), kind: row.kind, versions: [{ owner: this.rootTag(String(row.path)) + ':' + this.options.root + ':' + row.actor_id, version: String(row.version) }], ...(row.artifact ? { rawBytes: JSON.parse(row.artifact).bytes } : {}), ...(row.provenance ? { provenance: JSON.parse(row.provenance) } : {}) }; }
     initialize(tx: SqliteTransaction, actorId: string) { return initializeWorkspaceRoots(tx, actorId); }
     private async row(path: string, scope: DiscoveryScope, reader: SqliteReadView | SqliteTransaction) { this.path(path); const [row] = await reader.query({ sql: 'SELECT n.*,p.body AS provenance FROM workspace_nodes n LEFT JOIN workspace_provenance p USING(actor_id,node_id) WHERE n.actor_id=? AND n.path=?', parameters: [scope.actorId, path] }, qb); return row; }
     async visible(path: string, scope: DiscoveryScope, reader: SqliteReadView) { return !!await this.row(path, scope, reader); }
@@ -152,9 +153,9 @@ export class Workspace extends Service {
             if (current && current.kind !== 'file')
                 return fail('WORKSPACE_NOT_FILE');
             await this.ctx.artifacts.reference(tx, object);
-            await tx.execute({ sql: "INSERT INTO workspace_nodes VALUES(?,?,?,?,'file',1,?) ON CONFLICT(actor_id,path) DO UPDATE SET artifact=excluded.artifact,version=workspace_nodes.version+1", parameters: [scope.actorId, path, parent.path, randomUUID(), JSON.stringify(object)] });
+            await tx.execute({ sql: "INSERT INTO workspace_nodes VALUES(?,?,?,?,'file',1,?) ON CONFLICT(actor_id,path) DO UPDATE SET artifact=excluded.artifact,version=workspace_nodes.version+1", parameters: [scope.actorId, path, parent.path, this.rootTag(path) + ':' + randomUUID(), JSON.stringify(object)] });
             const inserted = await this.row(path, scope, tx);
-            await tx.execute({ sql: 'INSERT INTO workspace_provenance VALUES(?,?,?) ON CONFLICT(actor_id,node_id) DO UPDATE SET body=excluded.body', parameters: [scope.actorId, String(inserted!.node_id), JSON.stringify({ operationId: context.operationId, runId: context.runId, actorId: scope.actorId, momentId: scope.momentId, query: scope.query, source: provenance ?? null })] });
+            await tx.execute({ sql: 'INSERT INTO workspace_provenance VALUES(?,?,?) ON CONFLICT(actor_id,node_id) DO UPDATE SET body=excluded.body', parameters: [scope.actorId, String(inserted!.node_id), JSON.stringify(this.provenance(path, scope, context, provenance))] });
             await this.touch(tx, scope, parent.path);
             return this.node((await this.row(path, scope, tx))!);
         });
@@ -173,13 +174,24 @@ export class Workspace extends Service {
             return fail('WORKSPACE_PARENT');
         await this.expected(mutation.expectedParent.path, mutation.expectedParent, scope, tx);
         await this.expected(from, null, scope, tx);
-        await tx.execute({ sql: "INSERT INTO workspace_nodes VALUES(?,?,?,?,'directory',1,NULL)", parameters: [scope.actorId, from, mutation.expectedParent.path, randomUUID()] });
+        await tx.execute({ sql: "INSERT INTO workspace_nodes VALUES(?,?,?,?,'directory',1,NULL)", parameters: [scope.actorId, from, mutation.expectedParent.path, this.rootTag(from) + ':' + randomUUID()] });
         await this.touch(tx, scope, mutation.expectedParent.path);
+    }
+    private provenance(path: string, scope: DiscoveryScope, context: ActionExecutionContext, source?: Json) {
+        const value = source !== null && typeof source === 'object' && !Array.isArray(source) ? source as Record<string, Json> : null;
+        const { kind: declared, ...details } = value ?? {};
+        return {
+            kind: typeof declared === 'string' ? declared : this.rootTag(path) === 'results' ? 'manual' : 'write',
+            operationId: context.operationId, runId: context.runId, actorId: scope.actorId,
+            momentId: scope.momentId, scopeQuery: scope.query, details: value ? details : null
+        };
     }
     private async renameNode(mutation: Extract<ExplorationMutation, {
         kind: 'rename';
     }>, from: string, sourceParent: ExplorationNode, scope: DiscoveryScope, tx: SqliteTransaction) {
         this.path(mutation.to);
+        if (this.rootTag(from) !== this.rootTag(mutation.to))
+            return fail('WORKSPACE_CROSS_ROOT');
         if (mutation.to === from || mutation.to.startsWith(from + '/'))
             return fail('WORKSPACE_RENAME_TARGET');
         if (posix.dirname(mutation.to) !== mutation.expectedParent.path || mutation.expectedParent.kind !== 'directory')
