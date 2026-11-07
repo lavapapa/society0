@@ -34,8 +34,12 @@ export const api: ApiEntry = {
 import { Service } from '@society0/cordis';
 import type { Context } from '@society0/cordis';
 import { join } from 'node:path';
-import type { SqliteTransaction } from '../sqlite/contracts.js';
-import type { PublicRegistry, PublicWriter, PublicDiagnostics } from '../contracts/public.js';
+import type { DiscoveryScope, Page, PageRequest } from '../contracts/data.js';
+import type { PerceptionScope, PerceptionSource } from '../contracts/perception.js';
+import type { SqliteReadView, SqliteTransaction } from '../sqlite/contracts.js';
+import type { PublicRegistry, PublicWriter, PublicDiagnostics, PublicChange } from '../contracts/public.js';
+import type { PublicChangeReader } from './changes.js';
+import { publicChangesSource, readChanges } from './changes.js';
 import { Registry } from './registry.js';
 import { publicWriter } from './writer.js';
 import { AudienceResolver } from './audience.js';
@@ -89,16 +93,64 @@ export class PublicRepository extends Service {
     }
     async [Service.init]() {
         const exploration = this.ctx.get('exploration', false);
-        if (!exploration)
+        if (exploration)
+            this.ctx.effect(() => {
+                const dispose = exploration.register(this.mount);
+                return () => dispose();
+            });
+        if (this.options.changesPerception === 'off')
             return;
-        this.ctx.effect(() => {
-            const dispose = exploration.register(this.mount);
-            return () => dispose();
+        this.ctx.inject(['perceptions'], scoped => {
+            const perceptions = scoped.get('perceptions') as { register(source: PerceptionSource): () => void };
+            scoped.effect(() => perceptions.register(this.changesSource()), 'public.changes-perception');
         });
     }
     writer(tx: SqliteTransaction): PublicWriter {
         const registry = this.registry as Registry;
         return publicWriter(tx, registry.tables, registry.docs);
+    }
+    private changeReader(): PublicChangeReader {
+        const registry = this.registry as Registry;
+        return { tables: registry.tables, docs: registry.docs, defaultNotify: this.options.changesPerception === 'percept' ? 'percept' : 'digest' };
+    }
+    private async revision(scope: { readonly momentId: string }, view: SqliteReadView | SqliteTransaction): Promise<string> {
+        const service = this.ctx.get('momentViews', false);
+        if (service) {
+            const value = await service.revision(scope.momentId, view as SqliteReadView);
+            if (value !== null)
+                return value;
+        }
+        return 'baseRevision' in view ? view.baseRevision : view.revision;
+    }
+    private async page(view: SqliteReadView, scope: PerceptionScope, from: string, to: string, request: PageRequest): Promise<Page<PublicChange>> {
+        const agent = await this.audiences.resolve(scope, view);
+        return readChanges(view, scope, from, to, this.changeReader(), agent, request);
+    }
+    private changeRequest(): PageRequest {
+        const exploration = this.ctx.get('exploration', false);
+        if (!exploration)
+            throw Error('EXPLORATION_CHANGES_CONFIG');
+        const bytes = exploration.limits.maxSearchOutputBytes;
+        return { maxItems: bytes, maxResponseBytes: bytes };
+    }
+    private changesSource(): PerceptionSource {
+        return publicChangesSource({
+            enabled: this.options.changesPerception !== 'off',
+            revision: (scope, view) => this.revision(scope, view),
+            request: () => this.changeRequest(),
+            page: (view, scope, from, to, request) => this.page(view, scope, from, to, request)
+        });
+    }
+    /** 读取 (from,to] 的变更；自行开短快照并解析受众。 */
+    async changes(scope: DiscoveryScope, from: string, to: string, request: PageRequest): Promise<Page<PublicChange>> {
+        const view = await this.ctx.database.snapshot({ maxAgeMs: 30000 });
+        try {
+            const agent = await this.audiences.resolve(scope, view);
+            return await readChanges(view, scope, from, to, this.changeReader(), agent, request);
+        }
+        finally {
+            await view.close();
+        }
     }
     /** fork/恢复/重开后从 public_rows 全量重建 trigram 索引；FTS 不进入 changeset。 */
     async rebuildSearch(tx: SqliteTransaction): Promise<void> {
@@ -118,4 +170,6 @@ export { readRows, readFile, readFiles, readNode, readChildren, renderRows } fro
 export { AudienceResolver } from './audience.js';
 export { RenderCache } from './cache.js';
 export { PublicMount, etagOf } from './mount.js';
-export type { Public, PublicTableDecl, PublicDocDecl, PublicWriter, PublicRegistry, PublicAudienceProvider, PublicFile, PublicNode, PublicRow, PublicDiagnostics, PublicCacheDiagnostics } from '../contracts/public.js';
+export { CHANGE_FILES_SQL, CHANGE_DOCS_SQL, CHANGE_ROWS_SQL, changeEntries, publicChangesSource, readChanges } from './changes.js';
+export type { PublicChangeEntry, PublicChangeReader, PublicChangesSourceHost } from './changes.js';
+export type { Public, PublicTableDecl, PublicDocDecl, PublicWriter, PublicRegistry, PublicAudienceProvider, PublicAudienceScope, PublicFile, PublicNode, PublicRow, PublicChange, PublicChangeRows, PublicDiagnostics, PublicCacheDiagnostics } from '../contracts/public.js';
