@@ -352,7 +352,9 @@ WHERE t.actor_id=? AND t.moment_id IN (?,?) AND tm.role='assistant' ORDER BY tm.
     private pump(b: Batch) {
         while (!b.failure && !b.cancel.signal.aborted && !b.context.signal.aborted && b.active.size < this.config.capacity) {
             const kv = this.config.admission.kind === 'kv', budget = this.tokenBudget();
-            const index = b.queue.findIndex(i => !b.active.has(i.intent.actorId) && (!kv || b.active.size === 0 || this.inflightTokens + i.tokens <= budget));
+            const eligible = b.queue.map((item, index) => ({ item, index })).filter(({ item }) => !b.active.has(item.intent.actorId) && (!kv || b.active.size === 0 || this.inflightTokens + item.tokens <= budget));
+            const chosen = eligible.find(({ item }) => item.intent.priority !== 'background') ?? eligible[0];
+            const index = chosen?.index ?? -1;
             if (index < 0)
                 break;
             const item = b.queue.splice(index, 1)[0]!;
