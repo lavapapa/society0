@@ -2,10 +2,12 @@ import type { Context } from '@society0/cordis';
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 import type { MemoryWritePolicy } from '@society0/core/contracts/cognition';
+import type { DeferredWork } from '@society0/core/contracts/deferred-work';
 import type { Json } from '@society0/core/contracts/common';
 import type { ArtifactRef } from '@society0/core/artifacts-local';
 import type { StoredValue } from '@society0/core/contracts/data';
 import type { Experience } from '../memory-repository/index.js';
+import type { MemoryRepository } from '../memory-repository/index.js';
 import { memoryWrite } from '../memory/policies.js';
 import { bytes, fail } from '@society0/core/information/page';
 import '@society0/core/thread';
@@ -63,6 +65,30 @@ class ExplicitExperience implements MemoryWritePolicy {
         }
     }
 }
+export const MEMORY_EXPERIENCE_JOB = 'memory-write-experience.extract';
 export const inject = ['slots', 'threads'];
-export function apply(ctx: Context, options: ReturnType<typeof Config>) { ctx.slots.inject(memoryWrite, async (child) => { await child.plugin({ inject, apply(owner) { owner.slots.contribute(memoryWrite, { id: 'explicit-experience/v1', value: new ExplicitExperience(owner, options) }); } }); }); }
+export function apply(ctx: Context, options: ReturnType<typeof Config>) { ctx.slots.inject(memoryWrite, async (child) => { await child.plugin({ inject, apply(owner) { const policy = new ExplicitExperience(owner, options); owner.slots.contribute(memoryWrite, { id: 'explicit-experience/v1', value: policy }); const deferred = owner.get('deferredWork', false) as DeferredWork | undefined; if (deferred)
+    owner.effect(() => deferred.register(MEMORY_EXPERIENCE_JOB, {
+        run: async (job, context) => {
+            const inputs = job.inputs as { readonly threadId?: unknown; readonly actorId?: unknown; readonly momentId?: unknown } | null;
+            if (typeof inputs?.threadId !== 'string' || typeof inputs.actorId !== 'string' || typeof inputs.momentId !== 'string')
+                fail('MEMORY_JOB_INPUT');
+            const view = await context.database.snapshot({ maxAgeMs: 30000 });
+            let thread: Awaited<ReturnType<Context['threads']['open']>>;
+            try {
+                thread = await owner.threads.open(inputs.actorId, inputs.momentId, view);
+            }
+            finally { await view.close(); }
+            if (thread.id !== inputs.threadId)
+                fail('MEMORY_JOB_THREAD');
+            const extraction = { ctx: owner, runId: context.database.runId, generation: 'deferred', operationId: 'deferred:' + job.id, signal: context.signal, actorId: inputs.actorId, momentId: inputs.momentId, logicalTime: 0, database: context.database, writeLease: undefined as never } as Parameters<MemoryWritePolicy['extract']>[1];
+            const values = await policy.extract(thread, extraction);
+            const repository = owner.get('memoryRepository', false) as MemoryRepository | undefined;
+            if (values.length && !repository)
+                fail('MEMORY_REPOSITORY_UNAVAILABLE');
+            for (const value of values)
+                await context.transaction('deferred-memory-write:' + value.id, tx => repository!.append(tx, value));
+            return { count: values.length };
+        }
+    })); } }); }); }
 export default { Config, inject, apply };

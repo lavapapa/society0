@@ -4,12 +4,14 @@ import { randomUUID } from 'node:crypto';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 import type { TaskScope } from '@society0/host/tasks';
 import type { SqliteReadView } from '@society0/core/sqlite';
+import type { DeferredWork } from '@society0/core/contracts/deferred-work';
 import '@society0/host/tasks';
 import '@society0/core/sqlite';
 import '@society0/core/execution-fence';
 import '../memory-repository/index.js';
 import '../vector-providers/index.js';
 import { vectorFault, sameProjection, type MemoryIndex, type MemoryIndexProgress, type MemoryChangeCursor } from '../vector-providers/types.js';
+export const VECTOR_CATCH_UP_JOB = 'vector-index.catch-up';
 export const Config = Schema.object({ maxLag: Schema.natural().default(0), provider: Schema.string().default('memory-exact'), batchRows: Schema.natural().min(1).default(32), batchBytes: Schema.natural().min(1).default(262144), snapshotMs: Schema.natural().min(1).default(30000), queryLimit: Schema.natural().min(1).default(10) });
 export const metadata: PluginMetadata = { title: 'vector-index', summary: 'Rebuildable vector projection with SQL source and explicit progress', configVersion: 1, configPolicy: [{ path: '/maxLag', mode: 'new-run', affectsResults: true }, { path: '/provider', mode: 'new-run', affectsResults: true }, { path: '/batchRows', mode: 'new-run', affectsResults: true }, { path: '/batchBytes', mode: 'new-run', affectsResults: true }, { path: '/snapshotMs', mode: 'new-run', affectsResults: true }, { path: '/queryLimit', mode: 'new-run', affectsResults: true }], scope: 'run', allowedScopes: ['run'], hostAbi: 'society0/host/1' };
 export const api: ApiEntry = { exportPath: './vector-index', provides: [{ key: 'vectorIndex', protocol: 'vectorIndex', major: 1, capabilities: [] }], requires: ['memoryRepository', 'tasks', 'vectorProviders', 'database', 'executionFence'].map(key => ({ service: { key, protocol: key, major: 1, capabilities: [] }, optional: false, phase: 'module' })) };
@@ -25,7 +27,30 @@ export class VectorIndex extends Service {
     private tasks!: TaskScope;
     private busy = false;
     constructor(ctx: Context, private options: ReturnType<typeof Config>) { super(ctx, 'vectorIndex'); }
-    [Service.init]() { this.owner = this.ctx; this.tasks = this.ctx.tasks.bind(); }
+    [Service.init]() {
+        this.owner = this.ctx;
+        this.tasks = this.ctx.tasks.bind();
+        const deferred = this.ctx.get('deferredWork', false) as DeferredWork | undefined;
+        if (deferred)
+            this.ctx.effect(() => deferred.register(VECTOR_CATCH_UP_JOB, {
+                run: async (job, context) => {
+                    const inputs = job.inputs as { readonly revision?: unknown } | null;
+                    if (typeof inputs?.revision !== 'string')
+                        vectorFault('VECTOR_JOB_INPUT');
+                    await this.schedule('vector.deferred-catch-up', signal => this.update(inputs.revision as string, false, signal), context.signal);
+                    return { revision: inputs.revision as string, provider: this.options.provider };
+                }
+            }));
+    }
+    /** 把追赶登记到 deferred-work；没有该服务时返回 undefined，调用方仍可用 catchUp。 */
+    scheduleCatchUp(revision: string): string | undefined {
+        const deferred = this.owner.get('deferredWork', false) as DeferredWork | undefined;
+        if (!deferred) return undefined;
+        return deferred.enqueue({
+            kind: VECTOR_CATCH_UP_JOB, inputs: { revision, provider: this.options.provider },
+            produces: 'vector-index/' + this.options.provider, maxLagTicks: this.options.maxLag
+        });
+    }
     private progress(index: MemoryIndex, throughRevision: string, after?: MemoryChangeCursor): MemoryIndexProgress { return { runId: index.runId, generation: index.generation, space: index.space, identity: index.identity, distance: index.distance, throughRevision, ...(after ? { after } : {}) }; }
     private async schedule(label: string, body: (signal: AbortSignal) => Promise<void>, signal?: AbortSignal): Promise<void> {
         if (this.busy)
