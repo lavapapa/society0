@@ -111,6 +111,7 @@
 | ./public | searchIndex | union | "trigram" | recreate | false | false |
 | ./public | changesPerception | union | "digest" | boundary | true | false |
 | ./moment-views | freeze | union | "clock" | new-run | true | false |
+| ./public-self | mount | string | "/self" | new-run | true | false |
 | ./exploration | maxInlineFileBytes | number | 1048576 | boundary | true | false |
 | ./exploration | maxSearchBytes | number | 67108864 | boundary | true | false |
 | ./exploration | maxSearchOutputBytes | number | 4194304 | boundary | true | false |
