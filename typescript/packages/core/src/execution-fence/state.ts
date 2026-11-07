@@ -64,7 +64,8 @@ export class ExecutionGate {
     if (!Number.isSafeInteger(options.maxAcceptedCommits) || options.maxAcceptedCommits < 1) throw new TypeError('FENCE_CAPACITY: expected a positive integer');
     this.#options={...options};
   }
-  async reserve(proposal: { readonly id: string; readonly observedRevision?: string }): Promise<ExecutionReservation> {
+  async reserve(proposal: { readonly id: string; readonly observedRevision?: string }, signal?: AbortSignal): Promise<ExecutionReservation> {
+    signal?.throwIfAborted();
     requireIdle(this.#control.state);
     const admitting: State={kind:'admitting'};
     this.#control.state=admitting;
@@ -100,7 +101,8 @@ export class ExecutionGate {
     return permit;
   }
   /** 调用方先结算任务与reservation；丢失发布回执时保持封存，等待probe。 */
-  async seal(): Promise<PublicationLease> {
+  async seal(signal?: AbortSignal): Promise<PublicationLease> {
+    signal?.throwIfAborted();
     requireIdle(this.#control.state);
     const sealing: State={kind:'sealing'};
     this.#control.state=sealing;

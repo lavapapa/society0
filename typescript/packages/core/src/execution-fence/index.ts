@@ -41,9 +41,9 @@ export class ExecutionFence extends Service {
     if(!this.binding.gate)throw new Error('FENCE_UNBOUND: initialize the run database before admission');
     return this.binding.gate;
   }
-  reserve(proposal: { readonly id: string; readonly observedRevision?: string }) { return this.current().reserve(proposal); }
+  reserve(proposal: { readonly id: string; readonly observedRevision?: string }, signal?: AbortSignal) { return this.current().reserve(proposal, signal); }
   enter(lease: WriteLease) { return this.current().enter(lease); }
-  seal() { return this.current().seal(); }
+  seal(signal?: AbortSignal) { return this.current().seal(signal); }
   assertPublication(lease: PublicationLease): void { this.current().assertPublication(lease); }
   resume(lease: PublicationLease): void { this.current().resume(lease); }
   halt(reason: string): void { this.binding.gate?.halt(reason); }

@@ -1,6 +1,7 @@
 import { Context, Service } from '@society0/host';
 import Schema from '@society0/schemastery';
 import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 import type { AdvanceResult, GenerationView, ExecutionContext, CompletePoint, Proposal, Json, BoundaryLease } from '../contracts/runtime.js';
 import type { DeferredWork } from '../contracts/deferred-work.js';
@@ -96,24 +97,28 @@ export class RunController extends Service {
             await snapshot.close();
         }
     }
-    private async busy<T>(action: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+    private async busy<T>(action: (signal?: AbortSignal) => Promise<T>, signal?: AbortSignal): Promise<T> {
+        const deadline = performance.now() + this.config.maxTransactionMs;
         while (true) {
             signal?.throwIfAborted();
-            try { return await action(); }
+            try { return await action(signal); }
             catch (error) {
-                if (!/FENCE_BUSY/.test(error instanceof Error ? error.message : String(error)))
+                const message = error instanceof Error ? error.message : String(error);
+                if (!/FENCE_BUSY/.test(message))
                     throw error;
+                if (performance.now() >= deadline)
+                    throw new Error(`FENCE_BUSY: retry timeout after ${this.config.maxTransactionMs}ms: ${message}`);
                 await new Promise(resolve => setTimeout(resolve, 10));
             }
         }
     }
-    private async publish(cut: CompletePoint, requiredOperations: readonly string[], view: GenerationView) {
+    private async publish(cut: CompletePoint, requiredOperations: readonly string[], view: GenerationView, signal?: AbortSignal) {
         const revision = await this.ctx.database.readRevision();
         if (revision === cut.revision)
             return cut;
         if (!this.complete)
             throw Error('RUN_INCOMPLETE');
-        const lease = await this.busy(() => this.ctx.executionFence.seal());
+        const lease = await this.busy(signal => this.ctx.executionFence.seal(signal), signal);
         const sealedRevision = lease.sealedRevision;
         if (sealedRevision === cut.revision) {
             this.ctx.executionFence.resume(lease);
@@ -181,8 +186,8 @@ export class RunController extends Service {
     private interrupted(signal: AbortSignal) {
         return this.stop || signal.aborted;
     }
-    private async pauseSession(session: RunSession, view: GenerationView): Promise<RunResult> {
-        session.cut = await this.publish(session.cut, [...session.required], view);
+    private async pauseSession(session: RunSession, view: GenerationView, signal: AbortSignal): Promise<RunResult> {
+        session.cut = await this.publish(session.cut, [...session.required], view, signal);
         return {
             status: 'paused', cut: session.cut
         };
@@ -205,12 +210,12 @@ export class RunController extends Service {
         while (true) {
             const view = await this.acquireView(session);
             if (this.interrupted(signal))
-                return this.pauseSession(session, view);
+                return this.pauseSession(session, view, signal);
             const source = await this.waitSource(session, view, signal);
             if (!source)
-                return this.pauseSession(session, view);
+                return this.pauseSession(session, view, signal);
             if (source.kind !== 'proposal') {
-                const result = await this.sourceBoundary(session, view, source);
+                const result = await this.sourceBoundary(session, view, source, signal);
                 if (result)
                     return result;
                 continue;
@@ -219,7 +224,7 @@ export class RunController extends Service {
             const advance = await this.executeProposal(session, view, signal);
             if (advance.kind === 'paused' || advance.kind === 'failed')
                 return advance.result;
-            const boundary = await this.advanceBoundary(session, view, advance.result);
+            const boundary = await this.advanceBoundary(session, view, advance.result, signal);
             if (boundary)
                 return boundary;
             await session.held!.release();
@@ -228,7 +233,7 @@ export class RunController extends Service {
     }
     private async sourceBoundary(session: RunSession, view: GenerationView, source: Exclude<ProposalResult, {
         kind: 'proposal';
-    }>): Promise<RunResult | undefined> {
+    }>, signal: AbortSignal): Promise<RunResult | undefined> {
         const liveRevision = await this.ctx.database.readRevision();
         const decision = view.termination.evaluate(source.kind === 'end' ? {
             kind: 'source-end', reason: source.reason, currentCut: session.cut, liveRevision, logicalTime: session.frontier.logicalTime as Json
@@ -239,7 +244,7 @@ export class RunController extends Service {
             return;
         if (decision.action === 'fail')
             throw Error(decision.reason);
-        session.cut = await this.publish(session.cut, [...session.required], view);
+        session.cut = await this.publish(session.cut, [...session.required], view, signal);
         return {
             status: decision.action === 'stop' ? 'completed' : 'paused', cut: session.cut, reason: decision.reason
         };
@@ -259,8 +264,8 @@ export class RunController extends Service {
         if (!view.runtime.planKinds.includes(proposal.planKind))
             throw Error('RUN_PLAN_KIND');
         if (proposal.reservation && this.pending.length >= this.config.maxPendingAcknowledgements)
-            session.cut = await this.publish(session.cut, [...session.required], view);
-        const reservation = await this.busy(() => this.ctx.executionFence.reserve(proposal), signal);
+            session.cut = await this.publish(session.cut, [...session.required], view, signal);
+        const reservation = await this.busy(signal => this.ctx.executionFence.reserve(proposal, signal), signal);
         this.complete = false;
         try {
             const trigger = (proposal.payload as {
@@ -363,7 +368,7 @@ export class RunController extends Service {
         catch {
         }
     }
-    private async advanceBoundary(session: RunSession, view: GenerationView, result: AdvanceResult): Promise<RunResult | undefined> {
+    private async advanceBoundary(session: RunSession, view: GenerationView, result: AdvanceResult, signal: AbortSignal): Promise<RunResult | undefined> {
         await this.flushMetrics(session);
         if (session.proposal!.reservation)
             this.pending.push(session.proposal!);
@@ -373,7 +378,7 @@ export class RunController extends Service {
             result, previous: session.cut, frontier: session.frontier.value as Json, advancesSinceCut: String(BigInt(session.frontier.completedCount) - BigInt(session.cut.frontier.completedCount)), completion
         });
         if (checkpoint === 'publish-cut') {
-            session.cut = await this.publish(session.cut, [...session.required], view);
+            session.cut = await this.publish(session.cut, [...session.required], view, signal);
             session.required.clear();
         }
         const termination = view.termination.evaluate({
@@ -383,7 +388,7 @@ export class RunController extends Service {
             throw Error(termination.reason);
         if (termination.action === 'continue')
             return;
-        session.cut = await this.publish(session.cut, [...session.required], view);
+        session.cut = await this.publish(session.cut, [...session.required], view, signal);
         return {
             status: termination.action === 'stop' ? 'completed' : 'paused', cut: session.cut, reason: termination.reason
         };
