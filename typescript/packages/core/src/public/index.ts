@@ -92,6 +92,11 @@ export class PublicRepository extends Service {
         const registry = this.registry as Registry;
         return publicWriter(tx, registry.tables, registry.docs);
     }
+    /** fork/恢复/重开后从 public_rows 全量重建 trigram 索引；FTS 不进入 changeset。 */
+    async rebuildSearch(tx: SqliteTransaction): Promise<void> {
+        await tx.execute({ sql: "INSERT INTO public_fts(public_fts) VALUES('delete-all')" });
+        await tx.execute({ sql: 'INSERT INTO public_fts(rowid,line) SELECT rowid,line FROM public_rows' });
+    }
     diagnostics(): PublicDiagnostics {
         return { cache: this.cache.diagnostics(), audiences: this.audiences.size };
     }

@@ -10,6 +10,7 @@ import type { SqliteReadView } from '../sqlite/contracts.js';
 import { after, identity, page, fail } from '../information/page.js';
 import { AS_OF, parentOf, readChildren, readFile, readFiles, readNode, renderRows } from './store.js';
 import { effective, intersects, type AudienceResolver } from './audience.js';
+import { NativeSearch, SEARCH_BATCH } from '../exploration/search.js';
 import type { RenderCache } from './cache.js';
 
 export interface MomentRevisionReader {
@@ -383,6 +384,83 @@ export class PublicMount implements ExplorationMount {
         for await (const chunk of this.host.ctx.artifacts.read(ref))
             chunks.push(chunk);
         return Buffer.concat(chunks);
+    }
+    async search(request: { readonly root: string; readonly pattern: string; readonly mode: 'literal' | 'regex'; readonly ignoreCase?: boolean }, scope: DiscoveryScope, view: SqliteReadView, signal: AbortSignal, emit: (match: ExplorationMatch) => boolean): Promise<void> {
+        if (request.root !== this.prefix && !request.root.startsWith(this.prefix + '/'))
+            return fail('EXPLORATION_NOT_VISIBLE');
+        const revision = await this.revision(scope, view), agent = await this.audiences(scope, view);
+        const lower = request.root + '/', upper = request.root + '0', at = this.revisionValue(revision);
+        const pattern = request.pattern;
+        let records: PublicFile[];
+        const literal = this.literalOf(pattern, request.mode);
+        if (literal && literal.length >= 3) {
+            try {
+                const rows = await view.query({
+                    sql: `SELECT DISTINCT pr.file AS file FROM public_fts f JOIN public_rows pr ON pr.rowid=f.rowid WHERE public_fts MATCH ? AND pr.file>=? AND pr.file<? AND pr.rev_from<=? AND (pr.rev_to IS NULL OR pr.rev_to>?) AND (pr.audience='all' OR pr.audience IN (${agent.map(() => '?').join(',')})) ORDER BY pr.file LIMIT ?`,
+                    parameters: [this.ftsPhrase(literal), lower, upper, at, at, ...agent, 100000]
+                }, { maxRows: 100000, maxBytes: 8 * 1024 * 1024 });
+                records = [];
+                for (const row of rows) {
+                    const record = await readFile(view, String(row.file), revision);
+                    if (record && intersects(record.audiences, agent))
+                        records.push(record);
+                }
+            }
+            catch (error) {
+                if (!/fts5|MATCH/i.test(String(error)))
+                    throw error;
+                records = await this.allFiles(lower, upper, at, agent, view);
+            }
+        }
+        else
+            records = await this.allFiles(lower, upper, at, agent, view);
+        const entries = [];
+        for (const record of records) {
+            if (!intersects(record.audiences, agent))
+                continue;
+            const audiences = effective(record.audiences, agent);
+            const etag = etagOf(record.file, record.revision, audiences);
+            const bytes = await this.host.cache.bytes(etag, () => renderRows(view, record.file, revision, audiences));
+            const node = this.fileNode(record, revision, agent, record.audiences.every(audience => agent.includes(audience)) ? record.bytes : bytes.byteLength);
+            entries.push({ node, disk: this.host.cache.pathOf(etag) });
+        }
+        entries.sort((a, b) => compareCodePoints(a.node.path, b.node.path));
+        const byDisk = new Map(entries.map(entry => [entry.disk, entry.node]));
+        const options = { maxInlineFileBytes: 16777216, maxSearchBytes: 67108864, maxSearchOutputBytes: 16777216, maxSearchMs: 30000 };
+        for (let offset = 0; offset < entries.length; offset += SEARCH_BATCH) {
+            const batch = entries.slice(offset, offset + SEARCH_BATCH);
+            const search = new NativeSearch(pattern, request.mode, options, request.ignoreCase === true, batch.map(entry => entry.disk));
+            let stopped = false;
+            await search.runFiles(signal, (position, text, line, column, lineText, path) => {
+                const node = path === undefined ? undefined : byDisk.get(path);
+                if (!node)
+                    return;
+                const match: ExplorationMatch = { path: node.path, objectId: node.objectId, versions: node.versions, rawOffset: String(position), text, lineText, line, column };
+                if (!emit(match))
+                    stopped = true;
+            });
+            if (stopped)
+                break;
+        }
+    }
+    private ftsPhrase(literal: string): string {
+        const grams = new Set<string>();
+        for (let index = 0; index + 3 <= literal.length; index++)
+            grams.add(literal.slice(index, index + 3));
+        return [...grams].map(gram => '"' + gram.replace(/"/g, '""') + '"').join(' AND ');
+    }
+    private literalOf(pattern: string, mode: 'literal' | 'regex'): string | undefined {
+        if (mode === 'literal')
+            return pattern;
+        const runs = pattern.match(/[\p{L}\p{N}_]{3,}/gu);
+        return runs?.sort((a, b) => b.length - a.length)[0];
+    }
+    private async allFiles(lower: string, upper: string, at: bigint, agent: readonly Audience[], view: SqliteReadView): Promise<PublicFile[]> {
+        const rows = await view.query({
+            sql: `SELECT file,parent,table_path,rows,bytes,audiences,rev_from FROM public_files WHERE file>=? AND file<? AND rev_from<=? AND (rev_to IS NULL OR rev_to>?) AND (audiences LIKE ? OR ${agent.map(() => 'audiences LIKE ?').join(' OR ')}) ORDER BY file LIMIT ?`,
+            parameters: [lower, upper, at, at, `%"all"%`, ...agent.map(a => `%"${a}"%`), 100000]
+        }, { maxRows: 100000, maxBytes: 8 * 1024 * 1024 });
+        return rows.map(row => ({ file: String(row.file), parent: String(row.parent), tablePath: String(row.table_path), rows: Number(row.rows), bytes: Number(row.bytes), revision: String(row.rev_from), audiences: JSON.parse(String(row.audiences)) as Audience[] }));
     }
     async collect(): Promise<Page<StoredValue>> { return fail('EXPLORATION_NOT_COLLECTION'); }
 }
