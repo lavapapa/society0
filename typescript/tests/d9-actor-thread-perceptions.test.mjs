@@ -48,6 +48,34 @@ async function rows(ctx) {
     }
 }
 
+test('D9 perception rejects a thread owned by another actor', async t => {
+    const {run, ctx} = await driverFixture({
+        messages: [assistant([{type: 'text', text: 'one'}])],
+        prompts: {sections: [{id: 'role', order: 0, text: 'D9-SCOPE-HEADER'}]},
+        driver: {perceptions: ['d9/thread-perception']},
+        register(c) { c.perceptions.register(source()); },
+    });
+    t.after(() => run.close());
+    const view = await ctx.database.snapshot({ maxAgeMs: 30000 });
+    let bobThread;
+    try {
+        bobThread = (await ctx.threads.open('b', 'm1', view)).id;
+    } finally {
+        await view.close();
+    }
+    const context = run.context('d9-scope', 'a', 'm1');
+    const selection = await ctx.perceptions.acquire(['d9/thread-perception'], context);
+    try {
+        const batch = { id: 'd9-scope-batch', scope: { actorId: 'a', momentId: 'm1', threadId: bobThread }, reads: [] };
+        await assert.rejects(
+            ctx.database.transaction(run.reservation.lease, { operationId: 'd9-scope', maxDurationMs: 20000, maxStatements: 100, maxInputBytes: 65536, maxChangedRows: 100, maxCapturedBytes: 65536 }, tx => selection.value.commit(tx, batch, [])),
+            /PERCEPTION_THREAD_SCOPE/,
+        );
+    } finally {
+        await selection.release();
+    }
+});
+
 test('D9 actor thread lifetime shares one thread across moments while perceptions append', async t => {
     const requests = [];
     const {run, ctx} = await driverFixture({
