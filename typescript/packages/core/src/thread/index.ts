@@ -63,6 +63,7 @@ export class Threads extends Service {
     private async address(thread: string, reader: SqliteReadView | SqliteTransaction) { const [row] = await reader.query({ sql: 'SELECT actor_id,moment_id,interaction_id FROM threads WHERE id=?', parameters: [thread] }, queryBounds); if (row)
         return { actor: String(row.actor_id), moment: String(row.moment_id), interaction: String(row.interaction_id) }; const value = JSON.parse(thread); if (!Array.isArray(value) || value.length !== 3 || value.some(x => typeof x !== 'string'))
         return fail('THREAD_ID'); return { actor: value[1] as string, moment: value[2] as string, interaction: thread }; }
+    async owner(thread: string, reader: SqliteReadView | SqliteTransaction) { return (await this.address(thread, reader)).actor; }
     async append(tx: SqliteTransaction, thread: string, message: Message | PreparedMessage) {
         const { actor, moment, interaction } = await this.address(thread, tx);
         if (message.interactionId !== interaction)

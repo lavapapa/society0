@@ -100,6 +100,8 @@ export class PerceptionSession implements PerceptionSelection {
     }
     commit(tx: SqliteTransaction, batch: PerceptionBatch, inputs: readonly PerceptionInput[]) { return this.run(() => this.commitBatch(tx, batch, inputs)); }
     private async commitBatch(tx: SqliteTransaction, batch: PerceptionBatch, inputs: readonly PerceptionInput[]) {
+        if (await this.ctx.threads.owner(batch.scope.threadId, tx) !== batch.scope.actorId)
+            return fail('PERCEPTION_THREAD_SCOPE');
         const current = await this.ctx.slots.acquire(perceptionSourceSlot, this.context);
         try {
             const sourceIds = new Set(batch.reads.map(read => read.sourceId));
