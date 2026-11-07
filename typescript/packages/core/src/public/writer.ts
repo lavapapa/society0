@@ -41,7 +41,7 @@ function same(line: Uint8Array, sort: string, audience: string, entry: Entry): b
 }
 export class PublicWriterImpl implements PublicWriter {
     private readonly state: State;
-    constructor(private tx: SqliteTransaction, private tables: ReadonlyMap<string, PublicTableDecl>, private docs: ReadonlyMap<string, PublicDocDecl>) {
+    constructor(private tx: SqliteTransaction, private tables: ReadonlyMap<string, PublicTableDecl>, private docs: ReadonlyMap<string, PublicDocDecl>, private maxQueryBytes: number) {
         const existing = states.get(tx);
         if (existing && existing.rev !== BigInt(tx.baseRevision) + 1n)
             throw fault('PUBLIC_REVISION', 'transaction revision changed');
@@ -61,7 +61,7 @@ export class PublicWriterImpl implements PublicWriter {
             const rows = await this.tx.query({
                 sql: 'SELECT rowid AS id,row_key,rev_from,sort_key,audience,line FROM public_rows WHERE file=? AND rev_to IS NULL' + (cursor === undefined ? '' : ' AND row_key>?') + ' ORDER BY row_key LIMIT 512',
                 parameters: cursor === undefined ? [file] : [file, cursor]
-            }, { maxRows: 512, maxBytes: 1048576 });
+            }, { maxRows: 512, maxBytes: this.maxQueryBytes });
             for (const row of rows)
                 live.set(String(row.row_key), { id: row.id as bigint, rev: String(row.rev_from), sort: String(row.sort_key), audience: String(row.audience), line: row.line as Uint8Array });
             if (rows.length < 512)
@@ -174,7 +174,7 @@ export class PublicWriterImpl implements PublicWriter {
         await this.tx.execute({ sql: 'INSERT INTO public_nodes(path,parent,rev_from,rev_to,kind,provider,node_id,media,meta,audience,body,artifact,bytes) VALUES(?,?,?,NULL,?,?,?,?,?,?,?,?,?)', parameters: [path, spec.parent, this.state.rev, spec.kind, spec.provider, spec.nodeId, spec.media, JSON.stringify(spec.meta), spec.audience, spec.body ?? null, spec.artifact ?? null, spec.bytes ?? null] });
     }
     private async versionNode(path: string, spec: NodeSpec): Promise<void> {
-        const [live] = await this.tx.query({ sql: 'SELECT rowid AS id,rev_from,kind,parent,provider,node_id,media,meta,audience,body,artifact,bytes FROM public_nodes WHERE path=? AND rev_to IS NULL', parameters: [path] }, { maxRows: 1, maxBytes: 1048576 });
+        const [live] = await this.tx.query({ sql: 'SELECT rowid AS id,rev_from,kind,parent,provider,node_id,media,meta,audience,body,artifact,bytes FROM public_nodes WHERE path=? AND rev_to IS NULL', parameters: [path] }, { maxRows: 1, maxBytes: this.maxQueryBytes });
         if (!live) {
             await this.insertNode(path, spec);
             return;
@@ -259,6 +259,8 @@ export class PublicWriterImpl implements PublicWriter {
     async publish(path: string, body: Uint8Array | { readonly artifact: ArtifactRef }, options?: { readonly media?: string; readonly audience?: Audience; readonly meta?: Json }): Promise<void> {
         const doc = this.docs.get(path);
         const inline = body instanceof Uint8Array;
+        if (inline && body.byteLength > this.maxQueryBytes)
+            throw fault('PUBLIC_BODY_BUDGET', `${body.byteLength} > maxQueryBytes ${this.maxQueryBytes}`);
         await this.ensureParents(path);
         await this.versionNode(path, {
             kind: 'doc', parent: parentOf(path), provider: 'public', nodeId: path,
@@ -280,7 +282,7 @@ export class PublicWriterImpl implements PublicWriter {
     async setMeta(path: string, patch: Json): Promise<void> {
         if (patch === null || typeof patch !== 'object' || Array.isArray(patch))
             throw fault('PUBLIC_META', path);
-        const [live] = await this.tx.query({ sql: 'SELECT rowid AS id,rev_from,kind,parent,provider,node_id,media,meta,audience,body,artifact,bytes FROM public_nodes WHERE path=? AND rev_to IS NULL', parameters: [path] }, { maxRows: 1, maxBytes: 1048576 });
+        const [live] = await this.tx.query({ sql: 'SELECT rowid AS id,rev_from,kind,parent,provider,node_id,media,meta,audience,body,artifact,bytes FROM public_nodes WHERE path=? AND rev_to IS NULL', parameters: [path] }, { maxRows: 1, maxBytes: this.maxQueryBytes });
         const decl = this.tables.get(path), doc = this.docs.get(path);
         if (!live && !decl && !doc)
             throw fault('PUBLIC_MISSING', path);
@@ -298,6 +300,6 @@ export class PublicWriterImpl implements PublicWriter {
             await this.insertNode(path, spec);
     }
 }
-export function publicWriter(tx: SqliteTransaction, tables: ReadonlyMap<string, PublicTableDecl>, docs: ReadonlyMap<string, PublicDocDecl>): PublicWriter {
-    return new PublicWriterImpl(tx, tables, docs);
+export function publicWriter(tx: SqliteTransaction, tables: ReadonlyMap<string, PublicTableDecl>, docs: ReadonlyMap<string, PublicDocDecl>, maxQueryBytes: number): PublicWriter {
+    return new PublicWriterImpl(tx, tables, docs, maxQueryBytes);
 }

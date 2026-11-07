@@ -27,6 +27,7 @@ export class SqliteDatabase extends Service {
   this.ctx.executionFence.bind({runId:this.options.runId,generation:this.options.generation,readRevision:()=>resource.value.readRevision()});
  }
  get directory(){return this.options.directory}
+ get maxQueryBytes(){return this.options.maxQueryBytes!}
  get runId(){return this.database.runId}
  get metadata():SqliteRuntimeMetadata{return this.database.metadata}
  readRevision(){return this.database.readRevision()}
