@@ -48,6 +48,15 @@ export function secretProvider(){
  };
 }
 
+export function nestedSecretProvider(){
+ return {
+  path:'/self/contracts/with-b/secret.jsonl',media:'text/plain',
+  async visible(actorId){return actorId==='B'},
+  async versions(actorId){return [{owner:'b7-nested',version:actorId}]},
+  async *render(actorId){yield Buffer.from('nested:'+actorId+'\n')}
+ };
+}
+
 export async function acquire(run,actorId,momentId,operationId='b7-read'){
  return run.ctx.exploration.acquire(run.scope(actorId,momentId),run.acquisition(actorId,momentId,operationId));
 }

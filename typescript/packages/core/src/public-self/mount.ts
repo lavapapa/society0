@@ -61,11 +61,27 @@ export class PublicSelfMount implements ExplorationMount {
             return true;
         return provider.visible(actorId, view);
     }
+    /** 目录仅当子树内至少有一个对该 actor 可见的提供者时可见；挂载根始终可见。 */
+    private async visibleDirectoryIn(view: SqliteReadView, path: string, scope: DiscoveryScope): Promise<boolean> {
+        if (path === this.prefix)
+            return true;
+        if (!this.directories().has(path))
+            return false;
+        for (const provider of this.host.providers.values()) {
+            if (!provider.path.startsWith(path + '/'))
+                continue;
+            if (await this.providerVisible(provider, scope.actorId, view))
+                return true;
+        }
+        return false;
+    }
     private async visibleIn(view: SqliteReadView, path: string, scope: DiscoveryScope): Promise<boolean> {
         if (path !== this.prefix && !path.startsWith(this.prefix + '/'))
             return false;
-        if (path === this.prefix || this.directories().has(path))
+        if (path === this.prefix)
             return true;
+        if (this.directories().has(path))
+            return this.visibleDirectoryIn(view, path, scope);
         if (path === this.readmePath())
             return true;
         const provider = this.provider(path);
@@ -145,7 +161,7 @@ export class PublicSelfMount implements ExplorationMount {
                 return fail('EXPLORATION_NOT_DIRECTORY');
             const items: ExplorationNode[] = [];
             for (const directory of this.directories())
-                if (directory !== path && posix.dirname(directory) === path)
+                if (directory !== path && posix.dirname(directory) === path && await this.visibleDirectoryIn(view, directory, scope))
                     items.push(this.directoryNode(directory, scope.actorId));
             if (path === this.prefix)
                 items.push(this.readmeRecord(this.readmePath(), await this.readmeBytes(view, scope), scope.actorId).node);
@@ -165,6 +181,8 @@ export class PublicSelfMount implements ExplorationMount {
     async find(root: string, glob: string, scope: DiscoveryScope, _view: SqliteReadView, request: PageRequest): Promise<Page<ExplorationNode>> {
         return this.live(async view => {
             if (root !== this.prefix && !root.startsWith(this.prefix + '/'))
+                return fail('EXPLORATION_NOT_VISIBLE');
+            if (!await this.visibleIn(view, root, scope))
                 return fail('EXPLORATION_NOT_VISIBLE');
             const id = identity(scope, view, { mount: this.id, root, glob }), last = after(request.cursor, id);
             const items: ExplorationNode[] = [];
