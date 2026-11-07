@@ -62,8 +62,13 @@ if 'core' in release['packages']:
 write(consumer / 'tsconfig.json', {'compilerOptions': {'target': 'ES2024', 'module': 'NodeNext', 'strict': True, 'isolatedModules': True, 'skipLibCheck': False, 'noEmit': True, 'types': ['node']}, 'include': consumer_types})
 run(['node', root / 'node_modules/typescript/bin/tsc', '-p', 'tsconfig.json'])
 base_tests = [name for name in sorted(INSTALLED_ONLY) if name != 'module-sidecars.test.mjs']
-for name in base_tests:
+def copy_installed_test(name):
     shutil.copyfile(test_root / name, consumer / name)
+    companion = test_root / name.replace('.test.mjs', '.installed.mjs')
+    if companion.exists():
+        shutil.copyfile(companion, consumer / companion.name)
+for name in base_tests:
+    copy_installed_test(name)
 shutil.copytree(test_root / 'pr02', consumer / 'pr02')
 write(consumer / 'empty-boot.json', '[]\n')
 shutil.copytree(test_root / 'native', consumer / 'native-tests')
@@ -78,7 +83,7 @@ for name in INSTALLED_COPIES:
     extra_tests.append(installed_copy(name, INSTALLED_COPIES[name]))
 for name, rules in INSTALLED_SUPPORT.items(): installed_copy(name, rules)
 if 'core' in release['packages']:
-    shutil.copyfile(test_root / 'module-sidecars.test.mjs', consumer / 'module-sidecars.test.mjs')
+    copy_installed_test('module-sidecars.test.mjs')
     extra_tests.extend(['module-sidecars.test.mjs', 'ajv-consumer.ts', 'ripgrep-consumer.ts'])
 native_test_targets = [str(path.relative_to(consumer)) for path in (consumer / 'native-tests').glob('*.test.ts')]
 run(['node', '--test', '--test-concurrency=1', *base_tests, *extra_tests, *native_test_targets])

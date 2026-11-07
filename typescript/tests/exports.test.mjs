@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
+import {createRequire} from 'node:module';
 import {createHost} from '../.build/host/dist/index.js';
-test('real third-party conditional array and pattern exports share Node ESM resolution',async()=>{
+const hostInstalled=(()=>{try{createRequire(import.meta.url).resolve('@society0/host');return true}catch{return false}})();
+test('real third-party conditional array and pattern exports share Node ESM resolution',{skip:hostInstalled?false:'INSTALLED_ONLY: 需要安装态 @society0/host；请运行 scripts/acceptance.py 在仓外 consumer 中执行'},async()=>{
  const directory=resolve('node_modules/@fixtures/export-maps');await mkdir(directory+'/plugins',{recursive:true});
  await writeFile(directory+'/package.json',JSON.stringify({name:'@fixtures/export-maps',version:'1.0.0',type:'module',peerDependencies:{'@society0/host':'^0.1.0'},exports:{'.':{types:'./types.d.ts',node:{import:'./entry.mjs',require:'./wrong.cjs'},default:'./wrong.mjs'},'./array':['./entry.mjs','./wrong.mjs'],'./plugins/*':'./plugins/*.mjs'}}));
  await writeFile(directory+'/entry.mjs',`export function apply(ctx){ctx.provide('exportProbe','condition-array')}`);
