@@ -6,19 +6,21 @@ export const api: ApiEntry = { "exportPath": "./plain", "provides": [], "require
 import type { Context } from '@society0/host';
 import { registerPlainDispatch } from './dispatch.js';
 import { sampleRanks, type RandomPort } from './sample.js';
+import { ensureActorsTable, writePublicActor } from './public.js';
 import type { Json } from '../contracts/common.js';
 import { after, identity, page, fail } from '../information/page.js';
 import '../actors/index.js';
 import '../actions/index.js';
 import '../information/index.js';
 export default { Config, inject: ['actors', 'actions', 'information', 'slots'], apply(ctx: Context) {
+        ensureActorsTable(ctx);
         registerPlainDispatch(ctx);
         ctx.actions.register({ name: 'plain.update', inputSchema: { type: 'object', required: ['attributes'], properties: { attributes: {} }, additionalProperties: false }, outputSchema: { type: 'object', required: ['id', 'attributes'] }, effect: 'world', available: async (scope, reader) => !!await ctx.actors.get(scope.actorId, reader), execute: async (input, context) => {
                 const actor = { id: context.actorId, attributes: (input as {
                         attributes: Json;
                     }).attributes };
                 const operationId = context.operationId;
-                await context.transaction({ operationId, maxDurationMs: 15000, maxStatements: 20, maxInputBytes: 1048576, maxChangedRows: 10, maxCapturedBytes: 1048576 }, async (tx) => { await ctx.actors.update(tx, actor); return actor; });
+                await context.transaction({ operationId, maxDurationMs: 15000, maxStatements: 64, maxInputBytes: 1048576, maxChangedRows: 64, maxCapturedBytes: 1048576 }, async (tx) => { await ctx.actors.update(tx, actor); const state = await ctx.actors.state(actor.id, tx); if (state) await writePublicActor(ctx, tx, { id: actor.id, participation: state.participation, version: state.version, attributes: actor.attributes }); return actor; });
                 return { operationId, status: 'completed', value: actor, original: { action: 'plain.update', input }, artifacts: [] };
             } });
         ctx.information.register({ id: 'plain.actors', schema: { type: 'object', properties: { prefix: { type: 'string' }, participation: { enum: ['active', 'inactive'] }, order: { enum: ['asc', 'desc'] }, sample: { type: 'object', required: ['size', 'seed'], properties: { size: { type: 'integer', minimum: 0, maximum: 1000 }, seed: { type: 'string' } }, additionalProperties: false }, fields: { type: 'array', items: { enum: ['id', 'attributes', 'participation', 'reason', 'version'] } } } }, capabilities: ['sql-filter', 'keyset', 'stable-sort', 'projection', 'sql-seeded-sample'], available: async (scope, reader) => !!await ctx.actors.get(scope.actorId, reader), query: async (input, scope, view, request) => {
