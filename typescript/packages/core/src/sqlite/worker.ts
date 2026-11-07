@@ -1,10 +1,11 @@
 import {parentPort,workerData} from 'node:worker_threads';
 import {join} from 'node:path';
 import {mkdirSync,existsSync} from 'node:fs';
-import {SqliteConnection} from '@society0/sqlite-native';
+import {SqliteConnection,configureHeapLimit} from '@society0/sqlite-native';
 import {fault,inputBytes,rpcData,type TransactionRequest,type SqliteSchemaVersion} from './contracts.js';
 import {applySchemaMigrations,readSchemaVersions} from './schema-native.js';
 const {options,control,probeOnly}=workerData;
+configureHeapLimit(512*1024*1024);
 const path=join(options.directory,'world.sqlite');
 mkdirSync(options.directory,{recursive:true});
 const reopened=existsSync(path);
@@ -41,7 +42,7 @@ function begin(args:any){
  if(active)throw fault('SQLITE_BUSY');
  if(db.query('SELECT revision FROM s0_operations WHERE operation_id=?',[args.request.operationId],{maxRows:1,maxBytes:256}).length)throw fault('OPERATION_EXISTS');
  const baseRevision=revision();if(args.request.expectedRevision!==undefined&&args.request.expectedRevision!==baseRevision)throw fault('SQLITE_STALE_REVISION');
- if(!tables){schemaEnumerations++;tables=db.query("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",[],{maxRows:10000,maxBytes:1048576}).map(r=>String(r.name))}
+ if(!tables){schemaEnumerations++;const rows=db.query("SELECT name,sql FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",[],{maxRows:10000,maxBytes:4194304});const fts=rows.filter(r=>/^CREATE\s+VIRTUAL\s+TABLE\s+.+\s+USING\s+fts5/i.test(String(r.sql??''))).map(r=>String(r.name));const shadows=new Set(fts.flatMap(base=>['_data','_idx','_content','_docsize','_config'].map(suffix=>base+suffix)));tables=rows.filter(r=>{const name=String(r.name);return !fts.includes(name)&&!shadows.has(name)}).map(r=>String(r.name))}
  db.startSession(tables);
  try{db.begin({maxDurationMs:args.request.maxDurationMs,maxCapturedBytes:args.request.maxCapturedBytes});active={id:args.tx,request:args.request,statements:0,input:0,changed:0n,baseline:changes(),failed:false,timer:setTimeout(()=>rollback(),args.request.maxDurationMs)}}
  catch(error){if(db.state().transaction)db.rollback();else db.retireSession();throw error}

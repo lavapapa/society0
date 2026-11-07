@@ -1,5 +1,5 @@
 /** 渲染缓存：内存 LRU + 磁盘 etag 文件；缓存只依赖 etag，可删可重建。 */
-import { mkdir, open, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
@@ -8,12 +8,21 @@ import type { PublicCacheDiagnostics } from '../contracts/public.js';
 export class RenderCache {
     private readonly memory = new Map<string, Uint8Array>();
     private readonly inflight = new Map<string, Promise<Uint8Array>>();
+    private readonly sizes = new Map<string, number>();
+    private static readonly MAX_SIZES = 4096;
     private stored = 0;
     private renders = 0;
     private memoryHits = 0;
     private diskHits = 0;
     private misses = 0;
     constructor(private readonly directory: string, private readonly budget: number) { }
+    private rememberSize(etag: string, bytes: number): void {
+        this.sizes.set(etag, bytes);
+        while (this.sizes.size > RenderCache.MAX_SIZES) {
+            const oldest = this.sizes.keys().next().value as string;
+            this.sizes.delete(oldest);
+        }
+    }
     private key(etag: string) { return Buffer.from(etag, 'utf8').toString('base64url'); }
     pathOf(etag: string) { const name = this.key(etag); return join(this.directory, name.slice(0, 2), name); }
     private remember(etag: string, value: Uint8Array) {
@@ -27,6 +36,7 @@ export class RenderCache {
         while (this.stored > this.budget && this.memory.size) {
             const [key, oldest] = this.memory.entries().next().value as [string, Uint8Array];
             this.memory.delete(key);
+            this.sizes.delete(key);
             this.stored -= oldest.byteLength;
         }
     }
@@ -73,12 +83,32 @@ export class RenderCache {
             this.inflight.delete(etag);
         }
     }
+    /** 确保磁盘缓存存在但不读入内存；用于搜索只需要的文件路径。 */
+    async ensureFile(etag: string, render: () => Promise<Uint8Array>): Promise<{ path: string; bytes: number }> {
+        const path = this.pathOf(etag);
+        const known = this.sizes.get(etag);
+        if (known !== undefined)
+            return { path, bytes: known };
+        try {
+            const bytes = (await stat(path)).size;
+            this.rememberSize(etag, bytes);
+            return { path, bytes };
+        }
+        catch (error) {
+            if ((error as { code?: string }).code !== 'ENOENT')
+                throw error;
+        }
+        await this.bytes(etag, render);
+        const bytes = (await stat(path)).size;
+        this.rememberSize(etag, bytes);
+        return { path, bytes };
+    }
     /** 确保磁盘缓存存在，打开只读句柄供范围读取。 */
     async open(etag: string, render: () => Promise<Uint8Array>): Promise<FileHandle> {
         await this.bytes(etag, render);
         return open(this.pathOf(etag), 'r');
     }
     diagnostics(): PublicCacheDiagnostics {
-        return { renders: this.renders, memoryHits: this.memoryHits, diskHits: this.diskHits, misses: this.misses, entries: this.memory.size, bytes: this.stored };
+        return { renders: this.renders, memoryHits: this.memoryHits, diskHits: this.diskHits, misses: this.misses, entries: this.memory.size, sizes: this.sizes.size, bytes: this.stored };
     }
 }

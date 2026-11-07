@@ -14,12 +14,12 @@ import MomentViews,{momentViewsMigration} from '../.build/core/dist/moment-views
 
 export const table={path:'/public/market/prices',title:'价格',description:'日度价格',schema:{type:'object',properties:{id:{type:'string'},at:{type:'string'},price:{type:'string'},note:{type:'string'}}},key:['id'],sort:[{field:'at'},{field:'id'}],shard:{by:'at',format:'month'},decimals:['price']};
 export const single={path:'/public/actors',title:'主体',description:'公开字段',schema:{type:'object',properties:{id:{type:'string'},role:{type:'string'},name:{type:'string'}}},key:['id'],sort:[{field:'name'}],shard:{by:'',format:'none'}};
-export const request=operationId=>({operationId,maxDurationMs:20000,maxStatements:200000,maxInputBytes:16777216,maxChangedRows:100000,maxCapturedBytes:33554432});
+export const request=operationId=>({operationId,maxDurationMs:120000,maxStatements:200000,maxInputBytes:16777216,maxChangedRows:100000,maxCapturedBytes:33554432});
 export const page={maxItems:20000,maxResponseBytes:67108864};
 export const frontier=()=>({codec:'step/1',value:0,logicalTime:0,completedCount:'0',pendingAcknowledgements:[]});
 export const migrationList=(source={consumer:'b4-mount'})=>[artifactsMigration,publicMigration(source),momentViewsMigration(source)];
 
-export async function setup({directory,tables=[table,single],docs=[],momentViews='clock',readerWorkers=2,maxSnapshots=8,audiences,migrate=true,resume}={}){
+export async function setup({directory,tables=[table,single],docs=[],momentViews='clock',readerWorkers=2,maxSnapshots=8,audiences,migrate=true,resume,extra=[],exploration={}}={}){
  const host=await createHost({boot:[]});
  try{
   const base=directory?undefined:await mkdtemp(join(tmpdir(),'b4-mount-')),run=directory??join(base,'run');
@@ -29,14 +29,14 @@ export async function setup({directory,tables=[table,single],docs=[],momentViews
   await host.ctx.plugin(strategies);
   await host.ctx.plugin(Slots);
   await host.ctx.plugin(ExecutionFence);
-  await host.ctx.plugin(SqliteDatabase,{directory:run,runId:'b4',generation:'g',maxTransactionMs:20000,maxSnapshots,readerWorkers,maxInputBytes:16777216,maxQueuedBytes:67108864,maxQueryBytes:16777216,maxQueryRows:100000,maxInlineBytes:16777216});
+  await host.ctx.plugin(SqliteDatabase,{directory:run,runId:'b4',generation:'g',maxTransactionMs:120000,busyTimeoutMs:120000,maxSnapshotAgeMs:300000,maxSnapshots,readerWorkers,maxInputBytes:16777216,maxQueuedBytes:67108864,maxQueryBytes:16777216,maxQueryRows:100000,maxInlineBytes:16777216});
   await host.ctx.plugin(ArtifactsLocal,{directory:join(run,'objects')});
   if(resume){
    const publication=await host.ctx.executionFence.seal();
    await host.ctx.database.activateFromCompletePoint(publication,resume);
    host.ctx.executionFence.resume(publication);
-  }else if(migrate)await host.ctx.database.applyMigrations(migrationList());
-  await host.ctx.plugin(Exploration,{maxInlineFileBytes:16777216,maxSearchBytes:67108864,maxSearchOutputBytes:16777216,maxSearchMs:30000});
+  }else if(migrate)await host.ctx.database.applyMigrations([...migrationList(),...extra]);
+  await host.ctx.plugin(Exploration,{maxInlineFileBytes:16777216,maxSearchBytes:67108864,maxSearchOutputBytes:16777216,maxSearchMs:30000,...exploration});
   await host.ctx.plugin(Public,{});
   await host.ctx.plugin(MomentViews,{freeze:momentViews});
   for(const decl of tables)host.ctx.public.registry.table(decl);

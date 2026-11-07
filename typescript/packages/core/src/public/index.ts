@@ -63,6 +63,7 @@ export class PublicRepository extends Service {
     readonly cache: RenderCache;
     readonly audiences: AudienceResolver;
     readonly mount: PublicMount;
+    private readonly stats = { searchStale: 0, fallbackScans: 0 };
     constructor(ctx: Context, readonly options: PublicOptions) {
         super(ctx, 'public');
         this.registry = new Registry(ctx);
@@ -76,7 +77,14 @@ export class PublicRepository extends Service {
             audiences: this.audiences,
             tables: registry.tables,
             docs: registry.docs,
-            momentViews: () => ctx.get('momentViews', false)
+            momentViews: () => ctx.get('momentViews', false),
+            searchOptions: () => {
+                const exploration = ctx.get('exploration', false);
+                if (!exploration)
+                    throw new Error('EXPLORATION_SEARCH_CONFIG');
+                return exploration.limits;
+            },
+            stats: this.stats
         });
     }
     async [Service.init]() {
@@ -92,8 +100,15 @@ export class PublicRepository extends Service {
         const registry = this.registry as Registry;
         return publicWriter(tx, registry.tables, registry.docs);
     }
+    /** fork/恢复/重开后从 public_rows 全量重建 trigram 索引；FTS 不进入 changeset。 */
+    async rebuildSearch(tx: SqliteTransaction): Promise<void> {
+        await tx.execute({ sql: "INSERT INTO public_fts(public_fts) VALUES('delete-all')" });
+        await tx.execute({ sql: 'INSERT INTO public_fts(rowid,line) SELECT rowid,line FROM public_rows' });
+        await tx.execute({ sql: "INSERT INTO public_search_state(public_search_state) VALUES('delete-all')" });
+        await tx.execute({ sql: "INSERT INTO public_search_state(rowid,state) VALUES(?,'ok')", parameters: [BigInt(tx.baseRevision) + 1n] });
+    }
     diagnostics(): PublicDiagnostics {
-        return { cache: this.cache.diagnostics(), audiences: this.audiences.size };
+        return { cache: this.cache.diagnostics(), audiences: this.audiences.size, searchStale: this.stats.searchStale, fallbackScans: this.stats.fallbackScans };
     }
 }
 export default PublicRepository;

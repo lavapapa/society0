@@ -91,11 +91,14 @@ export interface PublicCacheDiagnostics {
     readonly diskHits: number;
     readonly misses: number;
     readonly entries: number;
+    readonly sizes: number;
     readonly bytes: number;
 }
 export interface PublicDiagnostics {
     readonly cache: PublicCacheDiagnostics;
     readonly audiences: number;
+    readonly searchStale: number;
+    readonly fallbackScans: number;
 }
 export interface Public {
     readonly registry: PublicRegistry;
