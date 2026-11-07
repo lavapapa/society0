@@ -84,6 +84,7 @@ static bool domainAction(int action) {
 }
 static int authorize(void*context,int action,const char*name,const char*argument,const char*,const char*) {
  auto d=(DB*)context;
+ if(action==SQLITE_PRAGMA&&name&&std::string(name)=="data_version"){d->sessionMetadataPrepareCount++;return SQLITE_OK;}
  if(sessionMetadata(d,action,name)){d->sessionMetadataPrepareCount++;return SQLITE_OK;}
  if(domainAction(action))return SQLITE_OK;
  d->denied=std::to_string(action)+":"+(name?name:"")+":"+(argument?argument:"");

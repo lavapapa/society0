@@ -41,7 +41,7 @@ function begin(args:any){
  if(active)throw fault('SQLITE_BUSY');
  if(db.query('SELECT revision FROM s0_operations WHERE operation_id=?',[args.request.operationId],{maxRows:1,maxBytes:256}).length)throw fault('OPERATION_EXISTS');
  const baseRevision=revision();if(args.request.expectedRevision!==undefined&&args.request.expectedRevision!==baseRevision)throw fault('SQLITE_STALE_REVISION');
- if(!tables){schemaEnumerations++;tables=db.query("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",[],{maxRows:10000,maxBytes:1048576}).map(r=>String(r.name))}
+ if(!tables){schemaEnumerations++;const rows=db.query("SELECT name,sql FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",[],{maxRows:10000,maxBytes:4194304});const virtual=rows.filter(r=>/^CREATE VIRTUAL TABLE/i.test(String(r.sql??''))).map(r=>String(r.name));tables=rows.filter(r=>{const name=String(r.name);return !virtual.some(base=>name===base||name.startsWith(base+'_'))}).map(r=>String(r.name))}
  db.startSession(tables);
  try{db.begin({maxDurationMs:args.request.maxDurationMs,maxCapturedBytes:args.request.maxCapturedBytes});active={id:args.tx,request:args.request,statements:0,input:0,changed:0n,baseline:changes(),failed:false,timer:setTimeout(()=>rollback(),args.request.maxDurationMs)}}
  catch(error){if(db.state().transaction)db.rollback();else db.retireSession();throw error}
