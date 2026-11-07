@@ -25,7 +25,35 @@ python3 tools/run.py wt/vfs/typescript evidence/logs/vfs-b0-bench.log \
 
 ## 最终模式（B10）
 
-B10 在 `mode` 中增加 `/public` 路径：同一生成器写入 public-store，经 `public` 挂载与缓存读，输出渲染次数、缓存命中率、rg 进程数与 reader 队列等待，并与本基线报告对比。当前实现遇到非 `current` 模式会显式报 `BENCH_MODE`。
+B10 增加 `mode: "public"` 路径：同一生成器写入 public-store（`/public/bench/files/<bucket>/<file>.jsonl`，100 桶 × 100 文件），经 `public` 挂载、moment-views 冻结视图与渲染缓存读取；另装配 `public-self`（`/self/profile.json`）和 exploration-shell 池。`--mode current` 仍是现状 `/world` 基线，用于对照。
+
+```
+node bench/public-vfs.mjs --mode public --actors 1000 --files 10000 --rows 20 \
+  --concurrency 200 --moments 100 --change-percent 1 --checkpoints 1,10,100 \
+  --directory /var/tmp/society0-next-b10-<时间> \
+  --out ../evidence/bench/public-vfs-final.json
+```
+
+最终报告在原字段之外增加：
+
+- `operations.{ls,stat,read,find,grep,bashStart,selfRead,concurrent}`；`grep.extra.coldMs`/`regexMs`、`concurrent.extra.throughputPerSecond`/`readerQueueWaitMs`/`sqliteSnapshotBudgetErrors`。
+- `coldRender`：1 万行文件空缓存首次读取；`write1000`：1 事务 upsert 1000 行（含 FTS）；`share`：N 个 agent 读同一文件的渲染次数。
+- `history.checkpoints[]`：第 1、10、100 个 moment 的 ls/stat/read/find/grep 与当时的 SQLite 文件大小。
+- `database`（main/wal/shm 字节）、`memory`（峰值 RSS、maxRSS、运行时 load average）、`counters`（渲染次数、缓存命中率、rg 进程数、快照打开次数、reader 队列等待、`SQLITE_SNAPSHOT_BUDGET` 次数）。
+- `config` 与 `snapshotLeaseSource`：快照租约 30 s 的实际来源。
+
+### 单项 profile
+
+`--focus ls|read|find|cold|concurrent --profile-out <file.cpuprofile>`：装配与播种完成后，只对目标操作循环，用 `node:inspector` 程序化启停 profiler，避免把播种噪声算进来。`--focus-iterations` 默认 30；`cold` 固定 1 次，`concurrent` 固定跑一次 200 会话混合负载。
+
+### 快照过期探针
+
+```
+node bench/public-vfs.mjs --mode public --expiry-probe --shell-timeout-ms 120000 \
+  --out ../evidence/bench/public-vfs-snapshot-expiry-120000.json
+```
+
+执行 `sleep 32; cat /public/...`，并在 session 上记录 RPC 错误。默认 shell `timeoutMs=30000` 与快照租约同为 30 s；把 shell 超时单独调大后，命令在 32 s 时触发读取，RPC 返回 `SQLITE_SNAPSHOT_EXPIRED`（报告里的 `rpcErrorCodes`）。租约取值来源见 `snapshotLeaseSource`：`exploration/session.ts` 固定 `snapshot({maxAgeMs:30000})`，SQLite 默认 `maxSnapshotAgeMs=30000`，`sqlite/worker.ts`/`reader.ts` 用 `setTimeout(maxAgeMs)` 关快照。
 
 # Bench（C9）
 
