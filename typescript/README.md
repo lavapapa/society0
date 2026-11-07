@@ -55,7 +55,7 @@ boot 文件是 BootEntry 数组，空数组启动纯宿主。进程空闲、SIGI
 
 ## 三、profile 与工具表
 
-四个发行 profile（`event-sqlite`、`rule-sqlite`、`social-sqlite`、`social-codex-sqlite`）统一装配 `@society0/core/public`、`@society0/core/public-self` 与 `@society0/core/moment-views`，根目录提供 `/public` 和 `/self` 两个只读挂载；`/world` 不再装配。`public` 在 `changesPerception` 未关闭时注册 `public.changes` 感知来源。`information` 服务暂时保留，供 plain/social 的旧来源过渡使用，不再是 agent 的默认工具。
+四个发行 profile（`event-sqlite`、`rule-sqlite`、`social-sqlite`、`social-codex-sqlite`）统一装配 `@society0/core/public`、`@society0/core/public-self` 与 `@society0/core/moment-views`，根目录提供 `/public` 和 `/self` 两个只读挂载；`/world` 不再装配。`public` 在 `changesPerception` 未关闭时注册 `public.changes` 感知来源。两个 social profile 另装 `@society0/core/action-files`，在 `/self/actions/offers.jsonl` 与 `/self/actions/catalog.jsonl` 提供行动清单的完整文件视图。`information` 服务暂时保留，供 plain/social 的旧来源过渡使用，不再是 agent 的默认工具。
 
 两个 social profile 装配 `@society0/core/actor-tools`。默认工具表恰为 `bash`、`read`、`find`、`grep`、`act` 五个，跨主体、跨 moment 逐字节相同；`legacyTools` 默认为空。只有显式配置 `legacyTools`（`information`、`exploration`）时才注册 `information_*`、`exploration_*`，仅用于对照实验。`event-sqlite` 与 `rule-sqlite` 不含 agent 运行时与工具表。
 

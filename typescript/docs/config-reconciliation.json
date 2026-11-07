@@ -1428,6 +1428,10 @@
     "@society0/core/public-self": {
       "state": "added-plugin",
       "design": "B-public DESIGN §2、§8"
+    },
+    "@society0/core/action-files": {
+      "state": "added-plugin",
+      "design": "A-actions DESIGN §9；INTEGRATION §2 第 1 条"
     }
   },
   "source": "inputs/society0_next_refactor_v3/catalog/plan.json"

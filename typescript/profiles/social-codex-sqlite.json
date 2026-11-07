@@ -319,6 +319,11 @@
                   "config": {}
                 },
                 {
+                  "id": "action-files",
+                  "name": "@society0/core/action-files",
+                  "config": {}
+                },
+                {
                   "id": "mount-results",
                   "name": "@society0/core/mount-results",
                   "config": {}
