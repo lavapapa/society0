@@ -89,6 +89,7 @@ export class PublicRepository extends Service {
                     throw new Error('EXPLORATION_SEARCH_CONFIG');
                 return exploration.limits;
             },
+            limits: { maxQueryBytes: ctx.database.maxQueryBytes, maxQueryRows: ctx.database.maxQueryRows },
             stats: this.stats
         });
     }

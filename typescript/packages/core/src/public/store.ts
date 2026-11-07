@@ -72,9 +72,10 @@ export async function readNode(view: SqliteReadView, path: string, revision: str
         ...(row.bytes === null || row.bytes === undefined ? {} : { bytes: Number(row.bytes) })
     };
 }
-export async function readChildren(view: SqliteReadView, parent: string, revision: string, request: { readonly maxRows: number; readonly maxBytes: number }): Promise<readonly PublicNode[]> {
+export async function readChildren(view: SqliteReadView, parent: string, revision: string, request: { readonly maxRows: number; readonly maxBytes: number; readonly kinds?: readonly string[] }): Promise<readonly PublicNode[]> {
     const at = revisionNumber(revision);
-    const rows = await view.query({ sql: `SELECT path,parent,kind,provider,node_id,media,meta,audience,bytes,rev_from FROM public_nodes WHERE parent=? AND ${AS_OF} ORDER BY path LIMIT ?`, parameters: [parent, at, at, request.maxRows] }, { maxRows: request.maxRows, maxBytes: request.maxBytes });
+    const kinds = request.kinds && request.kinds.length ? ` AND kind IN (${request.kinds.map(() => '?').join(',')})` : '';
+    const rows = await view.query({ sql: `SELECT path,parent,kind,provider,node_id,media,meta,audience,bytes,rev_from FROM public_nodes WHERE parent=? AND ${AS_OF}${kinds} ORDER BY path LIMIT ?`, parameters: [parent, at, at, ...(request.kinds ?? []), request.maxRows] }, { maxRows: request.maxRows, maxBytes: request.maxBytes });
     return rows.map(row => ({
         path: text(row.path, 'path'), parent: text(row.parent, 'parent'), kind: text(row.kind, 'kind') as PublicNode['kind'],
         revision: String(row.rev_from), provider: text(row.provider, 'provider'), nodeId: text(row.node_id, 'node_id'),
@@ -83,22 +84,34 @@ export async function readChildren(view: SqliteReadView, parent: string, revisio
         ...(row.bytes === null || row.bytes === undefined ? {} : { bytes: Number(row.bytes) })
     }));
 }
-/** 渲染即按 (sort_key,row_key) 拼接规范行；空文件为0字节。 */
-export async function renderRows(view: SqliteReadView, file: string, revision: string, audiences: readonly Audience[]): Promise<Uint8Array> {
+/** 渲染即按 (sort_key,row_key) 拼接规范行；空文件为0字节。分页大小由数据库查询预算与文件平均行宽推导。 */
+export async function renderRows(view: SqliteReadView, file: string, revision: string, audiences: readonly Audience[], limits?: { readonly maxQueryBytes: number; readonly maxQueryRows: number }, rows?: number, bytes?: number): Promise<Uint8Array> {
     const at = revisionNumber(revision), audience = audienceClause(audiences);
+    const average = limits && rows && bytes ? Math.max(1, Math.ceil(bytes / Math.max(1, rows))) + 1 : 0;
+    const page = limits && average ? Math.max(1, Math.min(limits.maxQueryRows, Math.floor(limits.maxQueryBytes / average))) : PAGE_ROWS;
+    const maxBytes = limits?.maxQueryBytes ?? 1048576;
+    const total = rows ?? 0;
+    if (limits && total > 0 && total <= page && (bytes ?? 0) <= maxBytes) {
+        const [aggregate] = await view.query({
+            sql: `SELECT group_concat(line, char(10)) AS data FROM (SELECT line FROM public_rows WHERE file=? AND ${AS_OF} AND ${audience.sql} ORDER BY sort_key,row_key LIMIT ?)`,
+            parameters: [file, at, at, ...audience.parameters, total]
+        }, { maxRows: 1, maxBytes });
+        const data = aggregate?.data === null || aggregate?.data === undefined ? null : aggregate.data;
+        return data === null ? new Uint8Array() : Buffer.concat([Buffer.from(data as Uint8Array), Buffer.from('\n')]);
+    }
     const chunks: Uint8Array[] = [];
     let cursor: { sort: string; key: string } | undefined;
     while (true) {
         const bounds = cursor ? ' AND (sort_key>? OR (sort_key=? AND row_key>?))' : '';
-        const parameters = [file, at, at, ...audience.parameters, ...(cursor ? [cursor.sort, cursor.sort, cursor.key] : []), PAGE_ROWS];
-        const rows = await view.query({ sql: `SELECT sort_key,row_key,line FROM public_rows WHERE file=? AND ${AS_OF} AND ${audience.sql}${bounds} ORDER BY sort_key,row_key LIMIT ?`, parameters }, { maxRows: PAGE_ROWS, maxBytes: 1048576 });
-        for (const row of rows) {
+        const parameters = [file, at, at, ...audience.parameters, ...(cursor ? [cursor.sort, cursor.sort, cursor.key] : []), page];
+        const result = await view.query({ sql: `SELECT sort_key,row_key,line FROM public_rows WHERE file=? AND ${AS_OF} AND ${audience.sql}${bounds} ORDER BY sort_key,row_key LIMIT ?`, parameters }, { maxRows: page, maxBytes });
+        for (const row of result) {
             chunks.push(blob(row.line));
             chunks.push(Buffer.from('\n'));
         }
-        if (rows.length < PAGE_ROWS)
+        if (result.length < page)
             break;
-        const last = rows[rows.length - 1]!;
+        const last = result[result.length - 1]!;
         cursor = { sort: text(last.sort_key, 'sort_key'), key: text(last.row_key, 'row_key') };
     }
     return Buffer.concat(chunks);
