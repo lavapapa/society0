@@ -3,6 +3,7 @@ import Schema from '@society0/schemastery';
 import { randomUUID } from 'node:crypto';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 import type { AdvanceResult, GenerationView, ExecutionContext, CompletePoint, Proposal, Json, BoundaryLease } from '../contracts/runtime.js';
+import type { DeferredWork } from '../contracts/deferred-work.js';
 import { metricsOf } from '../contracts/metrics.js';
 import type { RuntimeFrontier } from '../sqlite/contracts.js';
 import '../generation-views/index.js';
@@ -95,18 +96,34 @@ export class RunController extends Service {
             await snapshot.close();
         }
     }
+    private async busy<T>(action: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+        while (true) {
+            signal?.throwIfAborted();
+            try { return await action(); }
+            catch (error) {
+                if (!/FENCE_BUSY/.test(error instanceof Error ? error.message : String(error)))
+                    throw error;
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
+        }
+    }
     private async publish(cut: CompletePoint, requiredOperations: readonly string[], view: GenerationView) {
         const revision = await this.ctx.database.readRevision();
         if (revision === cut.revision)
             return cut;
         if (!this.complete)
             throw Error('RUN_INCOMPLETE');
-        const lease = await this.ctx.executionFence.seal();
+        const lease = await this.busy(() => this.ctx.executionFence.seal());
+        const sealedRevision = lease.sealedRevision;
+        if (sealedRevision === cut.revision) {
+            this.ctx.executionFence.resume(lease);
+            return cut;
+        }
         const operationId = 'cut-' + randomUUID();
         let next: CompletePoint;
         try {
             next = await this.ctx.history.publish(lease, {
-                operationId, id: operationId, parentId: cut.id, expectedRevision: revision, requiredOperations
+                operationId, id: operationId, parentId: cut.id, expectedRevision: sealedRevision, requiredOperations
             });
         }
         catch (error) {
@@ -238,11 +255,12 @@ export class RunController extends Service {
         result: RunResult;
     }> {
         const proposal = session.proposal!;
+        this.deferred()?.begin();
         if (!view.runtime.planKinds.includes(proposal.planKind))
             throw Error('RUN_PLAN_KIND');
         if (proposal.reservation && this.pending.length >= this.config.maxPendingAcknowledgements)
             session.cut = await this.publish(session.cut, [...session.required], view);
-        const reservation = await this.ctx.executionFence.reserve(proposal);
+        const reservation = await this.busy(() => this.ctx.executionFence.reserve(proposal), signal);
         this.complete = false;
         try {
             const trigger = (proposal.payload as {
@@ -299,6 +317,7 @@ export class RunController extends Service {
         }
     }
     private async incompleteProposal(session: RunSession, view: GenerationView, reservation: ExecutionReservation, result: AdvanceResult): Promise<RunResult> {
+        this.deferred()?.discard();
         await reservation.release();
         await view.source.release(session.proposal!);
         session.proposal = undefined;
@@ -322,11 +341,17 @@ export class RunController extends Service {
             codec: result.frontier.codec, value: result.frontier.value, logicalTime, completedCount: String(BigInt(session.frontier.completedCount) + 1n), pendingAcknowledgements: acknowledgements
         };
         const operationId = 'complete-' + randomUUID();
+        const deferred = this.deferred();
+        const pending = deferred?.pending().length ?? 0;
         await this.ctx.database.transaction(reservation.lease, {
-            operationId, maxDurationMs: this.config.maxTransactionMs, maxStatements: result.requiredOperations.length + 1, maxInputBytes: 1048576, maxChangedRows: 100, maxCapturedBytes: 4194304
-        }, tx => this.ctx.database.metadata.complete(tx, session.frontier, result.requiredOperations));
+            operationId, maxDurationMs: this.config.maxTransactionMs, maxStatements: result.requiredOperations.length + 1 + pending, maxInputBytes: 1048576, maxChangedRows: 100 + pending, maxCapturedBytes: 4194304
+        }, tx => this.ctx.database.metadata.complete(tx, session.frontier, result.requiredOperations).then(() => deferred?.commit(tx, String(logicalTime))));
         session.required.add(operationId);
         this.complete = true;
+        deferred?.wake();
+    }
+    private deferred(): DeferredWork | undefined {
+        return this.ctx.get('deferredWork', false) as DeferredWork | undefined;
     }
     /** 指标是观测：失败不改变推进、恢复与终止结果。 */
     private async flushMetrics(session: RunSession): Promise<void> {

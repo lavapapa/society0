@@ -85,6 +85,8 @@ export interface MemoryIndex {
   close(): Promise<void>;
 }
 export interface MemoryIndexes { register(name: string, index: MemoryIndex): Disposer; acquire(name: string): Promise<Lease<MemoryIndex>> }
-export interface MemoryWritePolicy { extract(thread: ThreadView, context: ActivationContext): Promise<readonly Experience[]> }
+/** 抽取只读取事实，不需要写租约；deferred handler 可提供真实逻辑位置而不伪造 ActivationContext。 */
+export type MemoryExtractionContext = Omit<ActivationContext, 'writeLease'>;
+export interface MemoryWritePolicy { extract(thread: ThreadView, context: MemoryExtractionContext): Promise<readonly Experience[]> }
 
 type Revision = string;

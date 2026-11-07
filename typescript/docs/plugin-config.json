@@ -583,6 +583,44 @@
           "fields": []
         },
         {
+          "exportPath": "./deferred-work",
+          "title": "deferred-work",
+          "fields": [
+            {
+              "name": "concurrency",
+              "type": "number",
+              "default": 2,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxAttempts",
+              "type": "number",
+              "default": 3,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxTransactionMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxJobBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
           "exportPath": "./activation",
           "title": "activation",
           "fields": [
@@ -2249,6 +2287,14 @@
               "name": "maxExtractedBytes",
               "type": "number",
               "default": 65536,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "deferredMaxLag",
+              "type": "number",
+              "default": 1,
               "mode": "new-run",
               "affectsResults": true,
               "secret": null

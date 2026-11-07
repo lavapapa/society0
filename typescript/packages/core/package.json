@@ -77,6 +77,14 @@
       "types": "./dist/contracts/runtime.d.ts",
       "default": "./dist/contracts/runtime.js"
     },
+    "./contracts/deferred-work": {
+      "types": "./dist/contracts/deferred-work.d.ts",
+      "default": "./dist/contracts/deferred-work.js"
+    },
+    "./deferred-work": {
+      "types": "./dist/deferred-work/index.d.ts",
+      "default": "./dist/deferred-work/index.js"
+    },
     "./contracts/eligibility": {
       "types": "./dist/contracts/eligibility.d.ts",
       "default": "./dist/contracts/eligibility.js"

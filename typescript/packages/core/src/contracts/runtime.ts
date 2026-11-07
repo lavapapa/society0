@@ -18,6 +18,8 @@ export interface ActivationIntent {
     readonly input: Json;
     /** 可选的准入 token 估算；KV 准入模式下由发起方填写。 */
     readonly estimatedTokens?: number;
+    /** 旁路/后台调用标记；foreground 优先取用准入额度。 */
+    readonly priority?: 'foreground' | 'background';
     /** 行动回执转交的唤醒意图；普通调度意图省略。 */
     readonly cause?: 'notify';
     /** notify 通知的原因；由 D8 在转交时填入，普通调度意图省略。 */

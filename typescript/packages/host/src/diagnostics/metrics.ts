@@ -167,8 +167,9 @@ export class MetricsAggregator implements MetricsCounters {
                 depsVisited: this.counter('history.depsVisited')
             },
             deferred: {
-                queued: this.counter('deferred.queued'),
-                lagTicks: this.counter('deferred.lagTicks')
+                queued: Math.trunc(this.gauges.get('deferred.queued') ?? this.counter('deferred.queued')),
+                failed: Math.trunc(this.gauges.get('deferred.failed') ?? this.counter('deferred.failed')),
+                lagTicks: Math.trunc(this.gauges.get('deferred.lagTicks') ?? this.counter('deferred.lagTicks'))
             }
         };
     }
@@ -183,7 +184,7 @@ export class MetricsAggregator implements MetricsCounters {
         const trimmed: Record<string, unknown> = { ...row, truncated: true, activations: { ...activations, bySource: {} }, tools: { ...tools, byName: {} } };
         line = JSON.stringify(trimmed);
         if (Buffer.byteLength(line) <= MAX_METRICS_LINE_BYTES) return line;
-        const minimal: Record<string, unknown> = { ...trimmed, history: { publishMs: history.publishMs }, deferred: { queued: 0, lagTicks: 0 } };
+        const minimal: Record<string, unknown> = { ...trimmed, history: { publishMs: history.publishMs }, deferred: { queued: 0, failed: 0, lagTicks: 0 } };
         line = JSON.stringify(minimal);
         if (Buffer.byteLength(line) > MAX_METRICS_LINE_BYTES) throw Error('METRICS_LINE_BUDGET');
         return line;

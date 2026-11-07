@@ -27,6 +27,12 @@ import GenerationViews from '../.build/core/dist/generation-views/index.js';
 import GenerationBinding from '../.build/core/dist/generation-binding/index.js';
 import RunController from '../.build/core/dist/run-controller/index.js';
 import AgentRuntimes from '../.build/core/dist/agent-runtimes/index.js';
+import DeferredWork, { deferredWorkMigration } from '../.build/core/dist/deferred-work/index.js';
+import Threads, { threadMigration } from '../.build/core/dist/thread/index.js';
+import { actionsMigration } from '../.build/core/dist/actions/index.js';
+import MemoryRepository, { memoryMigration } from '../.build/extras/dist/memory-repository/index.js';
+import Memory from '../.build/extras/dist/memory/index.js';
+import ExplicitExperience from '../.build/extras/dist/memory-write-experience/index.js';
 
 export const req = operationId => ({
   operationId, maxDurationMs: 30000, maxStatements: 1000, maxInputBytes: 1048576,
@@ -71,6 +77,11 @@ export async function fixture(options = {}) {
     await ctx.plugin(SqliteHistory, { directory, runId, generation: 'g', controlSequence: '0' });
     await ctx.plugin(Actors);
     await ctx.plugin(ActorEligibility);
+    if (options.memory) {
+      await ctx.plugin({ apply(pluginCtx) { pluginCtx.provide('actions', { register() { return () => {}; }, provideNotifier() { return () => {}; } }); } });
+      await ctx.plugin(Threads);
+      await ctx.plugin(MemoryRepository);
+    }
     await ctx.plugin(Drivers);
     await ctx.plugin(ActivationMailbox);
     await ctx.plugin(Activation, options.activationConfig ?? { capacity: 8 });
@@ -84,11 +95,17 @@ export async function fixture(options = {}) {
     } });
     const root = await ctx.sqliteBootstrap.create({
       operationId: 'create', runId, directory, input: {},
-      migrations: [artifactsMigration, actorsMigration, ...(options.migrations ?? [])],
+      migrations: [artifactsMigration, actorsMigration,
+        ...(options.memory ? [actionsMigration({ consumer: 'metrics-test' }), threadMigration({ consumer: 'metrics-test' }), memoryMigration({ consumer: 'metrics-test' })] : []),
+        ...(options.deferred || options.deferredMigration ? [deferredWorkMigration({ consumer: 'metrics-test' })] : []), ...(options.migrations ?? [])],
       initialFrontier: { codec: 'staged/1', value: '0', logicalTime: '0', completedCount: '0', pendingAcknowledgements: [] },
       initialControl: { generation: 'g', controlSequence: '0', planId: 'metrics-plan' },
       requiredInitializerIds: ['seed']
     });
+    if (options.memory) {
+      await ctx.plugin(ExplicitExperience);
+      await ctx.plugin(Memory, { tools: false, deferredMaxLag: options.deferredMaxLag ?? 1 });
+    }
     await ctx.plugin(ClockTicks);
     await ctx.plugin(ProposalSequence, { proposals: proposals(ticks, actors) });
     await ctx.plugin(RuntimeStaged);
@@ -100,9 +117,11 @@ export async function fixture(options = {}) {
     await ctx.plugin(AgentRuntimes);
     const Metrics = await metricsPlugin();
     if (Metrics) await ctx.plugin(Metrics);
+    if (options.deferred) await ctx.plugin(DeferredWork, options.deferredConfig ?? {});
     await ctx.plugin(RunController, options.runsConfig ?? {});
     ctx.drivers.register('rule', { async activate(intent, context) {
       const operationId = 'work-' + intent.id;
+      if (options.onActivate) await options.onActivate(intent, context, ctx);
       await context.database.transaction(context.writeLease, req(operationId), async tx => {
         if (options.work === 'quadratic') {
           await tx.execute({ sql: 'INSERT INTO curve(v) VALUES(?)', parameters: [BigInt(intent.input?.tick ?? 0)] });
@@ -117,7 +136,18 @@ export async function fixture(options = {}) {
       });
       return { status: 'completed', value: null, evidence: {}, requiredOperations: [operationId] };
     } });
-    return { host, ctx, directory, root, run: () => ctx.runs.run(new AbortController().signal) };
+    return {
+      host, ctx, directory, root, deferred: ctx.get('deferredWork', false), run: () => ctx.runs.run(new AbortController().signal),
+      async write(id, body) {
+        const reservation = await ctx.executionFence.reserve({ id });
+        try { return await ctx.database.transaction(reservation.lease, req(id), body); }
+        finally { await reservation.release(); }
+      },
+      async read(body) {
+        const view = await ctx.database.snapshot({ maxAgeMs: 30000 });
+        try { return await body(view); } finally { await view.close(); }
+      }
+    };
   }
   catch (error) {
     await host.close();
