@@ -107,7 +107,7 @@ export class PublicRepository extends Service {
     }
     writer(tx: SqliteTransaction): PublicWriter {
         const registry = this.registry as Registry;
-        return publicWriter(tx, registry.tables, registry.docs);
+        return publicWriter(tx, registry.tables, registry.docs, this.ctx.database.maxQueryBytes);
     }
     private changeReader(): PublicChangeReader {
         const registry = this.registry as Registry;

@@ -105,3 +105,5 @@ export class Information extends Service {
 }
 export default Information;
 export * from './page.js';
+export { publicFromInformation } from './adapter.js';
+export type { InformationAdapterOptions, InformationDerivedFile, InformationDerivedProvider } from './adapter.js';

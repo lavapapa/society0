@@ -58,10 +58,14 @@ import '../social-repository/index.js';
 import type { ActionDefinition, ActionExecutionContext } from '@society0/core/contracts/domain';
 import type { Random } from '@society0/core/contracts/random';
 import type { StoredValue } from '@society0/core/contracts/data';
+import type { PublicWriter } from '@society0/core/contracts/public';
+import type { SelfProvider } from '@society0/core/contracts/public-self';
+import { canonicalLine } from '@society0/core/public-self';
 import type { PropagationStrategy, Json, PresentationRequest, SqliteTransaction, SqliteReadView, DiscoveryScope, PageRequest, Page, NewPost } from '../contracts.js';
 import { transactionRequest, page, sized, after } from '../paging.js';
 import { socialTime } from '../clock.js';
 import { SocialOffers } from '../social-offers/index.js';
+import { postsDecl, trendingDecl, notificationDecl, edgeDecl, postRow, trendingRow, publicProfile, type SocialPublicPost, type SocialProfile } from './public.js';
 function socialTextFault(field: string) { return Object.assign(new Error(`SOCIAL_TEXT_NOT_WELL_FORMED: ${field} contains a lone surrogate`), { code: 'SOCIAL_TEXT_NOT_WELL_FORMED', field }); }
 export const propagationSlot = slotKey<PropagationStrategy>('society/social-propagation');
 declare module '@society0/host' {
@@ -132,6 +136,119 @@ export class Social extends Service {
         this.installPairingActions();
         this.installInformation();
         this.installOffers();
+    }
+    async [Service.init]() {
+        this.installPublicTables();
+        this.installSelfProviders();
+    }
+    private publicService() {
+        return this.ctx.get('public', false) as { registry: { table(decl: typeof postsDecl): () => void }, writer(tx: SqliteTransaction): PublicWriter } | undefined;
+    }
+    private installPublicTables() {
+        this.ctx.inject(['public'], scoped => {
+            const service = scoped.get('public') as { registry: { table(decl: typeof postsDecl): () => void } };
+            const disposers = [service.registry.table(postsDecl), service.registry.table(trendingDecl)];
+            scoped.effect(() => () => {
+                for (const dispose of disposers)
+                    dispose();
+            });
+        });
+    }
+    private async projectPost(tx: SqliteTransaction, post: SocialPublicPost, parent?: SocialPublicPost): Promise<void> {
+        const service = this.publicService();
+        if (!service)
+            return;
+        const writer = service.writer(tx);
+        await writer.upsert(postsDecl.path, [postRow(post)]);
+        const rows = [trendingRow(post)];
+        if (parent)
+            rows.push(trendingRow(parent));
+        await writer.upsert(trendingDecl.path, rows);
+    }
+    private async writePublicProfile(tx: SqliteTransaction, actorId: string): Promise<void> {
+        const service = this.publicService();
+        if (!service)
+            return;
+        const profile = await this.ctx.socialRepository.profile(actorId, tx) as SocialProfile;
+        const body = Buffer.from(JSON.stringify(publicProfile(profile)) + '\n');
+        await service.writer(tx).publish('/public/social/profiles/' + encodeURIComponent(actorId) + '.json', body, {
+            media: 'application/json', meta: { title: '公开资料 ' + actorId }
+        });
+    }
+    private installSelfProviders() {
+        this.ctx.inject(['publicSelf'], scoped => {
+            const service = scoped.get('publicSelf') as { provide(provider: SelfProvider): () => void };
+            const disposers = [
+                service.provide(this.notificationsProvider()),
+                service.provide(this.edgesProvider('/self/social/following.jsonl', 'following')),
+                service.provide(this.edgesProvider('/self/social/followers.jsonl', 'followers')),
+                service.provide(this.profileProvider())
+            ];
+            scoped.effect(() => () => {
+                for (const dispose of disposers)
+                    dispose();
+            });
+        });
+    }
+    private selfVisible(actorId: string, view: SqliteReadView) {
+        return this.ctx.socialRepository.member(view, actorId).then(Boolean);
+    }
+    private notificationsProvider(): SelfProvider {
+        const repository = this.ctx.socialRepository;
+        return {
+            path: '/self/social/notifications.jsonl', media: 'application/jsonl',
+            visible: (actorId, view) => this.selfVisible(actorId, view),
+            versions: (actorId, view) => repository.versions(view, ['social/notifications']),
+            render: async function* (actorId, view, signal) {
+                const rows = await view.query({
+                    sql: 'SELECT id,kind,created_time,consumed,data FROM social_notifications WHERE actor=? ORDER BY ordinal',
+                    parameters: [actorId]
+                }, { maxRows: 100000, maxBytes: 16 * 1024 * 1024 });
+                for (const row of rows) {
+                    signal.throwIfAborted();
+                    yield Buffer.from(canonicalLine(notificationDecl, {
+                        id: String(row.id), actorId, kind: String(row.kind), createdTime: String(row.created_time),
+                        consumed: !!row.consumed, data: JSON.parse(String(row.data)) as Json
+                    }) + '\n');
+                }
+            }
+        };
+    }
+    private edgesProvider(path: string, direction: 'following' | 'followers'): SelfProvider {
+        const column = direction === 'following' ? 'follower' : 'followee';
+        const repository = this.ctx.socialRepository;
+        return {
+            path, media: 'application/jsonl',
+            visible: (actorId, view) => this.selfVisible(actorId, view),
+            versions: (actorId, view) => repository.versions(view, ['social/relations']),
+            render: async function* (actorId, view, signal) {
+                const rows = await view.query({
+                    sql: `SELECT ordinal,follower,followee,created_time FROM social_edges WHERE ${column}=? ORDER BY ordinal`,
+                    parameters: [actorId]
+                }, { maxRows: 100000, maxBytes: 16 * 1024 * 1024 });
+                for (const row of rows) {
+                    signal.throwIfAborted();
+                    yield Buffer.from(canonicalLine(edgeDecl, {
+                        id: String(row.ordinal), from: String(row.follower), to: String(row.followee), createdTime: String(row.created_time)
+                    }) + '\n');
+                }
+            }
+        };
+    }
+    private profileProvider(): SelfProvider {
+        const repository = this.ctx.socialRepository;
+        return {
+            path: '/self/profile.json', media: 'application/json',
+            visible: (actorId, view) => this.selfVisible(actorId, view),
+            versions: (actorId, view) => repository.versions(view, ['social/members', 'social/content', 'social/relations', 'social/notifications', 'social/preferences']),
+            render: async function* (actorId, view, signal) {
+                const profile = await repository.profile(actorId, view);
+                if (!profile)
+                    return;
+                signal.throwIfAborted();
+                yield Buffer.from(JSON.stringify(profile) + '\n');
+            }
+        };
     }
     private installOffers() {
         const actions = ['publish', 'reply', 'repost', 'react', 'follow', 'unfollow', 'preferences', 'consumeNotifications', 'present']
@@ -544,9 +661,7 @@ export class Social extends Service {
                     }
                 }, required: ['postId', 'kind'], targets: {
                     kinds: ['social/post'], required: false
-                }, execute: (input, context, tx) => repository.react(tx, {
-                    id: context.operationId, actorId: context.actorId, postId: input.postId, kind: input.kind, time: socialTime(context.logicalTime), remove: input.remove
-                })
+                }, execute: (input, context, tx) => this.reactPost(input, context, tx)
             },
             follow: {
                 properties: {
@@ -555,7 +670,7 @@ export class Social extends Service {
                     }
                 }, required: ['actorId'], targets: {
                     kinds: ['social/actor'], required: false
-                }, execute: (input, context, tx) => repository.follow(tx, context.actorId, input.actorId, socialTime(context.logicalTime), context.operationId)
+                }, execute: (input, context, tx) => this.followActor(input, context, tx, true)
             },
             unfollow: {
                 properties: {
@@ -564,13 +679,14 @@ export class Social extends Service {
                     }
                 }, required: ['actorId'], targets: {
                     kinds: ['social/actor'], required: false
-                }, execute: (input, context, tx) => repository.follow(tx, context.actorId, input.actorId, socialTime(context.logicalTime), context.operationId, false)
+                }, execute: (input, context, tx) => this.followActor(input, context, tx, false)
             },
             preferences: {
                 properties: {
                     value: {}
                 }, required: ['value'], execute: async (input, context, tx) => {
                     await repository.setPreferences(tx, context.actorId, input.value);
+                    await this.writePublicProfile(tx, context.actorId);
                     return {
                         updated: true
                     };
@@ -708,6 +824,31 @@ export class Social extends Service {
         if (this.config.contentLengthLimit >= 0 && [...content].length > this.config.contentLengthLimit)
             throw Error('SOCIAL_CONTENT_LENGTH');
     }
+    private async reactPost(input: any, context: ActionExecutionContext, tx: SqliteTransaction) {
+        const result = await this.ctx.socialRepository.react(tx, {
+            id: context.operationId, actorId: context.actorId, postId: input.postId, kind: input.kind, time: socialTime(context.logicalTime), remove: input.remove
+        });
+        if (result.changed) {
+            const post = await this.ctx.socialRepository.get(input.postId, tx);
+            if (post) {
+                const service = this.publicService();
+                if (service) {
+                    const writer = service.writer(tx);
+                    await writer.upsert(trendingDecl.path, [trendingRow(post)]);
+                    await writer.upsert(postsDecl.path, [postRow(post)]);
+                }
+            }
+        }
+        return result;
+    }
+    private async followActor(input: any, context: ActionExecutionContext, tx: SqliteTransaction, enabled: boolean) {
+        const result = await this.ctx.socialRepository.follow(tx, context.actorId, input.actorId, socialTime(context.logicalTime), context.operationId, enabled);
+        if (result.changed) {
+            await this.writePublicProfile(tx, context.actorId);
+            await this.writePublicProfile(tx, input.actorId);
+        }
+        return result;
+    }
     private async publish(input: any, context: ActionExecutionContext, tx: SqliteTransaction, kind: 'post' | 'reply' | 'repost') {
         const content = await this.publicationContent(input, tx);
         this.assertContentLength(content);
@@ -719,7 +860,13 @@ export class Social extends Service {
             const recipients = await strategy.recipients({
                 actorId: context.actorId, content: input
             }, this.ctx.socialRepository.readPort(tx));
-            return await this.ctx.socialRepository.publish(tx, this.newPost(input, context, kind, content), recipients);
+            const post = await this.ctx.socialRepository.publish(tx, this.newPost(input, context, kind, content), recipients);
+            const parent = post.parentId ? await this.ctx.socialRepository.get(post.parentId, tx) : undefined;
+            await this.projectPost(tx, post, parent);
+            await this.writePublicProfile(tx, post.authorId);
+            if (parent && parent.authorId !== post.authorId)
+                await this.writePublicProfile(tx, parent.authorId);
+            return post;
         }
         finally {
             await selection.release();
