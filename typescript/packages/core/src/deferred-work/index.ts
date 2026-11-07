@@ -1,4 +1,5 @@
 /** C8 延后任务通道：complete 事务登记、恢复重入队、后台执行与按命名空间等待。 */
+import { compareCodePoints } from '@society0/host/order';
 import { Context, Service } from '@society0/host';
 import Schema from '@society0/schemastery';
 import { randomUUID } from 'node:crypto';
@@ -169,7 +170,7 @@ export class DeferredWorkService extends Service implements DeferredWork {
             .sort((left, right) => {
                 const a = tickOrUndefined(left.enqueuedTick), b = tickOrUndefined(right.enqueuedTick);
                 if (a !== undefined && b !== undefined && a !== b) return a < b ? -1 : 1;
-                return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+                return compareCodePoints(left.id, right.id);
             });
         for (const job of ready) {
             if (this.active.size >= this.options.concurrency) break;

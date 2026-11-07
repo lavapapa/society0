@@ -1,3 +1,4 @@
+import {compareCodePoints} from '@society0/host/order';
 import {posix,matchesGlob} from 'node:path';import type {ExplorationSession,ExplorationNode} from '../contracts/exploration.js';import type {ActionExecutionContext} from '../contracts/domain.js';import {parseGrepArgs,parseFindArgs,matchesGrepInclude} from './argv.js';
 export interface FileLimits {maxFileBytes:number;maxDirectoryEntries:number;maxRpcBytes:number;maxOutputBytes:number}
 export class ExplorationFiles {
@@ -45,7 +46,7 @@ export class ExplorationFiles {
     cursor = page.next;
    } while (cursor);
   }
-  if (parsed.flags.list) output = [...files.keys()].sort().map(path => path + '\n').join('');
+  if (parsed.flags.list) output = [...files.keys()].sort(compareCodePoints).map(path => path + '\n').join('');
   if (parsed.flags.count) output = [...files.entries()].sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0).map(([path, entry]) => `${path}:${entry.count}\n`).join('');
   if (truncated) throw Error('SHELL_OUTPUT_BYTES');
   return { exitCode: total > 0 ? 0 : 1, stdout: output, stderr: '' };

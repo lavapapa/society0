@@ -22,7 +22,9 @@ const wholeObject = new Set([
 const constants = new Set([
     'packages/core/src/replay/index.ts#onMissingExternalResult',
     'packages/core/src/observation/index.ts#includeRawProvider',
-    'packages/host/src/run-branch/index.ts#onUnknown'
+    'packages/host/src/run-branch/index.ts#onUnknown',
+    // INTEGRATION §4 #6：只做 phase 内并发；schedule 的 pipeline 仅保留配置项，不实现跨 phase 流水线。
+    'packages/core/src/activation-policy-default/index.ts#schedule'
 ]);
 
 function span(text, start) {

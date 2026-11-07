@@ -1,3 +1,4 @@
+import { compareCodePoints } from '@society0/host/order';
 import { slotKey } from '@society0/host/slots';
 import type { Json } from './common.js';
 import type { DeliveryChannel } from './delivery.js';
@@ -105,7 +106,7 @@ export const stateDeliveryChannel: DeliveryChannel = {
             lines.push('状态（变更）');
             for (const [key, item] of Object.entries(value.replaced as Readonly<Record<string, Json>>))
                 lines.push(`+ ${key} ${canonicalJson(item)}`);
-            for (const key of [...(value.removed ?? [])].sort())
+            for (const key of [...(value.removed ?? [])].sort(compareCodePoints))
                 lines.push(`- ${key}`);
         }
         return lines.join('\n');
@@ -157,7 +158,7 @@ export const perceptsDeliveryChannel: DeliveryChannel = {
         const lines = [value.initial ? '感知' : '感知（变更）'];
         for (const item of value.added)
             lines.push(`+ ${canonicalJson(item)}`);
-        for (const id of [...value.removed].sort())
+        for (const id of [...value.removed].sort(compareCodePoints))
             lines.push(`- ${id}`);
         return lines.join('\n');
     }
