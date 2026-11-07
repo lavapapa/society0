@@ -59,6 +59,8 @@ boot 文件是 BootEntry 数组，空数组启动纯宿主。进程空闲、SIGI
 
 两个 social profile 装配 `@society0/core/actor-tools`。默认工具表恰为 `bash`、`read`、`find`、`grep`、`act` 五个，跨主体、跨 moment 逐字节相同；`legacyTools` 默认为空。只有显式配置 `legacyTools`（`information`、`exploration`）时才注册 `information_*`、`exploration_*`，仅用于对照实验。`event-sqlite` 与 `rule-sqlite` 不含 agent 运行时与工具表。
 
+两个 social profile 的模型输出预算默认 `maxTokens=2048`。Qwen 的 thinking 也占用输出预算；设为 256 时真实模型经常 `stopReason=length`，在拿到 tool_call 前就被截断。`contextWindow` 保持 8192，C3 的上下文预算按 8k 设计。
+
 ## 四、来源
 
 [原始来源清单](<vendor-baseline/source-manifest.json>)与原始六包代码保留在 vendor-baseline；[有序补丁](<patches/series.json>)应用后的源码位于 vendor。构建重新应用补丁并逐文件比较，随后机械重映射发布 scope 和导入名。上游许可证逐包保留。每个 tarball 带 SOURCE、构建依赖锁与补丁原文，便于仓外诊断。

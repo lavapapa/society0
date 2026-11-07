@@ -21,7 +21,8 @@
               "config": {
                 "name": "codex/subscription/v1",
                 "credential": "authorized-codex",
-                "allowAuthorize": false
+                "allowAuthorize": false,
+                "maxTokens": 2048
               }
             },
             {

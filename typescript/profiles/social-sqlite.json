@@ -40,7 +40,7 @@
                       "cacheWrite": 0
                     },
                     "contextWindow": 8192,
-                    "maxTokens": 256,
+                    "maxTokens": 2048,
                     "compat": {
                       "supportsStore": false,
                       "supportsDeveloperRole": false,
@@ -50,7 +50,7 @@
                     }
                   }
                 ],
-                "maxTokens": 256
+                "maxTokens": 2048
               }
             },
             {
