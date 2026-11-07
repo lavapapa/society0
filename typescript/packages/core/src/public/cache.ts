@@ -1,5 +1,5 @@
 /** 渲染缓存：内存 LRU + 磁盘 etag 文件；缓存只依赖 etag，可删可重建。 */
-import { mkdir, open, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
@@ -8,6 +8,7 @@ import type { PublicCacheDiagnostics } from '../contracts/public.js';
 export class RenderCache {
     private readonly memory = new Map<string, Uint8Array>();
     private readonly inflight = new Map<string, Promise<Uint8Array>>();
+    private readonly sizes = new Map<string, number>();
     private stored = 0;
     private renders = 0;
     private memoryHits = 0;
@@ -72,6 +73,26 @@ export class RenderCache {
         finally {
             this.inflight.delete(etag);
         }
+    }
+    /** 确保磁盘缓存存在但不读入内存；用于搜索只需要的文件路径。 */
+    async ensureFile(etag: string, render: () => Promise<Uint8Array>): Promise<{ path: string; bytes: number }> {
+        const path = this.pathOf(etag);
+        const known = this.sizes.get(etag);
+        if (known !== undefined)
+            return { path, bytes: known };
+        try {
+            const bytes = (await stat(path)).size;
+            this.sizes.set(etag, bytes);
+            return { path, bytes };
+        }
+        catch (error) {
+            if ((error as { code?: string }).code !== 'ENOENT')
+                throw error;
+        }
+        await this.bytes(etag, render);
+        const bytes = (await stat(path)).size;
+        this.sizes.set(etag, bytes);
+        return { path, bytes };
     }
     /** 确保磁盘缓存存在，打开只读句柄供范围读取。 */
     async open(etag: string, render: () => Promise<Uint8Array>): Promise<FileHandle> {

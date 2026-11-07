@@ -15,6 +15,8 @@ test('索引落后/为空时退化为全量受众过滤rg，结果与索引就�
   const fresh=await search();
   assert.equal(fresh.length,1);
   const before=run.ctx.public.diagnostics();
+  assert.equal(before.searchStale,0,'正常写入后索引版本已更新');
+  assert.equal(before.fallbackScans,0,'正常写入后不走全量退化');
   await run.tx('b5-stale-state',tx=>tx.execute({sql:"INSERT INTO public_search_state(public_search_state) VALUES('delete-all')"}));
   assert.deepEqual(await search(),fresh,'索引版本落后时结果必须一致');
   const stale=run.ctx.public.diagnostics();

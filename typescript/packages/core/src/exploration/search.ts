@@ -5,7 +5,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ExplorationOptions } from './registry.js';
 type Match = (offset: number, text: string, line: number, column: number, lineText: string, path?: string) => void;
-export const SEARCH_BATCH = 256;
+export const SEARCH_BATCH = 2048;
 /** rg 进程计数：基准与度量读取（DESIGN §12.3），不参与行为。 */
 export const searchProcesses = { started: 0 };
 /** rg的JSON行跨stdout块解码，原文则连续流入stdin。 */

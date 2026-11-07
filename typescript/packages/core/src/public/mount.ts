@@ -428,13 +428,13 @@ export class PublicMount implements ExplorationMount {
                 continue;
             const audiences = effective(record.audiences, agent);
             const etag = etagOf(record.file, record.revision, audiences);
-            const bytes = await this.host.cache.bytes(etag, () => renderRows(view, record.file, revision, audiences));
-            const node = this.fileNode(record, revision, agent, record.audiences.every(audience => agent.includes(audience)) ? record.bytes : bytes.byteLength);
-            entries.push({ node, disk: this.host.cache.pathOf(etag) });
+            const cached = await this.host.cache.ensureFile(etag, () => renderRows(view, record.file, revision, audiences));
+            const node = this.fileNode(record, revision, agent, cached.bytes);
+            entries.push({ node, disk: cached.path });
         }
         entries.sort((a, b) => compareCodePoints(a.node.path, b.node.path));
         const byDisk = new Map(entries.map(entry => [entry.disk, entry.node]));
-        const options = { maxInlineFileBytes: 16777216, maxSearchBytes: 67108864, maxSearchOutputBytes: 16777216, maxSearchMs: 30000 };
+        const options = { maxInlineFileBytes: 16777216, maxSearchBytes: 536870912, maxSearchOutputBytes: 67108864, maxSearchMs: 30000 };
         for (let offset = 0; offset < entries.length; offset += SEARCH_BATCH) {
             const batch = entries.slice(offset, offset + SEARCH_BATCH);
             const search = new NativeSearch(pattern, request.mode, options, request.ignoreCase === true, batch.map(entry => entry.disk));
