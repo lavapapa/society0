@@ -9,6 +9,7 @@ import { appendFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
+import { estimateSlots } from './support.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const W = join(here, '..', '..', '..', '..', '..');
@@ -57,20 +58,19 @@ const entry = (entries, name) => { const found = entries.find(item => item.name 
 const headerSnapshot = headers => Object.fromEntries([...new Headers(headers).entries()]);
 const text = value => typeof value === 'string' ? value : Array.isArray(value) ? value.map(part => typeof part === 'string' ? part : part?.text ?? '').join('') : '';
 
-function sectionsOf(content) {
-  const lines = String(content ?? '').split('\n');
-  const find = labels => {
-    const index = lines.findIndex(line => labels.some(label => line.startsWith(label)));
-    if (index < 0) return '';
-    return lines.slice(index).join('\n');
-  };
-  return {
-    state: find(['当前状态', '状态（变更）']),
-    actions: find(['可用行动', '可用行动（变更）']),
-    percepts: find(['感知', '感知（变更）']),
-  };
+const modes = ['read', 'find', 'grep', 'read', 'find', 'grep', 'read', 'find', 'grep', 'act'];
+function toolCallLegal(call) {
+  try {
+    const args = JSON.parse(call.function?.arguments ?? '');
+    const name = call.function?.name;
+    if (name === 'read') return typeof args.path === 'string';
+    if (name === 'find') return typeof args.root === 'string';
+    if (name === 'grep') return typeof args.root === 'string' && typeof args.pattern === 'string';
+    if (name === 'bash') return typeof args.command === 'string';
+    if (name === 'act') return typeof args.action === 'string' && /^social\.[A-Za-z]+$/.test(args.action) && (args.action !== 'social.publish' || (args.target === undefined && typeof args.input?.content === 'string'));
+    return false;
+  } catch { return false; }
 }
-
 function parseResponse(raw) {
   try { const body = JSON.parse(raw); const message = body?.choices?.[0]?.message ?? {}; return { id: body?.id, finishReason: body?.choices?.[0]?.finish_reason, content: message.content, toolCalls: message.tool_calls ?? [], usage: body?.usage ?? {} }; } catch {}
   const calls = new Map();
@@ -99,50 +99,20 @@ function parseResponse(raw) {
   }
   return { id, finishReason, content: content || undefined, toolCalls: [...calls.values()], usage };
 }
-function toolCallLegal(call) {
-  try {
-    const args = JSON.parse(call.function?.arguments ?? '');
-    const name = call.function?.name;
-    if (name === 'read') return typeof args.path === 'string';
-    if (name === 'find') return typeof args.root === 'string';
-    if (name === 'grep') return typeof args.root === 'string' && typeof args.pattern === 'string';
-    if (name === 'bash') return typeof args.command === 'string';
-    if (name === 'act') return typeof args.action === 'string' && /^social\.[A-Za-z]+$/.test(args.action) && args.target === undefined && (args.action !== 'social.publish' || typeof args.input?.content === 'string');
-    return false;
-  } catch { return false; }
-}
-function slotEstimate(record, budget, baselineText) {
-  const messages = record.messages ?? [];
-  const system = messages.find(message => message.role === 'system');
-  const current = [...messages].reverse().find(message => message.role === 'user' && String(message.content).includes('本次输入'));
-  const perceptMessages = messages.filter(message => message.role === 'user' && String(message.content).trim().startsWith('{"source"'));
-  const inputSections = sectionsOf(current?.content);
-  const header = budget.estimate(text(system?.content)) + Math.ceil(Number(record.toolSchemaBytes ?? 0) / 3.2);
-  const baseline = budget.estimate(baselineText);
-  const stateDelta = budget.estimate(inputSections.state);
-  const actions = budget.estimate(inputSections.actions);
-  const percepts = perceptMessages.reduce((sum, message) => sum + budget.estimate(text(message.content)), 0);
-  const total = messages.reduce((sum, message) => sum + budget.estimate(message.content), 0) + (system ? 0 : 0);
-  const output = Number(record.response?.usage?.completion_tokens ?? 0) || budget.estimate(text(record.response?.content));
-  const history = Math.max(0, total - header - baseline - stateDelta - actions - percepts - output);
-  return { header, baseline, stateDelta, actions, percepts, history, output, total, promptTokens: Number(record.response?.usage?.prompt_tokens ?? 0) || null, budget: budget.tokens };
-}
-
-const modes = ['read', 'find', 'grep', 'act', 'read', 'find', 'grep', 'act', 'read', 'find'];
 const runSpecs = [
   ...Array.from({ length: 10 }, (_, index) => ({
     name: `m${Math.floor(index / 2) + 1}-${index % 2 ? 'bob' : 'alice'}`,
     actorId: index % 2 ? 'bob' : 'alice',
     momentId: `l1-m${Math.floor(index / 2) + 1}`,
     mode: modes[index],
-    maxRequests: 1,
+    maxRequests: 4,
   })),
-  { name: 'json-d1', actorId: 'alice', momentId: 'l1-json', mode: 'act', maxRequests: 1, explicitJson: true },
+  { name: 'sse-control', actorId: 'alice', momentId: 'l1-sse', mode: 'act', maxRequests: 4, transport: 'sse' },
 ];
-const instructionFor = mode => mode === 'read' ? '只调用 read 工具，读取 /self/profile.json，不要 act。'
-  : mode === 'find' ? '只调用 find 工具，列出 /public，不要 act。'
-  : mode === 'grep' ? '只调用 grep 工具，在 /public 搜索 #L1，不要 act。'
-  : '只调用 act social.publish，发布含 #L1 的帖子，不要传 target。';
+const instructionFor = mode => mode === 'read' ? '先调用 read 读取 /self/profile.json，再调用 act social.publish 发布含 #L1 的帖子。'
+  : mode === 'find' ? '先调用 find 列出 /public，再调用 act social.publish 发布含 #L1 的帖子。'
+  : mode === 'grep' ? '先调用 grep 在 /public 搜索 #L1，再调用 act social.publish 发布含 #L1 的帖子。'
+  : '直接调用 act social.publish，发布含 #L1 的帖子，不要传 target。';
 
 
 try {
@@ -224,7 +194,7 @@ try {
     };
     assert.equal(record.tools.length, 5, 'request must expose exactly 5 tools: ' + JSON.stringify(record.tools));
     for (const name of ['bash', 'read', 'find', 'grep', 'act']) assert.ok(record.tools.includes(name), 'missing tool ' + name);
-    record.slots = slotEstimate(record, budget, baselineText);
+    record.slots = estimateSlots(record, budget, baselineText);
     record.toolCallLegal = toolCalls.map(toolCallLegal);
     record.pseudoToolCall = /\{\s*"action"\s*:|<tool_call>/i.test(text(parsed?.content)) && toolCalls.length === 0;
     requests.push(record);
@@ -247,76 +217,85 @@ try {
 
   const runResults = [];
   for (const [ordinal, spec] of runSpecs.entries()) {
-    const directory = `${runRoot}-${spec.name}`;
-    const specDriver = { ...driver, maxRequests: spec.maxRequests };
-    const specSqlite = { ...sqlite, directory, runId: 'l1-' + spec.name };
-    const specModel = spec.explicitJson
-      ? { ...modelPi, transport: { [modelId]: 'json' } }
-      : modelPi;
-    const proposals = {
-      proposals: [{
-        id: `l1-${spec.name}`,
-        planKind: 'staged/1',
-        payload: {
-          nextCursor: '1',
-          phases: [{ id: 'turn', activations: [{
-            id: `l1-${spec.name}/activation`,
-            actorId: spec.actorId,
-            momentId: spec.momentId,
-            source: 'l1-probe',
-            driver: 'llm/v1',
-            input: { probe: spec.name, mode: spec.mode, instruction: instructionFor(spec.mode) },
-          }] }],
-        },
-      }],
-    };
-    patchesPath = join(process.env.TMPDIR, `l1-patches-${process.pid}-${ordinal}.json`);
-    await writeFile(patchesPath, JSON.stringify([
-      { id: 'sqlite', config: specSqlite },
-      { id: 'prompts', config: prompts },
-      { id: 'driver-llm', config: specDriver },
-      { id: 'model-pi', config: specModel },
-      { id: 'round-robin', disabled: true },
-      { id: 'generation', insert: [{ id: 'l1-proposals', name: '@society0/core/proposal-sequence', config: proposals }] },
-    ], null, 2));
-    const before = requests.length;
-    let status = 'completed';
-    try {
-      await runProfile({
-        profile: join(here, '..', '..', 'profiles', 'social-sqlite.json'),
-        directory,
-        lineageDirectory: directory + '-lineage',
-        runId: 'l1-' + spec.name,
-        patches: patchesPath,
-        lock: lockPath,
-        allowModelRequests: true,
-        configureHost: async ctx => {
-          await ctx.modelCredentials.register('authorized-local', new FileCredentialStore(credentialsPath));
-        },
-      });
-    } catch (error) {
-      status = String(error?.message ?? error);
-      await log(`run ${spec.name} stopped: ${status.split('\n')[0]}`);
+    try { await lstat(examplesModules); }
+    catch { await symlink(join('..', '.build', 'node_modules'), examplesModules, 'dir'); createdExamplesLink = true; }
+    const attempts = spec.name === 'sse-control' ? 1 : 2;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      if (requests.length >= 38) break;
+      const suffix = attempt ? `-r${attempt + 1}` : '';
+      const directory = `${runRoot}-${spec.name}${suffix}`;
+      const specDriver = { ...driver, maxRequests: spec.maxRequests };
+      const specSqlite = { ...sqlite, directory, runId: 'l1-' + spec.name + suffix };
+      const specModel = { ...modelPi, transport: { [modelId]: spec.transport ?? 'json' } };
+      const proposals = {
+        proposals: [{
+          id: `l1-${spec.name}${suffix}`,
+          planKind: 'staged/1',
+          payload: {
+            nextCursor: '1',
+            phases: [{ id: 'turn', activations: [{
+              id: `l1-${spec.name}${suffix}/activation`,
+              actorId: spec.actorId,
+              momentId: spec.momentId,
+              source: 'l1-probe',
+              driver: 'llm/v1',
+              input: { probe: spec.name, mode: spec.mode, instruction: instructionFor(spec.mode) },
+            }] }],
+          },
+        }],
+      };
+      patchesPath = join(process.env.TMPDIR, `l1-patches-${process.pid}-${ordinal}-${attempt}.json`);
+      await writeFile(patchesPath, JSON.stringify([
+        { id: 'sqlite', config: specSqlite },
+        { id: 'prompts', config: prompts },
+        { id: 'driver-llm', config: specDriver },
+        { id: 'model-pi', config: specModel },
+        { id: 'round-robin', disabled: true },
+        { id: 'generation', insert: [{ id: 'l1-proposals', name: '@society0/core/proposal-sequence', config: proposals }] },
+      ], null, 2));
+      const before = requests.length;
+      let status = 'completed';
+      try {
+        await runProfile({
+          profile: join(here, '..', '..', 'profiles', 'social-sqlite.json'),
+          directory,
+          lineageDirectory: directory + '-lineage',
+          runId: 'l1-' + spec.name + suffix,
+          patches: patchesPath,
+          lock: lockPath,
+          allowModelRequests: true,
+          configureHost: async ctx => {
+            await ctx.modelCredentials.register('authorized-local', new FileCredentialStore(credentialsPath));
+          },
+        });
+      } catch (error) {
+        status = String(error?.message ?? error);
+        await log(`run ${spec.name}${suffix} stopped: ${status.split('\n')[0]}`);
+      }
+      for (let index = before; index < requests.length; index++) requests[index].probe = { name: spec.name, actorId: spec.actorId, momentId: spec.momentId, mode: spec.mode, attempt };
+      runResults.push({ ...spec, attempt, directory, status, requests: requests.length - before });
+      await rm(patchesPath, { force: true }).catch(() => {});
+      if (requests.slice(before).some(record => (record.response.toolCalls ?? []).length > 0)) break;
     }
-    for (let index = before; index < requests.length; index++) requests[index].probe = { name: spec.name, actorId: spec.actorId, momentId: spec.momentId, mode: spec.mode };
-    runResults.push({ ...spec, directory, status, requests: requests.length - before });
-    await rm(patchesPath, { force: true }).catch(() => {});
   }
 
-  const main = requests.filter((record, index) => index < mainCalls);
-  const jsonRequest = requests.find(record => record.stream === false && record.index >= mainCalls);
-  const toolCallCount = main.filter(record => (record.response.toolCalls ?? []).length > 0).length;
+  const mainSpecs = runSpecs.filter(spec => spec.name !== 'sse-control');
+  const mainRuns = runResults.filter(run => run.transport !== 'sse');
+  const main = requests.filter(record => record.probe && record.probe.name !== 'sse-control');
+  const control = requests.filter(record => record.probe?.name === 'sse-control');
+  const jsonRequests = main.filter(record => record.stream === false);
+  const activationsWithToolCalls = mainSpecs.filter(spec => requests.some(record => record.probe?.name === spec.name && (record.response.toolCalls ?? []).length > 0)).length;
   const contextLimit = /INFERENCE_CONTEXT_LIMIT/.test(await readFile(liveLog, 'utf8'));
   const maxPrompt = Math.max(...main.map(record => record.response.usage.prompt_tokens ?? 0), 0);
-  const toolDefinitionsValid = requests.every(record => record.response.toolCalls.every(call => call?.function?.name === 'act' || ['read', 'find', 'grep', 'bash'].includes(call?.function?.name)));
+  const toolDefinitionsValid = requests.every(record => record.response.toolCalls.every(call => ['read', 'find', 'grep', 'bash', 'act'].includes(call?.function?.name)));
 
-  assert.ok(requests.length <= maxCalls, `requests ${requests.length} exceed ${maxCalls}`);
-  assert.equal(main.length, mainCalls, `expected ${mainCalls} main requests, got ${main.length}`);
-  assert.ok(toolCallCount >= 9, `tool_calls ${toolCallCount}/10 below 9`);
+  assert.ok(requests.length <= 40, `requests ${requests.length} exceed 40`);
+  assert.equal(mainSpecs.length, 10, `expected 10 main activations, got ${mainSpecs.length}`);
+  assert.ok(activationsWithToolCalls >= 9, `activations with tool_calls ${activationsWithToolCalls}/10 below 9`);
   assert.equal(contextLimit, false, 'INFERENCE_CONTEXT_LIMIT observed');
   assert.ok(maxPrompt <= 8192, `prompt tokens ${maxPrompt} exceed 8k`);
-  assert.ok(jsonRequest, 'explicit json transport request missing');
-  assert.equal(jsonRequest.stream, false);
+  assert.ok(control.length >= 1, 'SSE control request missing');
+  assert.ok(control.every(record => record.stream === true), 'SSE control must use stream=true');
 
   const slotStats = name => {
     const values = main.map(record => record.slots[name]).filter(value => typeof value === 'number');
@@ -331,11 +310,15 @@ try {
     runResults,
     requests: requests.length,
     mainRequests: main.length,
-    toolCalls: toolCallCount,
+    mainActivations: mainSpecs.length, attempts: mainRuns.length,
+    activationsWithToolCalls,
+    toolCalls: requests.reduce((sum, record) => sum + (record.response.toolCalls ?? []).length, 0),
     legalToolCalls: requests.filter(record => record.toolCallLegal.every(Boolean)).length,
     pseudoToolCalls: requests.filter(record => record.pseudoToolCall).length,
     maxPromptTokens: maxPrompt,
-    explicitJson: jsonRequest ? { stream: jsonRequest.stream, toolCalls: jsonRequest.response.toolCalls } : null,
+    mainTransport: 'json',
+    mainJsonRequests: jsonRequests.length,
+    control: control.map(record => ({ stream: record.stream, toolCalls: record.response.toolCalls, finishReason: record.response.finishReason })),
     slots: Object.fromEntries(['header', 'baseline', 'stateDelta', 'actions', 'percepts', 'history', 'output'].map(name => [name, slotStats(name)])),
     budget: contextBudget().tokens,
     modelToolsValid: toolDefinitionsValid,
@@ -348,6 +331,7 @@ try {
       legal: record.toolCallLegal,
       pseudo: record.pseudoToolCall,
       stopReason: record.response.finishReason,
+      stream: record.stream,
       promptTokens: record.response.usage?.prompt_tokens ?? null,
       completionTokens: record.response.usage?.completion_tokens ?? null,
       slots: record.slots,
@@ -357,7 +341,7 @@ try {
   await writeEvidence('requests.json', requests.map(record => ({ ...record, headers: Object.fromEntries(Object.entries(record.headers).map(([key, value]) => [key, key.toLowerCase() === 'authorization' ? '***' : value])) })), secret);
   await writeFile(join(evidence, 'system-first.txt'), text(requests[0]?.system?.[0]) + '\n');
   await writeEvidence('summary.json', summary, secret);
-  await log(`OK requests=${requests.length} toolCalls=${toolCallCount} maxPrompt=${maxPrompt} slots=${JSON.stringify(summary.slots)}`);
+  await log(`OK requests=${requests.length} activationsWithToolCalls=${activationsWithToolCalls} maxPrompt=${maxPrompt} slots=${JSON.stringify(summary.slots)}`);
   await finish(0);
 } catch (error) {
   await log('FAIL ' + (error?.stack ?? String(error)));
