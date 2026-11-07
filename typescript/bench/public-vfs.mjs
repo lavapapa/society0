@@ -24,7 +24,7 @@ import { Threads, threadMigration } from '../.build/core/dist/thread/index.js';
 import { Results, resultsMigration } from '../.build/core/dist/results/index.js';
 import { Perceptions, perceptionMigration } from '../.build/core/dist/perception/index.js';
 import { Exploration } from '../.build/core/dist/exploration/index.js';
-import Public, { publicMigration } from '../.build/core/dist/public/index.js';
+import Public, { publicMigration, publicIndexMigration } from '../.build/core/dist/public/index.js';
 import MomentViews, { momentViewsMigration } from '../.build/core/dist/moment-views/index.js';
 import PublicSelf from '../.build/core/dist/public-self/index.js';
 import { Workspace, workspaceMigration } from '../.build/extras/dist/workspace/index.js';
@@ -253,7 +253,7 @@ async function assemblePublic(state) {
         await host.ctx.plugin(Attempts, { directory: join(base, 'attempts'), lineage: 'b10-bench' });
         await host.ctx.attempts.initialize();
         const source = MIGRATION_SOURCE;
-        await host.ctx.database.applyMigrations([artifactsMigration, publicMigration(source), momentViewsMigration(source), actorsMigration, actionsMigration(source), threadMigration(source), resultsMigration(source), perceptionMigration(source), workspaceMigration(source)]);
+        await host.ctx.database.applyMigrations([artifactsMigration, publicMigration(source), publicIndexMigration(source), momentViewsMigration(source), actorsMigration, actionsMigration(source), threadMigration(source), resultsMigration(source), perceptionMigration(source), workspaceMigration(source)]);
         await host.ctx.plugin(Actors);
         await host.ctx.plugin(ActorEligibility);
         await host.ctx.plugin(Actions);
@@ -533,6 +533,7 @@ async function runPublicBench(options = {}) {
             changePercentPerMoment: options.changePercentPerMoment ?? 1,
             checkpoints: options.checkpoints ?? [1, 10, 100],
             shareAgents: options.shareAgents ?? options.actors ?? 1000,
+            concurrentSessions: options.concurrentSessions ?? 24,
             mix: options.mix ?? 'mixed',
             taskConcurrency: options.taskConcurrency ?? 256,
             readerWorkers: options.readerWorkers ?? 4, maxSnapshots: options.maxSnapshots ?? 16,
@@ -877,10 +878,15 @@ async function runPublicBench(options = {}) {
         const concurrentMoment = 'm' + state.options.moments;
         resetSnapshot();
         counters.readerQueueWaitMs = 0;
+        const sessionCount = Math.max(24, state.options.concurrentSessions);
+        const leases = await Promise.all(Array.from({ length: sessionCount }, (_, index) => acquire('a' + (index % state.options.actors), concurrentMoment, 'b10-concurrent-session-' + index)));
+        const queuePeak = { value: 0 };
+        const queueTimer = setInterval(() => { const depth = ctx.database.diagnostics().snapshotQueue; if (depth > queuePeak.value) queuePeak.value = depth; }, 2);
+        queueTimer.unref();
         const concurrentStarted = performance.now();
         const concurrentResults = await Promise.allSettled(Array.from({ length: state.options.concurrency }, async (_, index) => {
             const started = performance.now();
-            const lease = await acquire('a' + (index % state.options.actors), concurrentMoment, 'b10-concurrent-session-' + index);
+            const lease = leases[index % sessionCount];
             try {
                 const kind = index % 10;
                 if (state.options.mix === 'read') {
@@ -906,16 +912,20 @@ async function runPublicBench(options = {}) {
                 else if (kind < 9) await lease.value.withView(view => view.find({ root: tablePath(bucketAt(index)), glob: '*.jsonl', page: pageRequest(128, 4194304) }));
                 else await lease.value.grep({ root: tablePath(bucketAt(index)), pattern: 'needle', mode: 'literal', page: pageRequest(128, 4194304) });
             }
-            finally { await lease.release(); }
+            finally { /* 会话由外层统一 release，单次读取结束后视图自行释放 */ }
             return performance.now() - started;
         }));
         const concurrentWall = performance.now() - concurrentStarted;
+        clearInterval(queueTimer);
+        const peak = queuePeak.value;
         const latencies = concurrentResults.filter(result => result.status === 'fulfilled').map(result => result.value);
         const errors = concurrentResults.filter(result => result.status === 'rejected');
         operations.concurrent = {
             ...summary(latencies, errors.length),
             extra: {
                 wallMs: concurrentWall,
+                sessions: sessionCount,
+                snapshotQueuePeak: peak,
                 throughputPerSecond: state.options.concurrency / (concurrentWall / 1000),
                 sqliteSnapshotBudgetErrors: counters.snapshotBudgetErrors,
                 readerQueueWaitMs: counters.readerQueueWaitMs,
@@ -924,6 +934,7 @@ async function runPublicBench(options = {}) {
             }
         };
         operations.concurrent.snapshotOpens = counters.snapshotOpens;
+        await Promise.allSettled(leases.map(lease => lease.release()));
 
         const diagnostics = ctx.public.diagnostics();
         const cache = diagnostics.cache;
@@ -1116,6 +1127,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
             readerWorkers: numberArgument(argv, 'reader-workers', 4),
             maxSnapshots: numberArgument(argv, 'max-snapshots', 16),
             shareAgents: numberArgument(argv, 'share-agents', undefined),
+            concurrentSessions: numberArgument(argv, 'concurrent-sessions', 24),
             mix: argument(argv, 'mix', 'mixed'),
             taskConcurrency: numberArgument(argv, 'task-concurrency', 256),
             shellTimeoutMs: numberArgument(argv, 'shell-timeout-ms', 30000),

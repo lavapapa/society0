@@ -46,7 +46,7 @@ node bench/public-vfs.mjs --mode public --actors 1000 --files 10000 --rows 20 \
 
 `--focus ls|read|find|cold|concurrent|history-find --profile-out <file.cpuprofile>`：装配与播种完成后，只对目标操作循环，用 `node:inspector` 程序化启停 profiler，避免把播种噪声算进来。`--focus-iterations` 默认 30；`cold` 固定 1 次，`concurrent` 固定跑一次 200 会话混合负载，`history-find` 先推进 `--moments` 个 moment 再测 find。
 
-其他基准参数：`--note-pad`（每行 note 追加字符数，用于 2M 行/400 MB 规模）、`--mix read|mixed`（并发只读或混合）、`--task-concurrency`（TaskSupervisor 并发，默认 256；默认 8 会限制 200 并发基准）、`--reader-workers`、`--max-snapshots`、`--share-agents`。
+其他基准参数：`--note-pad`（每行 note 追加字符数，用于 2M 行/400 MB 规模）、`--mix read|mixed`（并发只读或混合）、`--task-concurrency`（TaskSupervisor 并发，默认 256；默认 8 会限制 200 并发基准）、`--concurrent-sessions`（并发基准复用会话数，默认 24，报告 `operations.concurrent.extra.snapshotQueuePeak`）、`--reader-workers`、`--max-snapshots`、`--share-agents`。
 
 ### 快照过期探针
 
