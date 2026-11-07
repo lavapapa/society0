@@ -824,11 +824,11 @@ export async function ensurePairing(tx: SqliteTransaction, config: PairingConfig
     await tx.execute({
         sql: 'INSERT INTO social_pair_head VALUES(1,?,?,?,0)', parameters: [total ? 1 : 0, total, config.sessionMinutes]
     });
-    let ordinal = 0;
+    let ordinal = 0, memberOrdinal = 0;
     for (const [groupNo, group] of groups.entries()) {
-        for (const [index, actor] of group.entries())
+        for (const actor of group)
             await tx.execute({
-                sql: 'INSERT INTO social_pair_members VALUES(?,?,?,?,NULL,0)', parameters: [actor, groupNo, index, total ? 1 : 0]
+                sql: 'INSERT INTO social_pair_members VALUES(?,?,?,?,NULL,0)', parameters: [actor, groupNo, memberOrdinal++, total ? 1 : 0]
             });
         for (const [round, pairs] of schedule(group).entries())
             for (const [first, second] of pairs)
