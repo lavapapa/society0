@@ -64,6 +64,10 @@
 | ./sqlite-history | mirrorPolicy | union | "every-point" | new-run | true | null |
 | ./sqlite-history | mirrorIntervalMs | number | 60000 | new-run | true | null |
 | ./sqlite-history | mirrorMaxLagPoints | number | 3 | new-run | true | null |
+| ./deferred-work | concurrency | number | 2 | new-run | true | null |
+| ./deferred-work | maxAttempts | number | 3 | new-run | true | null |
+| ./deferred-work | maxTransactionMs | number | 30000 | new-run | true | null |
+| ./deferred-work | maxJobBytes | number | 65536 | new-run | true | null |
 | ./activation | capacity | number | 4 | new-run | true | null |
 | ./activation | maxActivations | number | 1024 | new-run | true | null |
 | ./activation | maxQueuedBytes | number | 1048576 | new-run | true | null |
