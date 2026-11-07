@@ -29,7 +29,8 @@ CREATE TABLE public_files(
   audiences TEXT NOT NULL,basename TEXT NOT NULL,extension TEXT NOT NULL,
   PRIMARY KEY(file,rev_from));
 CREATE INDEX public_files_name ON public_files(extension,file,rev_from,rev_to,audiences);
-CREATE VIRTUAL TABLE public_fts USING fts5(line,content='',tokenize='trigram',detail='none',columnsize=0);`
+CREATE VIRTUAL TABLE public_fts USING fts5(line,content='',tokenize='trigram',detail='none',columnsize=0);
+CREATE VIRTUAL TABLE public_search_state USING fts5(state,content='');`
         }]
     };
 }

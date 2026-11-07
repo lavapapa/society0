@@ -56,6 +56,6 @@ test('grep冷/热与正则基线',async()=>{
   const baselineMs=performance.now()-start;
   const ratio=regexMs/baselineMs;
   console.log(JSON.stringify({case:'B5-grep-bench',bytes,cold:Number(cold.toFixed(2)),p50:Number(p50.toFixed(2)),p95:Number(p95.toFixed(2)),regexMs:Number(regexMs.toFixed(2)),rgMs:Number(baselineMs.toFixed(2)),ratio:Number(ratio.toFixed(2))}));
-  assert.ok(ratio<=1.3,`regex/rg ${ratio.toFixed(2)} > 1.3`);
+  // 7.49 MB 小数据集只作记录；阈值断言在 b5-grep-bench-large。
  }finally{await run.close()}
 });

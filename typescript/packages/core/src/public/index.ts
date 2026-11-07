@@ -96,6 +96,8 @@ export class PublicRepository extends Service {
     async rebuildSearch(tx: SqliteTransaction): Promise<void> {
         await tx.execute({ sql: "INSERT INTO public_fts(public_fts) VALUES('delete-all')" });
         await tx.execute({ sql: 'INSERT INTO public_fts(rowid,line) SELECT rowid,line FROM public_rows' });
+        await tx.execute({ sql: "INSERT INTO public_search_state(public_search_state) VALUES('delete-all')" });
+        await tx.execute({ sql: "INSERT INTO public_search_state(rowid,state) VALUES(?,'ok')", parameters: [BigInt(tx.baseRevision) + 1n] });
     }
     diagnostics(): PublicDiagnostics {
         return { cache: this.cache.diagnostics(), audiences: this.audiences.size };

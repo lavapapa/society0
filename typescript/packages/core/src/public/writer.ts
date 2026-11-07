@@ -120,7 +120,13 @@ export class PublicWriterImpl implements PublicWriter {
             this.state.dirty.set(file, list[0]!.decl);
             changed += await this.aggregate(file, list[0]!.decl);
         }
+        await this.syncSearchState();
         return changed;
+    }
+    /** 记录索引对应的 revision；该表是虚拟表，不进入 changeset。 */
+    private async syncSearchState(): Promise<void> {
+        await this.tx.execute({ sql: "INSERT INTO public_search_state(public_search_state) VALUES('delete-all')" });
+        await this.tx.execute({ sql: "INSERT INTO public_search_state(rowid,state) VALUES(?,'ok')", parameters: [this.state.rev] });
     }
     private async aggregate(file: string, decl: PublicTableDecl): Promise<number> {
         const at = this.state.rev;

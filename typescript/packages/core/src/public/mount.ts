@@ -393,7 +393,9 @@ export class PublicMount implements ExplorationMount {
         const pattern = request.pattern;
         let records: PublicFile[];
         const literal = this.literalOf(pattern, request.mode);
-        if (literal && literal.length >= 3) {
+        const [state] = await view.query({ sql: 'SELECT max(rowid) AS revision FROM public_search_state' }, { maxRows: 1, maxBytes: 1024 });
+        const indexed = state?.revision === null || state?.revision === undefined ? null : BigInt(state.revision as bigint | number | string);
+        if (literal && literal.length >= 3 && indexed !== null && indexed >= at) {
             try {
                 const rows = await view.query({
                     sql: `SELECT DISTINCT pr.file AS file FROM public_fts f JOIN public_rows pr ON pr.rowid=f.rowid WHERE public_fts MATCH ? AND pr.file>=? AND pr.file<? AND pr.rev_from<=? AND (pr.rev_to IS NULL OR pr.rev_to>?) AND (pr.audience='all' OR pr.audience IN (${agent.map(() => '?').join(',')})) ORDER BY pr.file LIMIT ?`,
