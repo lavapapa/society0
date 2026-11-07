@@ -87,12 +87,12 @@ export class PublicSelfMount implements ExplorationMount {
         const provider = this.provider(path);
         return provider ? this.providerVisible(provider, scope.actorId, view) : false;
     }
-    private async rendered(provider: SelfProvider, actorId: string, view: SqliteReadView): Promise<Rendered> {
-        const versions = (await provider.versions(actorId, view)).map(item => ({ owner: String(item.owner), version: String(item.version) }));
+    private async rendered(provider: SelfProvider, actorId: string, view: SqliteReadView, scope: DiscoveryScope): Promise<Rendered> {
+        const versions = (await provider.versions(actorId, view, scope)).map(item => ({ owner: String(item.owner), version: String(item.version) }));
         const key = SelfCache.key(provider.path, actorId, versions);
         const bytes = await this.host.cache.bytes(key, async () => {
             const chunks: Uint8Array[] = [];
-            for await (const chunk of provider.render(actorId, view, new AbortController().signal))
+            for await (const chunk of provider.render(actorId, view, new AbortController().signal, scope))
                 chunks.push(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk as ArrayBufferLike));
             return Buffer.concat(chunks);
         });
@@ -135,7 +135,7 @@ export class PublicSelfMount implements ExplorationMount {
         const provider = this.provider(path);
         if (!provider || !await this.providerVisible(provider, scope.actorId, view))
             return fail('EXPLORATION_NOT_FOUND');
-        return this.fileRecord(path, await this.rendered(provider, scope.actorId, view), scope.actorId, provider.media);
+        return this.fileRecord(path, await this.rendered(provider, scope.actorId, view, scope), scope.actorId, provider.media);
     }
     private async statIn(view: SqliteReadView, path: string, scope: DiscoveryScope): Promise<ExplorationNode> {
         if (!await this.visibleIn(view, path, scope))

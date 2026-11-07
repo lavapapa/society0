@@ -165,6 +165,10 @@
       "types": "./dist/actions/index.d.ts",
       "default": "./dist/actions/index.js"
     },
+    "./action-files": {
+      "types": "./dist/action-files/index.d.ts",
+      "default": "./dist/action-files/index.js"
+    },
     "./thread": {
       "types": "./dist/thread/index.d.ts",
       "default": "./dist/thread/index.js"
