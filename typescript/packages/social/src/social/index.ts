@@ -310,99 +310,18 @@ export class Social extends Service {
             flaggedPostIds: flagged, timestamp: time
         };
     }
+    private pairingConfig(): PairingConfig {
+        return { groups: this.config.pairingGroups as string[][], sessionMinutes: this.config.pairingSessionMinutes };
+    }
     private assertPairingConfig() {
-        const groups = this.config.pairingGroups as string[][];
-        if (!groups.length)
-            return;
-        const size = groups[0]!.length, seen = new Set<string>();
-        if (size < 2 || size > 20 || size % 2)
-            throw Error('SOCIAL_PAIRING_CONFIG');
-        for (const group of groups) {
-            if (group.length !== size)
-                throw Error('SOCIAL_PAIRING_CONFIG');
-            for (const actor of group) {
-                if (!actor || seen.has(actor))
-                    throw Error('SOCIAL_PAIRING_CONFIG');
-                seen.add(actor);
-            }
-        }
+        assertPairingConfig(this.pairingConfig());
     }
     private async ensurePairing(tx: SqliteTransaction) {
-        const [head] = await tx.query({
-            sql: 'SELECT current_round,total_rounds FROM social_pair_head WHERE id=1'
-        }, { maxRows: 1, maxBytes: 1024 });
-        if (head)
-            return;
-        const groups = this.config.pairingGroups as string[][];
-        if (!groups.length)
-            throw Error('SOCIAL_PAIRING_CONFIG');
-        const size = groups[0]!.length, total = size - 1;
-        await tx.execute({
-            sql: 'INSERT INTO social_pair_head VALUES(1,?,?,?,0)', parameters: [total ? 1 : 0, total, this.config.pairingSessionMinutes]
-        });
-        let ordinal = 0;
-        for (const [groupNo, group] of groups.entries()) {
-            for (const [index, actor] of group.entries())
-                await tx.execute({
-                    sql: 'INSERT INTO social_pair_members VALUES(?,?,?,?,NULL,0)', parameters: [actor, groupNo, index, total ? 1 : 0]
-                });
-            for (const [round, pairs] of schedule(group).entries())
-                for (const [first, second] of pairs)
-                    await tx.execute({
-                        sql: 'INSERT INTO social_pair_schedule VALUES(?,?,?,?,?)', parameters: [ordinal++, groupNo, round + 1, first, second]
-                    });
-        }
+        return ensurePairing(tx, this.pairingConfig());
     }
     /** 开始一轮配对；同一轮重入保留既有配对，拒绝回退。 */
     async startRound(tx: SqliteTransaction, round: number): Promise<PairingRoundResult> {
-        await this.ensurePairing(tx);
-        const [head] = await tx.query({
-            sql: 'SELECT current_round,total_rounds FROM social_pair_head WHERE id=1'
-        }, { maxRows: 1, maxBytes: 1024 });
-        const current = Number(head!.current_round), total = Number(head!.total_rounds);
-        if (!Number.isSafeInteger(round) || round < 1 || round > total || round < current)
-            throw Error('SOCIAL_PAIRING_ROUND');
-        if (round === current) {
-            const [active] = await tx.query({
-                sql: 'SELECT 1 AS present FROM social_pair_members WHERE active=1 LIMIT 1'
-            }, { maxRows: 1, maxBytes: 1024 });
-            if (active)
-                return { round, pairs: [], successfulPairs: 0 };
-        }
-        await tx.execute({ sql: 'UPDATE social_pair_head SET current_round=? WHERE id=1', parameters: [round] });
-        await tx.execute({ sql: 'UPDATE social_pair_members SET partner=NULL,round_no=?,active=0', parameters: [round] });
-        const scheduleRows = await tx.query({
-            sql: 'SELECT first,second FROM social_pair_schedule WHERE round_no=? ORDER BY ordinal', parameters: [round]
-        }, { maxRows: total * 10 + 1, maxBytes: 1048576 });
-        const pairs: [string, string][] = [];
-        for (const row of scheduleRows) {
-            const first = String(row.first), second = String(row.second);
-            const [a, b] = first < second ? [first, second] : [second, first];
-            const [started] = await tx.query({
-                sql: 'SELECT 1 AS present FROM social_pair_started WHERE first=? AND second=?', parameters: [a, b]
-            }, { maxRows: 1, maxBytes: 1024 });
-            if (started)
-                continue;
-            await tx.execute({ sql: 'INSERT INTO social_pair_started VALUES(?,?,?)', parameters: [a, b, round] });
-            for (const [actor, partner] of [[first, second], [second, first]])
-                await tx.execute({
-                    sql: 'UPDATE social_pair_members SET partner=?,active=1 WHERE actor=?', parameters: [partner, actor]
-                });
-            const [history] = await tx.query({
-                sql: 'SELECT coalesce(max(ordinal),0)+1 AS n FROM social_pair_history'
-            }, { maxRows: 1, maxBytes: 1024 });
-            await tx.execute({
-                sql: 'INSERT INTO social_pair_history VALUES(?,?,?,?)', parameters: [Number(history!.n), first, second, round]
-            });
-            const [next] = await tx.query({
-                sql: 'SELECT coalesce(max(ordinal),0)+1 AS n FROM social_pair_history'
-            }, { maxRows: 1, maxBytes: 1024 });
-            await tx.execute({
-                sql: 'INSERT INTO social_pair_history VALUES(?,?,?,?)', parameters: [Number(next!.n), second, first, round]
-            });
-            pairs.push([first, second]);
-        }
-        return { round, pairs, successfulPairs: pairs.length };
+        return startPairingRound(tx, this.pairingConfig(), round);
     }
     /** 推进到下一轮；本轮尚未开始的配对由后续 startRound 决定。 */
     async advanceRound(tx: SqliteTransaction) {
@@ -874,6 +793,101 @@ export class Social extends Service {
     }
 }
 /** 圆桌轮转：每轮每人恰好配对一次，n 人共 n-1 轮且任意两人恰好配对一次。 */
+export interface PairingConfig { readonly groups: readonly (readonly string[])[]; readonly sessionMinutes: number }
+function assertPairingConfig(config: PairingConfig) {
+    const groups = config.groups;
+    if (!groups.length)
+        return;
+    const size = groups[0]!.length, seen = new Set<string>();
+    if (size < 2 || size > 20 || size % 2)
+        throw Error('SOCIAL_PAIRING_CONFIG');
+    for (const group of groups) {
+        if (group.length !== size)
+            throw Error('SOCIAL_PAIRING_CONFIG');
+        for (const actor of group) {
+            if (!actor || seen.has(actor))
+                throw Error('SOCIAL_PAIRING_CONFIG');
+            seen.add(actor);
+        }
+    }
+}
+export async function ensurePairing(tx: SqliteTransaction, config: PairingConfig) {
+    const [head] = await tx.query({
+        sql: 'SELECT current_round,total_rounds FROM social_pair_head WHERE id=1'
+    }, { maxRows: 1, maxBytes: 1024 });
+    if (head)
+        return;
+    const groups = config.groups;
+    if (!groups.length)
+        throw Error('SOCIAL_PAIRING_CONFIG');
+    const size = groups[0]!.length, total = size - 1;
+    await tx.execute({
+        sql: 'INSERT INTO social_pair_head VALUES(1,?,?,?,0)', parameters: [total ? 1 : 0, total, config.sessionMinutes]
+    });
+    let ordinal = 0;
+    for (const [groupNo, group] of groups.entries()) {
+        for (const [index, actor] of group.entries())
+            await tx.execute({
+                sql: 'INSERT INTO social_pair_members VALUES(?,?,?,?,NULL,0)', parameters: [actor, groupNo, index, total ? 1 : 0]
+            });
+        for (const [round, pairs] of schedule(group).entries())
+            for (const [first, second] of pairs)
+                await tx.execute({
+                    sql: 'INSERT INTO social_pair_schedule VALUES(?,?,?,?,?)', parameters: [ordinal++, groupNo, round + 1, first, second]
+                });
+    }
+}
+/** 开始一轮配对；同一轮重入保留既有配对，拒绝回退。设备级 bootstrap 与运行期共用同一实现。 */
+export async function startPairingRound(tx: SqliteTransaction, config: PairingConfig, round: number): Promise<PairingRoundResult> {
+    await ensurePairing(tx, config);
+    const [head] = await tx.query({
+        sql: 'SELECT current_round,total_rounds FROM social_pair_head WHERE id=1'
+    }, { maxRows: 1, maxBytes: 1024 });
+    const current = Number(head!.current_round), total = Number(head!.total_rounds);
+    if (!Number.isSafeInteger(round) || round < 1 || round > total || round < current)
+        throw Error('SOCIAL_PAIRING_ROUND');
+    if (round === current) {
+        const [active] = await tx.query({
+            sql: 'SELECT 1 AS present FROM social_pair_members WHERE active=1 LIMIT 1'
+        }, { maxRows: 1, maxBytes: 1024 });
+        if (active)
+            return { round, pairs: [], successfulPairs: 0 };
+    }
+    await tx.execute({ sql: 'UPDATE social_pair_head SET current_round=? WHERE id=1', parameters: [round] });
+    await tx.execute({ sql: 'UPDATE social_pair_members SET partner=NULL,round_no=?,active=0', parameters: [round] });
+    const scheduleRows = await tx.query({
+        sql: 'SELECT first,second FROM social_pair_schedule WHERE round_no=? ORDER BY ordinal', parameters: [round]
+    }, { maxRows: total * 10 + 1, maxBytes: 1048576 });
+    const pairs: [string, string][] = [];
+    for (const row of scheduleRows) {
+        const first = String(row.first), second = String(row.second);
+        const [a, b] = first < second ? [first, second] : [second, first];
+        const [started] = await tx.query({
+            sql: 'SELECT 1 AS present FROM social_pair_started WHERE first=? AND second=?', parameters: [a, b]
+        }, { maxRows: 1, maxBytes: 1024 });
+        if (started)
+            continue;
+        await tx.execute({ sql: 'INSERT INTO social_pair_started VALUES(?,?,?)', parameters: [a, b, round] });
+        for (const [actor, partner] of [[first, second], [second, first]])
+            await tx.execute({
+                sql: 'UPDATE social_pair_members SET partner=?,active=1 WHERE actor=?', parameters: [partner, actor]
+            });
+        const [history] = await tx.query({
+            sql: 'SELECT coalesce(max(ordinal),0)+1 AS n FROM social_pair_history'
+        }, { maxRows: 1, maxBytes: 1024 });
+        await tx.execute({
+            sql: 'INSERT INTO social_pair_history VALUES(?,?,?,?)', parameters: [Number(history!.n), first, second, round]
+        });
+        const [next] = await tx.query({
+            sql: 'SELECT coalesce(max(ordinal),0)+1 AS n FROM social_pair_history'
+        }, { maxRows: 1, maxBytes: 1024 });
+        await tx.execute({
+            sql: 'INSERT INTO social_pair_history VALUES(?,?,?,?)', parameters: [Number(next!.n), second, first, round]
+        });
+        pairs.push([first, second]);
+    }
+    return { round, pairs, successfulPairs: pairs.length };
+}
 export function schedule(group: readonly string[]): [string, string][][] {
     const rotation = [...group], rounds: [string, string][][] = [];
     for (let round = 0; round < group.length - 1; round++) {

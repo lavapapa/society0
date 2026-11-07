@@ -2583,6 +2583,30 @@
               "mode": "new-run",
               "affectsResults": true,
               "secret": null
+            },
+            {
+              "name": "startRound",
+              "type": "number",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "pairingGroups",
+              "type": "array",
+              "default": [],
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "pairingSessionMinutes",
+              "type": "number",
+              "default": 10,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
             }
           ]
         },

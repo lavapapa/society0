@@ -276,6 +276,9 @@
 | ./social-repository | maxRecipients | number | 1024 | new-run | true | null |
 | ./social-init | topology | string | "provided-edges/v1" | new-run | true | null |
 | ./social-init | batchSize | number | 32 | new-run | true | null |
+| ./social-init | startRound | number | null | new-run | true | null |
+| ./social-init | pairingGroups | array | [] | new-run | true | null |
+| ./social-init | pairingSessionMinutes | number | 10 | new-run | true | null |
 | ./topology-edges | actors | array | [] | new-run | true | null |
 | ./topology-edges | edges | array | [] | new-run | true | null |
 | ./topology-edges | algorithm | union | "provided" | new-run | true | null |

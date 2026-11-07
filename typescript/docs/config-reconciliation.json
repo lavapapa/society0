@@ -694,6 +694,18 @@
       "state": "added",
       "consumer": "typescript/packages/social/src/social-init/index.ts:81"
     },
+    "@society0/social/social-init/startRound": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-init/index.ts:91"
+    },
+    "@society0/social/social-init/pairingGroups": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-init/index.ts:93"
+    },
+    "@society0/social/social-init/pairingSessionMinutes": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-init/index.ts:93"
+    },
     "@society0/social/topology-edges/algorithm": {
       "state": "added",
       "consumer": "typescript/packages/social/src/topology-edges/algorithms.ts:169"

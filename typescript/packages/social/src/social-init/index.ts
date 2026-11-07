@@ -2,13 +2,20 @@ import { Context, Service } from '@society0/host';
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 export const Config = Schema.object({
-    topology: Schema.string().default('provided-edges/v1'), batchSize: Schema.natural().min(1).max(256).default(32)
+    topology: Schema.string().default('provided-edges/v1'), batchSize: Schema.natural().min(1).max(256).default(32),
+    startRound: Schema.natural().min(1), pairingGroups: Schema.array(Schema.array(Schema.string())).default([]), pairingSessionMinutes: Schema.natural().min(1).max(120).default(10)
 });
 export const metadata: PluginMetadata = {
     "title": "social-init", "summary": "social-init", "scope": "bootstrap", "hostAbi": "society0/host/1", "configVersion": 1, "configPolicy": [{
             "path": "/topology", "mode": "new-run", "affectsResults": true
         }, {
             "path": "/batchSize", "mode": "new-run", "affectsResults": true
+        }, {
+            "path": "/startRound", "mode": "new-run", "affectsResults": true
+        }, {
+            "path": "/pairingGroups", "mode": "new-run", "affectsResults": true
+        }, {
+            "path": "/pairingSessionMinutes", "mode": "new-run", "affectsResults": true
         }]
 };
 export const api: ApiEntry = {
@@ -29,6 +36,7 @@ export const api: ApiEntry = {
 import { slotKey } from '@society0/host/slots';
 import '@society0/core/initializers';
 import '../social-repository/index.js';
+import { startPairingRound } from '../social/index.js';
 import type { TopologyProvider, Json } from '../contracts.js';
 import { transactionRequest } from '../paging.js';
 export const topologySlot = slotKey<TopologyProvider>('society/social-topology');
@@ -79,8 +87,14 @@ async function initialize(ctx: Context, config: ReturnType<typeof Config>, conte
         });
         validateGraph(graph);
         const actors = await seedActors(ctx, context, graph, config.batchSize), edges = await seedEdges(ctx, context, graph, config.batchSize);
+        const operations = [...actors, ...edges];
+        if (config.startRound !== undefined) {
+            const id = 'social.seed/round/' + config.startRound;
+            await context.database.transaction(context.writeLease, transactionRequest(id), tx => startPairingRound(tx, { groups: config.pairingGroups, sessionMinutes: config.pairingSessionMinutes }, config.startRound));
+            operations.push(id);
+        }
         return {
-            operationIds: [...actors, ...edges]
+            operationIds: operations
         };
     }
     finally {
