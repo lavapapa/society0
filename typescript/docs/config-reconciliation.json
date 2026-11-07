@@ -1336,6 +1336,41 @@
       "reason": "试用与对照用的旧工具面开关；默认空，打开 information/exploration 会改变工具表。",
       "design": "D-tools DESIGN §2.2、§8"
     },
+    "@society0/core/moment-views/freeze": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/moment-views/index.ts:66",
+      "design": "B-public DESIGN §3.1、§11"
+    },
+    "@society0/core/public/mount": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/public/index.ts:78",
+      "design": "B-public DESIGN §11"
+    },
+    "@society0/core/public/renderCacheBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/public/index.ts:75",
+      "design": "B-public DESIGN §6.4、§11"
+    },
+    "@society0/core/public/cacheDir": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/public/index.ts:75",
+      "design": "B-public DESIGN §6.4、§11"
+    },
+    "@society0/core/public/searchIndex": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/public/index.ts:85",
+      "design": "B-public DESIGN §7.3、§11"
+    },
+    "@society0/core/public/changesPerception": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/public/index.ts:102",
+      "design": "B-public DESIGN §10、§11"
+    },
+    "@society0/core/public-self/mount": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/public-self/index.ts:45",
+      "design": "B-public DESIGN §8、§11"
+    },
     "@society0/core/sqlite/synchronous": {
       "state": "added",
       "consumer": "typescript/packages/core/src/sqlite/database.ts:37"
@@ -1381,6 +1416,22 @@
     "@society0/core/metrics": {
       "state": "added-plugin",
       "design": "docs/design-amendments.md#c-性能观测"
+    },
+    "@society0/core/moment-views": {
+      "state": "added-plugin",
+      "design": "B-public DESIGN §2、§3"
+    },
+    "@society0/core/public": {
+      "state": "added-plugin",
+      "design": "B-public DESIGN §2、§4–§6"
+    },
+    "@society0/core/public-self": {
+      "state": "added-plugin",
+      "design": "B-public DESIGN §2、§8"
+    },
+    "@society0/core/action-files": {
+      "state": "added-plugin",
+      "design": "A-actions DESIGN §9；INTEGRATION §2 第 1 条"
     }
   },
   "source": "inputs/society0_next_refactor_v3/catalog/plan.json"

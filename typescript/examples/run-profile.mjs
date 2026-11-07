@@ -77,6 +77,8 @@ async function collectMigrations(run){
   const [{artifactsMigration},{actorsMigration},{resultsMigration},{threadMigration},{actionsMigration}]=await Promise.all(['artifacts-local','actors','results','thread','actions'].map(name=>import('@society0/core/'+name)));
   const {source}=run;run.migrations=[artifactsMigration,actorsMigration,resultsMigration(source),threadMigration(source),actionsMigration(source)];
   if(activeModule(run.plan.flat,'@society0/core/perception'))run.migrations.push((await import('@society0/core/perception')).perceptionMigration(source));
+  if(activeModule(run.plan.flat,'@society0/core/moment-views'))run.migrations.push((await import('@society0/core/moment-views')).momentViewsMigration(source));
+  if(activeModule(run.plan.flat,'@society0/core/public'))run.migrations.push((await import('@society0/core/public')).publicMigration(source));
   await collectWorkspaceMigration(run);
   if(run.modelEnabled)run.migrations.push((await import('@society0/core/actor-tools')).actorToolsMigration(source));
   if(run.event)run.migrations.push((await import('@society0/core/runtime-events')).eventsMigration);

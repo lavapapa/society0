@@ -24,6 +24,7 @@ export interface PublicMountHost {
     readonly tables: ReadonlyMap<string, PublicTableDecl>;
     readonly docs: ReadonlyMap<string, PublicDocDecl>;
     readonly momentViews?: () => MomentRevisionReader | undefined;
+    readonly searchIndex: 'trigram' | 'none';
     readonly searchOptions: () => { maxInlineFileBytes: number; maxSearchBytes: number; maxSearchOutputBytes: number; maxSearchMs: number };
     readonly stats: { searchStale: number; fallbackScans: number };
 }
@@ -402,7 +403,7 @@ export class PublicMount implements ExplorationMount {
             this.host.stats.searchStale++;
             this.host.stats.fallbackScans++;
         }
-        if (literal && literal.length >= 3 && !stale) {
+        if (literal && literal.length >= 3 && this.host.searchIndex !== 'none' && !stale) {
             try {
                 const rows = await view.query({
                     sql: `SELECT DISTINCT pr.file AS file FROM public_fts f JOIN public_rows pr ON pr.rowid=f.rowid WHERE public_fts MATCH ? AND pr.file>=? AND pr.file<? AND pr.rev_from<=? AND (pr.rev_to IS NULL OR pr.rev_to>?) AND (pr.audience='all' OR pr.audience IN (${agent.map(() => '?').join(',')})) ORDER BY pr.file LIMIT ?`,

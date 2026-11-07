@@ -53,13 +53,19 @@ society0 --boot ./boot.json
 
 boot 文件是 BootEntry 数组，空数组启动纯宿主。进程空闲、SIGINT 或 SIGTERM 会请求真实异步清理，CLI 的顶层 await 等待关闭完成。清理未完成且事件循环已空时，Node 以 unsettled top-level await 诊断和非成功退出码结束；仍有活跃句柄时继续等待。配置参数与返回值以[bootstrap 类型](<packages/host/src/bootstrap.ts>)为准。
 
-## 三、来源
+## 三、profile 与工具表
+
+四个发行 profile（`event-sqlite`、`rule-sqlite`、`social-sqlite`、`social-codex-sqlite`）统一装配 `@society0/core/public`、`@society0/core/public-self` 与 `@society0/core/moment-views`，根目录提供 `/public` 和 `/self` 两个只读挂载；`/world` 不再装配。`public` 在 `changesPerception` 未关闭时注册 `public.changes` 感知来源。两个 social profile 另装 `@society0/core/action-files`，在 `/self/actions/offers.jsonl` 与 `/self/actions/catalog.jsonl` 提供行动清单的完整文件视图。`information` 服务暂时保留，供 plain/social 的旧来源过渡使用，不再是 agent 的默认工具。
+
+两个 social profile 装配 `@society0/core/actor-tools`。默认工具表恰为 `bash`、`read`、`find`、`grep`、`act` 五个，跨主体、跨 moment 逐字节相同；`legacyTools` 默认为空。只有显式配置 `legacyTools`（`information`、`exploration`）时才注册 `information_*`、`exploration_*`，仅用于对照实验。`event-sqlite` 与 `rule-sqlite` 不含 agent 运行时与工具表。
+
+## 四、来源
 
 [原始来源清单](<vendor-baseline/source-manifest.json>)与原始六包代码保留在 vendor-baseline；[有序补丁](<patches/series.json>)应用后的源码位于 vendor。构建重新应用补丁并逐文件比较，随后机械重映射发布 scope 和导入名。上游许可证逐包保留。每个 tarball 带 SOURCE、构建依赖锁与补丁原文，便于仓外诊断。
 
 vendor 的独立编译允许来源中既有的 implicit any/this；其余 strict 检查保持开启。host、CLI、两个 TS 插件和 JSDoc 插件保持完整 strict，消费者使用 `skipLibCheck=false` 验证真实声明边界。
 
-## 四、验收入口
+## 五、验收入口
 
 `npm test` 执行[包清单](<package.json>)中 `scripts.test` 指定的 PR01、PR02 测试。构建、来源与插件打包消费分别由上面的命令执行；完整公开 SDK 用户链使用[生命周期消费者](<tests/pr12-consumer.mjs>)、[四根 PI 消费者](<tests/pr12-four-roots.mjs>)和[模型分叉消费者](<tests/pr12-model-branch.mjs>)，参数指向独立安装目录和新证据目录，具体调用见各入口的参数定义。
 

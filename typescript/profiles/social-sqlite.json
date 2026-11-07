@@ -333,8 +333,23 @@
                   "config": {}
                 },
                 {
-                  "id": "mount-world",
-                  "name": "@society0/core/mount-world",
+                  "id": "moment-views",
+                  "name": "@society0/core/moment-views",
+                  "config": {}
+                },
+                {
+                  "id": "public",
+                  "name": "@society0/core/public",
+                  "config": {}
+                },
+                {
+                  "id": "public-self",
+                  "name": "@society0/core/public-self",
+                  "config": {}
+                },
+                {
+                  "id": "action-files",
+                  "name": "@society0/core/action-files",
                   "config": {}
                 },
                 {

@@ -14,7 +14,7 @@ const usage={input:1,output:1,cacheRead:0,cacheWrite:0,totalTokens:2,cost:{input
 const message=(content,stopReason)=>({role:'assistant',api:'openai-completions',provider:'replay',model:'four-roots',content,stopReason,usage,timestamp:0});
 run.config.push({id:'four-roots-replay',name:'@society0/core/model-replay',config:{name:'replay/v1',fixtures:{'four-roots':[
  message([{type:'toolCall',id:'shell-proof',name:'bash',arguments:{command:"ls /; printf 'workspace-proof' > /workspace/proof.txt; cat /workspace/proof.txt; cat /context/*"}}],'toolUse'),
- message([{type:'toolCall',id:'publish-proof',name:'publish',arguments:{content:'Explicit offline native replay proof'}}],'toolUse'),
+ message([{type:'toolCall',id:'publish-proof',name:'act',arguments:{action:'social.publish',input:{content:'Explicit offline native replay proof'}}}],'toolUse'),
  message([{type:'text',text:'Completed explicit replay'}],'stop')
 ]}}});
 driver.config={...driver.config,provider:'replay/v1',model:'four-roots',maxRequests:3,maxToolCalls:2};
@@ -25,7 +25,7 @@ const report=await runProfile({profile:profilePath,directory:join(output,'world'
  const tools=await ctx.observation.query({sql:'SELECT actor_id,moment_id,action,payload FROM actor_tool_receipts ORDER BY tool_call_id'});
  assert.equal(tools.rows.length,2);const shell=tools.rows.find(row=>row.action==='bash');assert.ok(shell);
  const stored=JSON.parse(shell.payload);assert.equal(stored.kind,'inline');assert.equal(stored.value.status,'completed');assert.equal(stored.value.value.exitCode,0);
- const stdout=stored.value.value.stdout;assert.equal(typeof stdout,'string');for(const marker of ['world','results','workspace','context','workspace-proof','frozen-context-proof'])assert.ok(stdout.includes(marker),marker);
+ const stdout=stored.value.value.stdout;assert.equal(typeof stdout,'string');for(const marker of ['public','self','results','workspace','context','workspace-proof','frozen-context-proof'])assert.ok(stdout.includes(marker),marker);
  const files=await ctx.observation.query({sql:"SELECT actor_id,path FROM workspace_nodes WHERE path='/workspace/proof.txt'"});assert.equal(files.rows.length,1);assert.equal(files.rows[0].actor_id,'alice');
  let generation;const owner=await tree.entries.get('generation').ctx.plugin({name:'public.context-proof',inject:['contextMount'],apply(value){generation=value}});await owner.await();
  const view=await ctx.database.snapshot({maxAgeMs:30000});let remaining;
