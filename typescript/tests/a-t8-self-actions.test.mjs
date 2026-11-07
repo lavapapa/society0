@@ -131,9 +131,10 @@ test('A-T8 /self/actions 文件视图', async (t) => {
         await t.test('catalog.jsonl 的 schema 卡片与 describe() 一致', async () => {
             const cards = lines((await readFile(session.value, catalogPath)).text);
             const names = [...new Set(cards.map(card => card.action))].sort();
-            assert.deepEqual(names, ['test.dynamic'], 'catalog 覆盖当前 offer 集里出现的行动');
+            const current = await read(run.ctx, view => run.ctx.actions.offers(scopeOf('a'), view, SELF_ACTION_LIMITS));
+            assert.deepEqual(names, [...new Set(current.offers.map(offer => offer.action))].sort(), 'catalog 覆盖当前 offer 集里出现的行动');
             for (const card of cards)
-                assert.deepEqual(card, await run.ctx.actions.describe(card.action), 'schema 卡片必须等于 describe()');
+                assert.deepEqual(card, JSON.parse(JSON.stringify(await run.ctx.actions.describe(card.action))), 'schema 卡片必须等于 describe()（JSONL 省略 undefined 字段）');
         });
 
         await t.test('变更段的完整清单路径存在且可读', async () => {
@@ -157,8 +158,9 @@ test('A-T8 /self/actions 文件视图', async (t) => {
                 const a = await readFile(session.value, offersPath);
                 const b = await readFile(other.value, offersPath);
                 assert.notEqual(a.text, b.text);
-                assert.deepEqual(lines(a.text).map(ref => ref.target), ['test/item:a-1', 'test/item:a-2']);
-                assert.deepEqual(lines(b.text).map(ref => ref.target), ['test/item:b-1', 'test/item:b-2']);
+                const dynamic = refs => refs.filter(ref => ref.act === 'test.dynamic').map(ref => ref.target);
+                assert.deepEqual(dynamic(lines(a.text)), ['test/item:a-1', 'test/item:a-2']);
+                assert.deepEqual(dynamic(lines(b.text)), ['test/item:b-1', 'test/item:b-2']);
             }
             finally {
                 await other.release();
@@ -169,13 +171,13 @@ test('A-T8 /self/actions 文件视图', async (t) => {
             const receipt = await run.ctx.actions.execute('test.dynamic', { itemId: 'a-1' }, acquisitionOf(run, 'a', 'm', 'a8-execute'), { kind: 'test/item', id: 'a-1' });
             assert.equal(receipt.status, 'completed');
             const after = await readFile(session.value, offersPath);
-            assert.equal(after.text, '', '执行后该主体的 offer 集为空');
+            assert.deepEqual(lines(after.text), [{ act: 'plain.update' }], '执行后该主体的动态 offer 消失，环境里的 ambient 行动仍在');
             const catalog = await readFile(session.value, catalogPath);
-            assert.equal(catalog.text, '', '空 offer 集对应空 catalog');
-            assert.equal(after.node.path, offersPath, '没有 offer 时路径仍然可见，内容为空');
+            assert.deepEqual(lines(catalog.text).map(card => card.action), ['plain.update'], 'catalog 跟随当前 offer 集');
+            assert.equal(after.node.path, offersPath, '没有动态 offer 时路径仍然可见');
             const other = await open(run, 'b');
             try {
-                assert.equal(lines((await readFile(other.value, offersPath)).text).length, 2, 'B 的 offer 不受 A 的执行影响');
+                assert.deepEqual(lines((await readFile(other.value, offersPath)).text).filter(ref => ref.act === 'test.dynamic').length, 2, 'B 的 offer 不受 A 的执行影响');
             }
             finally {
                 await other.release();

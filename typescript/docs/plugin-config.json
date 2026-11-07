@@ -977,6 +977,11 @@
           ]
         },
         {
+          "exportPath": "./action-files",
+          "title": "action-files",
+          "fields": []
+        },
+        {
           "exportPath": "./thread",
           "title": "thread",
           "fields": [
