@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * D9 真实端到端验收：直接装配 profiles/social-sqlite.json，走 本地 LiteLLM 网关 的 LiteLLM。
- * 手动运行：node tests/d9-social-live.mjs
+ * 手动运行：node tests/live/d9-social-live.mjs
  * 只打两类补丁：真实模型凭据（临时 0600 文件）与运行目录；场景 prompt/topology 由脚本给出。
  */
 import assert from 'node:assert/strict';
@@ -12,19 +12,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const W = join(here, '..', '..', '..', '..');
+const W = join(here, '..', '..', '..', '..', '..');
 const evidence = join(W, 'evidence', 'd9');
 const gatewayEnv = process.env.D9_GATEWAY_ENV || join(W, '..', '..', 'services', 'litellm', '.env');
 const modelId = 'Qwen3.6-35B-A3B-FP8';
 const maxRequests = 30;
 const watchdogMs = 15 * 60 * 1000;
 const runDirectory = `/var/tmp/society0-next-d9-${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}`;
-
-// 这个脚本是手动 live 验收，不属于 node --test 门禁；被 glob 选中时直接退出。
-if (process.env.NODE_TEST_CONTEXT) {
-  console.error('d9-social-live.mjs is a manual live acceptance script');
-  process.exit(0);
-}
 
 await mkdir(evidence, { recursive: true });
 const liveLog = join(evidence, 'live.log');
@@ -74,7 +68,7 @@ try {
   await writeFile(credentialsPath, JSON.stringify({ 'local-gateway': { type: 'api_key', key: secret } }), { mode: 0o600 });
   await chmod(credentialsPath, 0o600);
 
-  profileJson = JSON.parse(await readFile(join(here, '..', 'profiles', 'social-sqlite.json'), 'utf8'));
+  profileJson = JSON.parse(await readFile(join(here, '..', '..', 'profiles', 'social-sqlite.json'), 'utf8'));
   const entries = flatten(profileJson.patches[0].insert);
 
   // 场景：2 个 moment（round/0、round/1），alice 每轮发布并给配对伙伴发私信。
@@ -178,21 +172,21 @@ try {
   };
 
   // 开发树没有安装态 node_modules：给 examples 一个临时链接，让 run-profile 的包解析与 .build 一致；运行结束删除。
-  const examplesModules = join(here, '..', 'examples', 'node_modules');
+  const examplesModules = join(here, '..', '..', 'examples', 'node_modules');
   try { await lstat(examplesModules); }
   catch { await symlink(join('..', '.build', 'node_modules'), examplesModules, 'dir'); createdExamplesLink = true; }
   lockPath = join(process.env.TMPDIR, `d9-social-module-lock-${process.pid}.json`);
   const packages = {};
   for (const name of ['host', 'core', 'extras', 'social']) {
-    const meta = JSON.parse(await readFile(join(here, '..', '.build', name, 'generated', 'plugin.meta.json'), 'utf8'));
+    const meta = JSON.parse(await readFile(join(here, '..', '..', '.build', name, 'generated', 'plugin.meta.json'), 'utf8'));
     packages['@society0/' + name] = meta.source;
   }
   await writeFile(lockPath, JSON.stringify({ lockfile: pathToFileURL(lockPath).href, packages }));
-  const { runProfile } = await import(pathToFileURL(join(here, '..', 'examples', 'run-profile.mjs')).href);
-  const { FileCredentialStore } = await import(pathToFileURL(join(here, '..', '.build', 'core', 'dist', 'model-credentials', 'store.js')).href);
+  const { runProfile } = await import(pathToFileURL(join(here, '..', '..', 'examples', 'run-profile.mjs')).href);
+  const { FileCredentialStore } = await import(pathToFileURL(join(here, '..', '..', '.build', 'core', 'dist', 'model-credentials', 'store.js')).href);
   let afterRunEvidence;
   const report = await runProfile({
-    profile: join(here, '..', 'profiles', 'social-sqlite.json'),
+    profile: join(here, '..', '..', 'profiles', 'social-sqlite.json'),
     directory: runDirectory,
     lineageDirectory: runDirectory + '-lineage',
     runId: 'd9',
@@ -289,5 +283,5 @@ try {
   if (credentialsPath) await rm(credentialsPath, { force: true }).catch(() => {});
   if (patchesPath) await rm(patchesPath, { force: true }).catch(() => {});
   if (lockPath) await rm(lockPath, { force: true }).catch(() => {});
-  if (createdExamplesLink) await unlink(join(here, '..', 'examples', 'node_modules')).catch(() => {});
+  if (createdExamplesLink) await unlink(join(here, '..', '..', 'examples', 'node_modules')).catch(() => {});
 }
