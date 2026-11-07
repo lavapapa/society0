@@ -12,6 +12,7 @@ import Public,{publicMigration} from '../.build/core/dist/public/index.js';
 import MomentViews,{momentViewsMigration} from '../.build/core/dist/moment-views/index.js';
 import {Threads,threadMigration} from '../.build/core/dist/thread/index.js';
 import {Perceptions,perceptionMigration} from '../.build/core/dist/perception/index.js';
+import {Exploration} from '../.build/core/dist/exploration/index.js';
 import {DriverRegistry} from '../.build/core/dist/drivers/index.js';
 import {Actors,actorsMigration} from '../.build/core/dist/actors/index.js';
 import ActorEligibility from '../.build/core/dist/actor-eligibility/index.js';
@@ -20,11 +21,12 @@ import {ActivationService,wakePolicySlot} from '../.build/core/dist/activation/i
 
 export const single={path:'/public/actors',title:'主体',description:'公开字段',schema:{type:'object',properties:{id:{type:'string'},role:{type:'string'},name:{type:'string'}}},key:['id'],sort:[{field:'name'}],shard:{by:'',format:'none'}};
 export const prices={path:'/public/market/prices',title:'价格',description:'日度价格',schema:{type:'object',properties:{id:{type:'string'},at:{type:'string'},price:{type:'string'}}},key:['id'],sort:[{field:'at'},{field:'id'}],shard:{by:'at',format:'month'}};
+export const silent={path:'/public/silent',title:'静默',description:'不进入感知的公告',schema:{type:'object',properties:{id:{type:'string'},text:{type:'string'}}},key:['id'],sort:[{field:'id'}],shard:{by:'',format:'none'},notify:'none'};
 export const notices={path:'/public/notices',title:'公告',description:'公告',schema:{type:'object',properties:{id:{type:'string'},text:{type:'string'}}},key:['id'],sort:[{field:'id'}],shard:{by:'',format:'none'}};
 export const request=operationId=>({operationId,maxDurationMs:120000,maxStatements:200000,maxInputBytes:16777216,maxChangedRows:100000,maxCapturedBytes:33554432});
 export const page={maxItems:20,maxResponseBytes:1<<20};
 
-export async function setup({tables=[single],docs=[],audiences,momentViews='clock',perceptions=false,activation=false,wakePolicy,extra=[]}={}){
+export async function setup({tables=[single],docs=[],audiences,momentViews='clock',perceptions=false,perceptionsAfterPublic=false,activation=false,wakePolicy,extra=[]}={}){
  const host=await createHost({boot:[]});
  try{
   const base=await mkdtemp(join(tmpdir(),'b8-changes-')),run=join(base,'run');
@@ -38,10 +40,12 @@ export async function setup({tables=[single],docs=[],audiences,momentViews='cloc
   await host.ctx.plugin(ArtifactsLocal,{directory:join(run,'objects')});
   const migrations=[artifactsMigration,publicMigration({consumer:'b8-changes'}),momentViewsMigration({consumer:'b8-changes'}),...(perceptions?[threadMigration({consumer:'b8-changes'}),perceptionMigration({consumer:'b8-changes'})]:[]),...(activation?[actorsMigration]:[]),...extra];
   await host.ctx.database.applyMigrations(migrations);
-  if(perceptions)await host.ctx.plugin(Threads,{});
-  if(perceptions)await host.ctx.plugin(Perceptions);
+  if(perceptions&&!perceptionsAfterPublic)await host.ctx.plugin(Threads,{});
+  if(perceptions&&!perceptionsAfterPublic)await host.ctx.plugin(Perceptions);
+  await host.ctx.plugin(Exploration,{maxInlineFileBytes:16777216,maxSearchBytes:67108864,maxSearchOutputBytes:16777216,maxSearchMs:30000});
   await host.ctx.plugin(Public,{});
   await host.ctx.plugin(MomentViews,{freeze:momentViews});
+  if(perceptions&&perceptionsAfterPublic){await host.ctx.plugin(Threads,{});await host.ctx.plugin(Perceptions);}
   for(const decl of tables)host.ctx.public.registry.table(decl);
   for(const decl of docs)host.ctx.public.registry.doc(decl);
   if(audiences)host.ctx.public.registry.audience(audiences);

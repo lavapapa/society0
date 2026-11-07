@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {setup,single,page} from './b8-support.mjs';
+import {setup,single,silent,page} from './b8-support.mjs';
 
 const file='/public/actors/actors.jsonl';
 const pageBounds={maxItems:20,maxResponseBytes:1<<20};
@@ -57,6 +57,23 @@ test('连续激活只送达新增变更，材料只含路径与计数',async()=>
   assert.deepEqual(third.batch.reads[0].page.items,[],'没有新变更时不产生感知材料');
   await commit(run,third);
   await third.lease.release();
+ }finally{await run.close()}
+});
+
+// B8：perceptions 在 public 之后装配时，来源仍必须注册并送达。
+test('perceptions 晚于 public 装配时来源照样注册',async()=>{
+ const run=await setup({tables:[single,silent],perceptions:true,perceptionsAfterPublic:true});try{
+  await run.runTx('b8-order-r1',async tx=>{const writer=run.ctx.public.writer(tx);await writer.upsert(single.path,[{id:'a',role:'all',name:'A'}]);await writer.upsert(silent.path,[{id:'s',text:'静默'}])});
+  const r1=await run.revision();
+  await run.openMoment('m1');
+  const activation=await activate(run,{moment:'m1'});
+  assert.equal(activation.batch.reads.length,1,'来源不得因装配顺序静默缺失');
+  assert.equal(activation.batch.reads[0].page.items.length,1);
+  const material=activation.batch.reads[0].page.items[0].material.value;
+  assert.deepEqual(material.changes.map(item=>({path:item.path,kind:item.kind,rows:item.rows})),[{path:file,kind:'added',rows:{added:1,updated:0,retracted:0}}],'notify none 不进入感知材料');
+  await commit(run,activation);
+  await activation.lease.release();
+  assert.deepEqual(await cursor(run),String(r1));
  }finally{await run.close()}
 });
 

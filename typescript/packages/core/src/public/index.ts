@@ -38,8 +38,8 @@ import type { DiscoveryScope, Page, PageRequest } from '../contracts/data.js';
 import type { PerceptionScope, PerceptionSource } from '../contracts/perception.js';
 import type { SqliteReadView, SqliteTransaction } from '../sqlite/contracts.js';
 import type { PublicRegistry, PublicWriter, PublicDiagnostics, PublicChange } from '../contracts/public.js';
-import type { PublicChangeEntry, PublicChangeReader } from './changes.js';
-import { changeEntries, publicChangesSource, readChanges } from './changes.js';
+import type { PublicChangeReader } from './changes.js';
+import { publicChangesSource, readChanges } from './changes.js';
 import { Registry } from './registry.js';
 import { publicWriter } from './writer.js';
 import { AudienceResolver } from './audience.js';
@@ -100,9 +100,10 @@ export class PublicRepository extends Service {
             });
         if (this.options.changesPerception === 'off')
             return;
-        const perceptions = this.ctx.get('perceptions', false) as { register(source: PerceptionSource): () => void } | false | undefined;
-        if (perceptions)
-            this.ctx.effect(() => perceptions.register(this.changesSource()), 'public.changes-perception');
+        this.ctx.inject(['perceptions'], scoped => {
+            const perceptions = scoped.get('perceptions') as { register(source: PerceptionSource): () => void };
+            scoped.effect(() => perceptions.register(this.changesSource()), 'public.changes-perception');
+        });
     }
     writer(tx: SqliteTransaction): PublicWriter {
         const registry = this.registry as Registry;
@@ -121,19 +122,27 @@ export class PublicRepository extends Service {
         }
         return 'baseRevision' in view ? view.baseRevision : view.revision;
     }
-    private async entries(view: SqliteReadView, scope: PerceptionScope, from: string, to: string): Promise<readonly PublicChangeEntry[]> {
+    private async page(view: SqliteReadView, scope: PerceptionScope, from: string, to: string, request: PageRequest): Promise<Page<PublicChange>> {
         const agent = await this.audiences.resolve(scope, view);
-        return changeEntries(view, scope, from, to, this.changeReader(), agent);
+        return readChanges(view, scope, from, to, this.changeReader(), agent, request);
+    }
+    private changeRequest(): PageRequest {
+        const exploration = this.ctx.get('exploration', false);
+        if (!exploration)
+            throw Error('EXPLORATION_CHANGES_CONFIG');
+        const bytes = exploration.limits.maxSearchOutputBytes;
+        return { maxItems: bytes, maxResponseBytes: bytes };
     }
     private changesSource(): PerceptionSource {
         return publicChangesSource({
             enabled: this.options.changesPerception !== 'off',
             revision: (scope, view) => this.revision(scope, view),
-            read: (view, scope, from, to) => this.entries(view, scope, from, to)
+            request: () => this.changeRequest(),
+            page: (view, scope, from, to, request) => this.page(view, scope, from, to, request)
         });
     }
     /** 读取 (from,to] 的变更；自行开短快照并解析受众。 */
-    async changes(scope: DiscoveryScope, from: string, to: string, request?: PageRequest): Promise<Page<PublicChange>> {
+    async changes(scope: DiscoveryScope, from: string, to: string, request: PageRequest): Promise<Page<PublicChange>> {
         const view = await this.ctx.database.snapshot({ maxAgeMs: 30000 });
         try {
             const agent = await this.audiences.resolve(scope, view);

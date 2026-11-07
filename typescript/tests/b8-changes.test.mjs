@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {setup,single,notices} from './b8-support.mjs';
+import {setup,single,notices,silent} from './b8-support.mjs';
 import {CHANGE_FILES_SQL,CHANGE_DOCS_SQL,CHANGE_ROWS_SQL} from '../.build/core/dist/public/index.js';
 
 const file='/public/actors/actors.jsonl';
@@ -61,6 +61,18 @@ test('受众过滤：不同角色只收到自己可见的行数',async()=>{
   assert.equal(buyer.length,1);
   assert.deepEqual(buyer[0].rows,{added:1,updated:0,retracted:0},'采购商只应看到自己的行');
   assert.deepEqual(outsider,[],'无交集受众看不到该文件的变更');
+ }finally{await run.close()}
+});
+
+// B8：notify:'none' 仍保留在 Public.changes 中，并如实报告为 none。
+test('notify none 的变更保留在变更日志并如实报告',async()=>{
+ const run=await setup({tables:[single,silent]});try{
+  await run.runTx('b8-none-r1',tx=>run.ctx.public.writer(tx).upsert(silent.path,[{id:'s',text:'静默'}]));
+  const r1=await run.revision();
+  const page=await changes(run,'a',0,r1);
+  assert.equal(page.items.length,1);
+  assert.equal(page.items[0].path,'/public/silent/silent.jsonl');
+  assert.equal(page.items[0].notify,'none');
  }finally{await run.close()}
 });
 

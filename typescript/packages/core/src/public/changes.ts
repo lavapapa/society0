@@ -1,6 +1,6 @@
 /** 变更日志：按修订列与受众聚合 (from,to] 内的变更，代价与变更量成正比。 */
 import { compareCodePoints } from '@society0/host/order';
-import type { DiscoveryScope, Page, PageRequest } from '../contracts/data.js';
+import type { Page, PageRequest } from '../contracts/data.js';
 import type { Json } from '../contracts/common.js';
 import type { Audience, PublicChange, PublicChangeRows, PublicDocDecl, PublicFile, PublicNode, PublicNotify, PublicTableDecl } from '../contracts/public.js';
 import type { PerceptionScope, PerceptionSource, PerceptionPage } from '../contracts/perception.js';
@@ -36,7 +36,6 @@ export interface PublicChangeReader {
     readonly docs: ReadonlyMap<string, PublicDocDecl>;
     readonly defaultNotify: 'digest' | 'percept';
 }
-const DEFAULT_REQUEST: PageRequest = { maxItems: 10000, maxResponseBytes: 16777216 };
 const CANDIDATE_BOUNDS = { maxRows: 100000, maxBytes: 16777216 };
 const COUNT_BOUNDS = { maxRows: 1, maxBytes: 4096 };
 
@@ -59,7 +58,6 @@ function notifyMode(reader: PublicChangeReader, path: string, tablePath?: string
     const declared = tablePath ? reader.tables.get(tablePath)?.notify : reader.docs.get(path)?.notify;
     return declared ?? reader.defaultNotify;
 }
-function publicNotify(mode: PublicNotify): 'digest' | 'percept' { return mode === 'percept' ? 'percept' : 'digest'; }
 function audienceOk(audience: Audience, agent: readonly Audience[]): boolean { return audience === 'all' || agent.includes(audience); }
 function text(value: unknown): string {
     if (typeof value !== 'string')
@@ -122,19 +120,19 @@ function docKind(a: PublicNode | null, b: PublicNode | null): PublicChange['kind
         return 'retracted';
     return 'updated';
 }
-function summarize(entries: readonly PublicChangeEntry[]): Json {
-    return entries.map(entry => ({
-        path: entry.change.path,
-        kind: entry.change.kind,
-        ...(entry.change.rows ? { rows: entry.change.rows as unknown as Json } : {}),
-        notify: entry.change.notify
+function summarize(items: readonly PublicChange[]): Json {
+    return items.map(change => ({
+        path: change.path,
+        kind: change.kind,
+        ...(change.rows ? { rows: change.rows as unknown as Json } : {}),
+        notify: change.notify
     }));
 }
-function textSummary(entries: readonly PublicChangeEntry[], from: string, to: string): string {
-    const lines = entries.map(entry => {
-        const rows = entry.change.rows;
+function textSummary(items: readonly PublicChange[], from: string, to: string): string {
+    const lines = items.map(change => {
+        const rows = change.rows;
         if (!rows)
-            return `${entry.change.path} ${entry.change.kind === 'added' ? '新文档' : entry.change.kind === 'retracted' ? '撤下文档' : '更新文档'}`;
+            return `${change.path} ${change.kind === 'added' ? '新文档' : change.kind === 'retracted' ? '撤下文档' : '更新文档'}`;
         const parts: string[] = [];
         if (rows.added)
             parts.push(`新增 ${rows.added} 行`);
@@ -142,7 +140,7 @@ function textSummary(entries: readonly PublicChangeEntry[], from: string, to: st
             parts.push(`更新 ${rows.updated} 行`);
         if (rows.retracted)
             parts.push(`撤下 ${rows.retracted} 行`);
-        return `${entry.change.path} ${parts.join('；') || '变更'}`;
+        return `${change.path} ${parts.join('；') || '变更'}`;
     });
     return `[public.changes] (${from}, ${to}]\n${lines.join('\n')}`;
 }
@@ -168,7 +166,7 @@ export async function changeEntries(view: SqliteReadView, _scope: { readonly act
         const beforeRows = before ? (before.audiences.length === 1 && before.audiences[0] === 'all' ? before.rows : await visibleRows(view, file, from, agent)) : 0;
         const afterRows = after ? (after.audiences.length === 1 && after.audiences[0] === 'all' ? after.rows : await visibleRows(view, file, to, agent)) : 0;
         const rows = await rowCounts(view, file, bounds.from, bounds.to, beforeRows, afterRows, agent);
-        entries.push({ change: { path: file, kind, rows, revision, notify: publicNotify(mode) }, notify: mode });
+        entries.push({ change: { path: file, kind, rows, revision, notify: mode }, notify: mode });
     }
     for (const path of docs) {
         const before = await readNode(view, path, from), after = await readNode(view, path, to);
@@ -178,14 +176,14 @@ export async function changeEntries(view: SqliteReadView, _scope: { readonly act
         if (!(before && audienceOk(before.audience, agent)) && !(after && audienceOk(after.audience, agent)))
             continue;
         const mode = notifyMode(reader, path);
-        entries.push({ change: { path, kind, revision: after?.revision ?? before!.revision, notify: publicNotify(mode) }, notify: mode });
+        entries.push({ change: { path, kind, revision: after?.revision ?? before!.revision, notify: mode }, notify: mode });
     }
     entries.sort((a, b) => compareCodePoints(a.change.path, b.change.path));
     return entries;
 }
 
 /** Public.changes 的 Page 视图。 */
-export async function readChanges(view: SqliteReadView, scope: DiscoveryScope, from: string, to: string, reader: PublicChangeReader, agent: readonly Audience[], request: PageRequest = DEFAULT_REQUEST): Promise<Page<PublicChange>> {
+export async function readChanges(view: SqliteReadView, scope: { readonly actorId: string; readonly momentId: string }, from: string, to: string, reader: PublicChangeReader, agent: readonly Audience[], request: PageRequest): Promise<Page<PublicChange>> {
     const entries = await changeEntries(view, scope, from, to, reader, agent);
     const changes = entries.map(entry => entry.change);
     const offset = after(request.cursor, from, to);
@@ -205,7 +203,8 @@ export async function readChanges(view: SqliteReadView, scope: DiscoveryScope, f
 export interface PublicChangesSourceHost {
     readonly enabled: boolean;
     revision(scope: PerceptionScope, view: SqliteReadView | SqliteTransaction): Promise<string>;
-    read(view: SqliteReadView, scope: PerceptionScope, from: string, to: string): Promise<readonly PublicChangeEntry[]>;
+    request(): PageRequest;
+    page(view: SqliteReadView, scope: PerceptionScope, from: string, to: string, request: PageRequest): Promise<Page<PublicChange>>;
 }
 /** PerceptionSource：游标是上次送达的 R_m，材料只含路径与计数。 */
 export function publicChangesSource(host: PublicChangesSourceHost): PerceptionSource {
@@ -221,15 +220,21 @@ export function publicChangesSource(host: PublicChangesSourceHost): PerceptionSo
             const fromAt = revisionNumber(from), toAt = revisionNumber(to);
             if (fromAt >= toAt)
                 return { items: [], nextCursor: fromAt > toAt ? from : to, through: to, hasMore: false };
-            const entries = (await host.read(reader, scope, from, to)).filter(entry => entry.notify !== 'none');
-            if (!entries.length)
+            const changes: PublicChange[] = [];
+            let cursor: string | undefined;
+            do {
+                const page = await host.page(reader, scope, from, to, { ...host.request(), ...(cursor === undefined ? {} : { cursor }) });
+                changes.push(...page.items.filter(change => change.notify !== 'none'));
+                cursor = page.next;
+            } while (cursor !== undefined);
+            if (!changes.length)
                 return { items: [], nextCursor: to, through: to, hasMore: false };
             const value = {
                 kind: 'public.changes',
                 from,
                 to,
-                changes: summarize(entries),
-                text: textSummary(entries, from, to)
+                changes: summarize(changes),
+                text: textSummary(changes, from, to)
             } as Json;
             return {
                 items: [{
@@ -239,7 +244,7 @@ export function publicChangesSource(host: PublicChangesSourceHost): PerceptionSo
                     provenance: {
                         provider: 'public',
                         source: 'public.changes',
-                        notify: entries.some(entry => entry.change.notify === 'percept') ? 'percept' : 'digest'
+                        notify: changes.some(change => change.notify === 'percept') ? 'percept' : 'digest'
                     }
                 }],
                 nextCursor: to,

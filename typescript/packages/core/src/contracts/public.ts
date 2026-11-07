@@ -114,11 +114,11 @@ export interface PublicChange {
     readonly kind: 'added' | 'updated' | 'retracted' | 'meta';
     readonly rows?: PublicChangeRows;
     readonly revision: string;
-    readonly notify: 'digest' | 'percept';
+    readonly notify: 'none' | 'digest' | 'percept';
 }
 export interface Public {
     readonly registry: PublicRegistry;
     writer(tx: SqliteTransaction): PublicWriter;
     /** (from,to] 内按受众过滤并按路径聚合的变更；只读修订列/索引。 */
-    changes(scope: DiscoveryScope, from: string, to: string, request?: PageRequest): Promise<Page<PublicChange>>;
+    changes(scope: DiscoveryScope, from: string, to: string, request: PageRequest): Promise<Page<PublicChange>>;
 }
