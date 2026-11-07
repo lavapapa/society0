@@ -65,9 +65,10 @@ const PUBLIC_SCHEMA = {
 };
 const SNAPSHOT_LEASE_MS = 30000;
 const SNAPSHOT_LEASE_SOURCE = [
-    'core/src/exploration/session.ts withView/read 固定 database.snapshot({maxAgeMs:30000})，未读配置',
+    'exploration/session.ts 的 read/withView 读取 database.maxSnapshotAgeMs（sqlite getter）',
     'sqlite 默认 maxSnapshotAgeMs=30000（packages/core/src/sqlite/index.ts:3 / database.ts:37）',
-    'sqlite/worker.ts:77 与 sqlite/reader.ts:13 在 beginSnapshot 后 setTimeout(maxAgeMs) 关闭快照'
+    'sqlite/worker.ts:77 与 sqlite/reader.ts:13 在 beginSnapshot 后 setTimeout(maxAgeMs) 关闭快照',
+    'exploration-shell 在快照内先取得 worker，再以 lease 的 95% 作为命令超时，保证 SHELL_TIMEOUT 先于快照失效'
 ];
 
 function bucketName(index) { return 'b' + String(index).padStart(4, '0'); }
@@ -85,7 +86,7 @@ function largeDecl() {
 function writesDecl() { return { ...tableDecl('writes'), path: PUBLIC_WRITES }; }
 
 /** 固定种子：同一 (files, rowsPerFile, bucketSize) 生成同一份数据。 */
-export function generateData({ files, rowsPerFile = 20, bucketSize = 100 }) {
+export function generateData({ files, rowsPerFile = 20, bucketSize = 100, notePad = 0 }) {
     const rows = [], logical = [];
     let bytes = 0;
     for (let file = 0; file < files; file++) {
@@ -94,7 +95,7 @@ export function generateData({ files, rowsPerFile = 20, bucketSize = 100 }) {
         const path = `/world/bench/files/${bucket}/${name}.jsonl`;
         const lines = [], logicalRows = [];
         for (let row = 0; row < rowsPerFile; row++) {
-            const note = row === 0 && file % 97 === 0 ? 'needle-' + (file % 13) : 'value-' + (file % 101);
+            const note = (row === 0 && file % 97 === 0 ? 'needle-' + (file % 13) : 'value-' + (file % 101)) + (notePad > 0 ? 'x'.repeat(notePad) : '');
             lines.push(JSON.stringify({ id: `f${file}-r${row}`, kind: 'price', value: (file * 31 + row * 7) % 1000, note }));
             logicalRows.push({ file: name, id: `f${file}-r${row}`, kind: 'price', value: (file * 31 + row * 7) % 1000, note });
         }
@@ -234,7 +235,7 @@ async function assemblePublic(state) {
     try {
         const base = state.directory, run = join(base, 'run');
         await host.ctx.plugin(OwnedResources);
-        await host.ctx.plugin(TaskSupervisor, { concurrency: 8, maxBytes: 1073741824 });
+        await host.ctx.plugin(TaskSupervisor, { concurrency: state.options.taskConcurrency, maxBytes: 1073741824 });
         await host.ctx.plugin(CompositionStrategies);
         await host.ctx.plugin(strategies);
         await host.ctx.plugin(Slots);
@@ -312,12 +313,20 @@ async function measure(samples, body) {
     return { ...summary(values, errors), ...(failures.length ? { failures } : {}) };
 }
 function instrument(database) {
-    const counters = { snapshotOpens: 0, snapshotBudgetErrors: 0, readerQueueWaitMs: 0 };
+    const counters = { snapshotOpens: 0, snapshotQueries: 0, renderQueries: 0, snapshotBudgetErrors: 0, readerQueueWaitMs: 0 };
     const originalSnapshot = database.snapshot.bind(database);
     database.snapshot = async bounds => {
         counters.snapshotOpens++;
-        try { return await originalSnapshot(bounds); }
+        let snapshot;
+        try { snapshot = await originalSnapshot(bounds); }
         catch (error) { if (String(error).includes('SQLITE_SNAPSHOT_BUDGET')) counters.snapshotBudgetErrors++; throw error; }
+        const query = snapshot.query.bind(snapshot);
+        return { ...snapshot, query: async (statement, bounds) => {
+            counters.snapshotQueries++;
+            if (String(statement?.sql ?? '').includes('FROM public_rows'))
+                counters.renderQueries++;
+            return query(statement, bounds);
+        } };
     };
     // waitSnapshot 是 TS private（运行期仍是普通方法）；只累计等待时间，不改语义。
     if (typeof database.waitSnapshot === 'function') {
@@ -518,17 +527,20 @@ async function runPublicBench(options = {}) {
         id: 'b10', rows: [], files: [], buckets: 0,
         options: {
             actors: options.actors ?? 1000, files: options.files ?? 10000, rowsPerFile: options.rowsPerFile ?? 20,
+            notePad: options.notePad ?? 0,
             bucketSize: options.bucketSize ?? 100, concurrency: options.concurrency ?? 200,
             moments: options.moments ?? 100, changeRatio: options.changeRatio ?? 0.01,
             changePercentPerMoment: options.changePercentPerMoment ?? 1,
             checkpoints: options.checkpoints ?? [1, 10, 100],
             shareAgents: options.shareAgents ?? options.actors ?? 1000,
+            mix: options.mix ?? 'mixed',
+            taskConcurrency: options.taskConcurrency ?? 256,
             readerWorkers: options.readerWorkers ?? 4, maxSnapshots: options.maxSnapshots ?? 16,
             shellTimeoutMs: options.shellTimeoutMs ?? 30000,
             samples: { ls: 20, stat: 100, read: 20, find: 5, grep: 5, bashStart: 10, selfRead: 10, ...(options.samples ?? {}) }
         }
     };
-    const generated = generateData({ files: state.options.files, rowsPerFile: state.options.rowsPerFile, bucketSize: state.options.bucketSize });
+    const generated = generateData({ files: state.options.files, rowsPerFile: state.options.rowsPerFile, bucketSize: state.options.bucketSize, notePad: state.options.notePad });
     state.rows = generated.rows;
     state.files = generated.files;
     state.buckets = generated.buckets;
@@ -645,7 +657,32 @@ async function runPublicBench(options = {}) {
                     loadAverage: loadavg(), memory: { peakRssBytes: memory.stop(), maxRssBytes: process.resourceUsage().maxRSS * 1024 }
                 };
             }
+            else if (focus === 'history-find') action = () => sessionValue().find({ root: PUBLIC_FILES, glob: '*.jsonl', page: pageRequest(state.options.files + 16, 134217728) });
             else throw Error('BENCH_FOCUS ' + focus);
+            if (focus === 'history-find') {
+                await session.release();
+                session = undefined;
+                const changeCount = Math.max(1, Math.round(state.options.files * state.options.changeRatio));
+                for (let moment = 1; moment <= state.options.moments; moment++) {
+                    await runTx('b10-focus-moment-' + moment, async tx => {
+                        await ctx.momentViews.open(tx, 'm' + moment);
+                        const changed = new Set();
+                        for (let index = 0; index < changeCount; index++)
+                            changed.add((moment * 97 + index * 131) % state.options.files);
+                        const grouped = new Map();
+                        for (const fileIndex of changed) {
+                            const file = state.files[fileIndex];
+                            const rows = file.rows.map(row => ({ ...row, note: 'moment-' + moment }));
+                            const list = grouped.get(file.bucket);
+                            if (list) list.push(...rows);
+                            else grouped.set(file.bucket, rows);
+                        }
+                        for (const bucket of grouped.keys())
+                            await ctx.public.writer(tx).upsert(tablePath(bucket), grouped.get(bucket));
+                    });
+                }
+                session = await acquire('a', 'm' + state.options.moments, 'b10-focus-history-session');
+            }
             const profilerHandle = profiler();
             const started = performance.now();
             await profilerHandle.start();
@@ -666,6 +703,7 @@ async function runPublicBench(options = {}) {
         const largePath = PUBLIC_LARGE + '/large.jsonl';
         let coldRender;
         {
+            const queriesBefore = counters.renderQueries;
             const started = performance.now();
             await sessionValue().withView(async view => {
                 const node = await view.stat(largePath);
@@ -678,7 +716,7 @@ async function runPublicBench(options = {}) {
                 finally { await handle.release(); }
             });
             const node = await sessionValue().stat(largePath);
-            coldRender = { ms: performance.now() - started, bytes: Number(node.rawBytes), rows: 10000 };
+            coldRender = { ms: performance.now() - started, bytes: Number(node.rawBytes), rows: 10000, queries: counters.renderQueries - queriesBefore };
         }
 
         // 热缓存：先按样本数预读，再计时。
@@ -716,6 +754,7 @@ async function runPublicBench(options = {}) {
         operations.read.snapshotOpens = counters.snapshotOpens;
 
         resetSnapshot();
+        await sessionValue().find({ root: PUBLIC_FILES, glob: '*.jsonl', page: pageRequest(state.options.files + 16, 134217728) });
         operations.find = { ...await measure(state.options.samples.find, () => sessionValue().find({ root: PUBLIC_FILES, glob: '*.jsonl', page: pageRequest(state.options.files + 16, 134217728) })), extra: {} };
         operations.find.extra.nodes = state.options.files;
         operations.find.extra.scopeFiles = state.options.files;
@@ -763,10 +802,12 @@ async function runPublicBench(options = {}) {
         const write1000 = { samples: writeValues.length, ms: percentile(writeValues, 50), minMs: Math.min(...writeValues), p50Ms: percentile(writeValues, 50), maxMs: Math.max(...writeValues) };
 
         // 历史增长：每个 moment 变更 1% 文件（默认 100 个），同事务内记录 R_m。
+        await session.release();
+        session = undefined;
         const history = { moments: state.options.moments, changeRatio: state.options.changeRatio, checkpoints: [] };
         const checkpoints = new Set(state.options.checkpoints.filter(moment => moment >= 1 && moment <= state.options.moments));
         const changeCount = Math.max(1, Math.round(state.options.files * state.options.changeRatio));
-        const checkpointSamples = { ls: 10, stat: 20, read: 10, find: 2, grep: 1 };
+        const checkpointSamples = { ls: 20, stat: 20, read: 10, find: 5, grep: 1 };
         for (let moment = 1; moment <= state.options.moments; moment++) {
             await runTx('b10-moment-' + moment, async tx => {
                 await ctx.momentViews.open(tx, 'm' + moment);
@@ -787,8 +828,10 @@ async function runPublicBench(options = {}) {
             if (checkpoints.has(moment)) {
                 const pointSession = await acquire('a', 'm' + moment, 'b10-history-' + moment);
                 try {
-                    // 每次先热一次 grep，再计时，避免把该 moment 首次渲染算进退化的主指标。
+                    // 每次先热一次 grep/find，再计时，避免把该 moment 首次渲染/JIT 算进退化的主指标。
                     await pointSession.value.grep({ root: PUBLIC_FILES, pattern: 'needle', mode: 'literal', page: pageRequest(state.options.files + 16, 134217728) });
+                    await pointSession.value.find({ root: PUBLIC_FILES, glob: '*.jsonl', page: pageRequest(state.options.files + 16, 134217728) });
+                    await pointSession.value.withView(view => view.list(tablePath(poolBucket), pageRequest(100, 65536)));
                     const point = {
                         moment,
                         operations: {
@@ -834,13 +877,24 @@ async function runPublicBench(options = {}) {
         const concurrentMoment = 'm' + state.options.moments;
         resetSnapshot();
         counters.readerQueueWaitMs = 0;
-        const sessions = await Promise.all(Array.from({ length: state.options.concurrency }, (_, index) => acquire('a' + (index % state.options.actors), concurrentMoment, 'b10-concurrent-session-' + index)));
         const concurrentStarted = performance.now();
-        const concurrentResults = await Promise.allSettled(sessions.map(async (lease, index) => {
+        const concurrentResults = await Promise.allSettled(Array.from({ length: state.options.concurrency }, async (_, index) => {
             const started = performance.now();
-            const kind = index % 10;
+            const lease = await acquire('a' + (index % state.options.actors), concurrentMoment, 'b10-concurrent-session-' + index);
             try {
-                if (kind < 5) {
+                const kind = index % 10;
+                if (state.options.mix === 'read') {
+                    if (kind < 7) {
+                        await lease.value.withView(async view => {
+                            const node = await view.stat(pathAt(index));
+                            const handle = await view.open(node);
+                            try { for await (const _ of handle.value.read({ offset: '0', length: Math.min(65536, Number(node.rawBytes)), maxBytes: 65536 }, reservation.signal)); }
+                            finally { await handle.release(); }
+                        });
+                    }
+                    else await lease.value.withView(view => view.stat(pathAt(index)));
+                }
+                else if (kind < 5) {
                     await lease.value.withView(async view => {
                         const node = await view.stat(pathAt(index));
                         const handle = await view.open(node);
@@ -849,10 +903,10 @@ async function runPublicBench(options = {}) {
                     });
                 }
                 else if (kind < 8) await lease.value.withView(view => view.stat(pathAt(index)));
-                else if (kind < 9) await lease.value.withView(view => view.find({ root: tablePath(bucketAt(index)), glob: '**/*.jsonl', page: pageRequest(128, 4194304) }));
+                else if (kind < 9) await lease.value.withView(view => view.find({ root: tablePath(bucketAt(index)), glob: '*.jsonl', page: pageRequest(128, 4194304) }));
                 else await lease.value.grep({ root: tablePath(bucketAt(index)), pattern: 'needle', mode: 'literal', page: pageRequest(128, 4194304) });
             }
-            finally { /* 由外层统一 release */ }
+            finally { await lease.release(); }
             return performance.now() - started;
         }));
         const concurrentWall = performance.now() - concurrentStarted;
@@ -865,14 +919,11 @@ async function runPublicBench(options = {}) {
                 throughputPerSecond: state.options.concurrency / (concurrentWall / 1000),
                 sqliteSnapshotBudgetErrors: counters.snapshotBudgetErrors,
                 readerQueueWaitMs: counters.readerQueueWaitMs,
-                mix: { read: 50, stat: 30, find: 10, grep: 10 },
+                mix: state.options.mix === 'read' ? { read: 70, stat: 30 } : { read: 50, stat: 30, find: 10, grep: 10 },
                 ...(errors.length ? { failures: errors.slice(0, 3).map(result => String(result.reason?.message ?? result.reason)) } : {})
             }
         };
         operations.concurrent.snapshotOpens = counters.snapshotOpens;
-        await Promise.allSettled(sessions.map(lease => lease.release()));
-        await session.release();
-        session = undefined;
 
         const diagnostics = ctx.public.diagnostics();
         const cache = diagnostics.cache;
@@ -1055,6 +1106,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
             actors: numberArgument(argv, 'actors', 1000),
             files: numberArgument(argv, 'files', 10000),
             rowsPerFile: numberArgument(argv, 'rows', 20),
+            notePad: numberArgument(argv, 'note-pad', 0),
             concurrency: numberArgument(argv, 'concurrency', 200),
             scopeFiles: numberArgument(argv, 'scope-files', 2000),
             moments: numberArgument(argv, 'moments', 100),
@@ -1064,6 +1116,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
             readerWorkers: numberArgument(argv, 'reader-workers', 4),
             maxSnapshots: numberArgument(argv, 'max-snapshots', 16),
             shareAgents: numberArgument(argv, 'share-agents', undefined),
+            mix: argument(argv, 'mix', 'mixed'),
+            taskConcurrency: numberArgument(argv, 'task-concurrency', 256),
             shellTimeoutMs: numberArgument(argv, 'shell-timeout-ms', 30000),
             focus: argument(argv, 'focus', undefined),
             profilePath: argument(argv, 'profile-out', undefined),
