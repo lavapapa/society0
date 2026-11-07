@@ -82,6 +82,7 @@ export class PublicRepository extends Service {
             tables: registry.tables,
             docs: registry.docs,
             momentViews: () => ctx.get('momentViews', false),
+            searchIndex: options.searchIndex,
             searchOptions: () => {
                 const exploration = ctx.get('exploration', false);
                 if (!exploration)
