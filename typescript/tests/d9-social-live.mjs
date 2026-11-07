@@ -96,11 +96,14 @@ try {
   modelPi.maxTokens = 2048;
   modelPi.jsonTimeoutMs = 180000;
   modelPi.transport = { [modelId]: 'json' };
-  modelPi.models = modelPi.models.map(model => ({ ...model, maxTokens: 2048, contextWindow: 32768, reasoning: false }));
+  modelPi.models = modelPi.models.map(model => ({ ...model, maxTokens: 2048, reasoning: false }));
   driver.requiredActions = [];
-  driver.perceptions = [];
   const social = structuredClone(entry(entries, '@society0/social/social').config);
   social.wakeDriver = 'rule';
+  const socialInit = structuredClone(entry(entries, '@society0/social/social-init').config);
+  socialInit.startRound = 1;
+  socialInit.pairingGroups = structuredClone(social.pairingGroups);
+  socialInit.pairingSessionMinutes = social.pairingSessionMinutes;
   const sqlite = structuredClone(entry(entries, '@society0/core/sqlite').config);
   Object.assign(sqlite, {
     directory: runDirectory, runId: 'd9', generation: 'g1',
@@ -110,6 +113,7 @@ try {
   await writeFile(patchesPath, JSON.stringify([
     { id: 'sqlite', config: sqlite },
     { id: 'social', config: social },
+    { id: 'social-init', config: socialInit },
     { id: 'prompts', config: prompts },
     { id: 'round-robin', config: round },
     { id: 'driver-llm', config: driver },
@@ -180,17 +184,6 @@ try {
   await writeFile(lockPath, JSON.stringify({ lockfile: pathToFileURL(lockPath).href, packages }));
   const { runProfile } = await import(pathToFileURL(join(here, '..', 'examples', 'run-profile.mjs')).href);
   const { FileCredentialStore } = await import(pathToFileURL(join(here, '..', '.build', 'core', 'dist', 'model-credentials', 'store.js')).href);
-  const request = operationId => ({ operationId, maxDurationMs: 20000, maxStatements: 1000, maxInputBytes: 1048576, maxChangedRows: 10000, maxCapturedBytes: 4194304 });
-
-  let afterRunEvidence;
-  const waitFor = async (ctx, names) => {
-    for (let attempt = 0; attempt < 200; attempt++) {
-      if (names.every(name => ctx.get(name, false))) return;
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
-    throw Error('RUNTIME_SERVICES_TIMEOUT: ' + names.join(','));
-  };
-
   const report = await runProfile({
     profile: join(here, '..', 'profiles', 'social-sqlite.json'),
     directory: runDirectory,
@@ -204,56 +197,6 @@ try {
       // 只补凭据：临时凭据文件 + 现有 model-credentials 服务。
       await ctx.modelCredentials.register('authorized-local', new FileCredentialStore(credentialsPath));
       await log('credential store registered');
-      // 在第一个 moment 之前开启配对轮次（机制调用，不是模型行动）。
-      const directory = ctx.runDirectory;
-      const create = directory.create.bind(directory);
-      directory.create = async plan => {
-        await log('run create intercepted');
-        let handle;
-        try { handle = await create(plan); }
-        catch (error) { await log('run create failed: ' + (error?.stack ?? String(error))); throw error; }
-        await log('run create returned');
-        const lease = directory.acquire(plan.runId, 'write');
-        try {
-          const tree = [...ctx.profileLoader.trees()].at(-1);
-          const generation = tree?.entries.get('generation')?.ctx;
-          if (!generation) throw Error('RUN_GENERATION_CONTEXT_MISSING');
-          await waitFor(generation, ['social', 'database']);
-          await log('runtime services ready');
-          await log('prompts config ' + JSON.stringify(generation.get('prompts').config));
-          const fence = lease.ctx.get('executionFence', false);
-          const database = lease.ctx.get('database', false);
-          const history = lease.ctx.get('history', false);
-          if (!fence || !database || !history) throw Error('RUN_SERVICES_MISSING');
-          const current = await history.current();
-          const reservation = await fence.reserve({ id: 'd9-pairing' });
-          let pairOperation, completeOperation;
-          try {
-            const paired = await database.transaction(reservation.lease, request('d9-pairing'), tx => generation.get('social').startRound(tx, 1));
-            pairOperation = paired.receipt.operationId;
-            const completed = await database.transaction(reservation.lease, request('d9-pairing-complete'), tx => database.metadata.complete(tx, current.frontier, [pairOperation]));
-            completeOperation = completed.receipt.operationId;
-            await log('pairing round 1 started');
-          } finally { await reservation.release(); }
-          const sealed = await fence.seal();
-          try {
-            const next = await history.publish(sealed, {
-              operationId: 'd9-pairing-cut', id: 'd9-pairing-cut', parentId: current.id,
-              expectedRevision: sealed.sealedRevision, requiredOperations: [pairOperation, completeOperation],
-            });
-            fence.resume(sealed);
-            await log('pairing round 1 committed at revision ' + next.revision);
-          } catch (error) { fence.halt('d9 pairing publication failed'); throw error; }
-          const runs = lease.ctx.get('runs');
-          const run = runs.run.bind(runs);
-          runs.run = async signal => {
-            const result = await run(signal);
-            await log('run result ' + JSON.stringify(result) + ' diagnostics ' + JSON.stringify(runs.diagnostics()));
-            return result;
-          };
-        } finally { await lease.release(); }
-        return handle;
-      };
     },
     afterRun: async ({ ctx, cut, tree }) => {
       await log('afterRun entered');
