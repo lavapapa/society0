@@ -208,6 +208,17 @@ export class LlmActivation {
   const segment=diffDelivery(folded,[stateDeliveryChannel],new Map([['state',{valid:[aggregate as unknown as Json],deliver:[aggregate as unknown as Json]}]]))[0];
   return {text:segment?.text??'',record:segment&&segment.text?segment.delta as Json:undefined};
  }
+ private async threadHasModelTurns():Promise<boolean>{
+  return this.withView(view=>this.step('thread_error','thread.history',async()=>{
+   let cursor:string|undefined;
+   do{
+    const page=await this.ctx.threads.page(this.thread.id,{...this.scope(),momentId:this.thread.momentId},view,{cursor,maxItems:this.config.maxPageItems,maxResponseBytes:this.config.maxPageBytes});
+    if(page.items.some(row=>row.role==='system'||row.role==='assistant'))return true;
+    cursor=page.next;
+   }while(cursor);
+   return false;
+  }));
+ }
  private async prepareContext():Promise<PreparedContext>{
   const prompts=await this.prompts();
   this.held.push(prompts);
@@ -217,8 +228,7 @@ export class LlmActivation {
   const contexts=await this.step('persistence_error','artifact.stage',()=>Promise.all(texts.map(text=>prepareValue(text,16384,this.ctx.artifacts,this.context.signal))));
   const paths=[...frozen.value];
   // fresh 判定发生在感知写入之前：感知消息不应让首轮 system/header 与 baseline 消失。
-  const initial=await this.history();
-  const fresh=!initial.messages.some(message=>message.role==='system'||message.role==='assistant');
+  const fresh=!(await this.threadHasModelTurns());
   if(fresh&&prompts.value.systemSections&&prompts.value.header.length){
    const native:AgentMessage={role:'system',content:prompts.value.header.join('\n\n'),timestamp:Date.now()};
    const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/system','system',native as unknown as Json,{activationId:this.context.operationId}));
