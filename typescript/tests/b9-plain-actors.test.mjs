@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {socialRun,openMoment,readText,parseLines,read} from './b9-support.mjs';
+import {initializerSlot} from '../.build/core/dist/initializers/index.js';
 
 const actorsFile='/public/actors.jsonl';
 
@@ -8,10 +9,14 @@ test('B9 plain-init与plain.update推式写入/public/actors.jsonl',async()=>{
  const run=await socialRun({social:false,plain:true,plainInit:{initialActors:[{id:'x',attributes:{name:'X'}},{id:'y',attributes:{name:'Y'}}]}});
  try{
   const schema=await read(run,view=>view.schema);
-  await run.ctx.initializers.prepare({
-   ctx:run.ctx,runId:run.ctx.database.runId,generation:'g',schema,initialTime:0,input:{},
-   signal:run.reservation.signal,database:run.ctx.database,writeLease:run.reservation.lease,artifacts:run.ctx.artifacts
-  },['plain.seed']);
+  const selected=await run.ctx.slots.acquire(initializerSlot,{generation:'g',signal:run.reservation.signal});
+  try{
+   const initializer=selected.items.find(item=>item.id==='plain.seed').value;
+   await initializer.initialize({
+    ctx:run.ctx,runId:run.ctx.database.runId,generation:'g',schema,initialTime:0,input:{},
+    signal:run.reservation.signal,database:run.ctx.database,writeLease:run.reservation.lease,artifacts:run.ctx.artifacts
+   });
+  }finally{await selected.release()}
 
   await openMoment(run,'m1');
   const initial=parseLines(await readText(run,actorsFile,{actorId:'x',momentId:'m1',operationId:'b9-plain-init'}));
@@ -25,7 +30,9 @@ test('B9 plain-init与plain.update推式写入/public/actors.jsonl',async()=>{
    logicalTime:'5',signal:run.reservation.signal,database:run.ctx.database,writeLease:run.reservation.lease
   });
   assert.equal(updated.status,'completed');
-  await assert.rejects(()=>readText(run,actorsFile,{actorId:'x',momentId:'m1',operationId:'b9-plain-m1'}),error=>/EXPLORATION_(NOT_VISIBLE|NOT_FOUND)/.test(String(error))||/EXPLORATION_(NOT_VISIBLE|NOT_FOUND)/.test(error?.code??''),'m1的/public冻结视图看不到更新');
+  const frozen=parseLines(await readText(run,actorsFile,{actorId:'x',momentId:'m1',operationId:'b9-plain-m1'}));
+  assert.equal(frozen.find(row=>row.id==='x').attributes.name,'X','m1的/public冻结视图应保留旧值');
+  assert.equal(frozen.find(row=>row.id==='x').version,1);
 
   await openMoment(run,'m2');
   const after=parseLines(await readText(run,actorsFile,{actorId:'x',momentId:'m2',operationId:'b9-plain-m2'}));

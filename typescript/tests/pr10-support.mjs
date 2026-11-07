@@ -32,7 +32,7 @@ export async function fixture(options = {}) {
         for (const plugin of [TaskSupervisor, CompositionStrategies, SlotStrategies, Slots, Fence.default])
             await c.plugin(plugin);
         await c.plugin(Database.default, {
-            directory, runId, generation: 'g', maxTransactionMs: 20000
+            directory, runId, generation: 'g', maxTransactionMs: 20000, ...(options.database ?? {})
         });
         await c.plugin(Artifacts.default, {
             directory: join(directory, 'artifacts'), ...(options.artifacts ?? {})

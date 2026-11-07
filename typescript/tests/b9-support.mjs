@@ -23,7 +23,7 @@ async function provide(run,{plain=false,plainInit}={}){
 }
 
 export async function socialRun(options={}){
- const run=await fixture({...options,migrations:[...publicMigrations,...(options.migrations??[])]});
+ const run=await fixture({...options,database:{maxQueryBytes:16777216,maxQueryRows:100000,maxInlineBytes:16777216,...(options.database??{})},migrations:[...publicMigrations,...(options.migrations??[])]});
  try{return await provide(run,{plain:options.plain,plainInit:options.plainInit})}catch(error){await run.host.close();throw error}
 }
 

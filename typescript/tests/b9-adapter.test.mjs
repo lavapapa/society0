@@ -40,7 +40,7 @@ test('B9 information适配器：publicFromInformation渲染与query({})全量分
  try{
   await run.host.ctx.plugin(Information,{});
   const legacy=source();
-  run.ctx.information.register(legacy);
+  run.host.ctx.information.register(legacy);
   const adapter=publicFromInformation(legacy,{path:'/public/legacy',shard:{by:'at',format:'day'}});
   assert.equal(adapter.path,'/public/legacy');
   const scope={actorId:'a',momentId:'m',query:null};
