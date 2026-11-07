@@ -78,6 +78,12 @@ export class PublicRepository extends Service {
             tables: registry.tables,
             docs: registry.docs,
             momentViews: () => ctx.get('momentViews', false),
+            searchOptions: () => {
+                const exploration = ctx.get('exploration', false);
+                if (!exploration)
+                    throw new Error('EXPLORATION_SEARCH_CONFIG');
+                return exploration.limits;
+            },
             stats: this.stats
         });
     }

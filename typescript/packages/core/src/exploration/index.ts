@@ -23,6 +23,7 @@ export class Exploration extends Service {
     static inject = ['database', 'artifacts', 'slots', 'tasks'];
     private tasks!: TaskScope;
     private registry = new RegistryClock();
+    get limits(): ExplorationOptions { return this.options; }
     constructor(ctx: Context, private options: ExplorationOptions) { super(ctx, 'exploration'); ctx.slots.declare({ key: explorationMountSlot, strategy: 'keyed', required: false, validate: validateMount }); }
     [Service.init]() { this.tasks = this.ctx.tasks.bind(); this.ctx.effect(() => () => this.tasks.drain('exploration closing')); }
     register(mount: ExplorationMount) {

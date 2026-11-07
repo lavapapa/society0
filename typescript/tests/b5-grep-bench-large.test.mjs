@@ -8,9 +8,10 @@ import {NativeSearch} from '../.build/core/dist/exploration/search.js';
 const table={path:'/public/market/shards',title:'分片',description:'grep 基准分片',schema:{type:'object',properties:{id:{type:'string'},shard:{type:'string'},note:{type:'string'}}},key:['id'],sort:[{field:'id'}],shard:{by:'shard',format:'value'}};
 const files=400,perFile=1000,chunk=5000,pad='x'.repeat(1050);
 const page={maxItems:4000,maxResponseBytes:32*1024*1024};
+const limits={maxInlineFileBytes:16777216,maxSearchBytes:536870912,maxSearchOutputBytes:67108864,maxSearchMs:30000};
 
 test('400MB级grep：字面量冷/热与正则rg基线',{skip:!process.env.PR05_CROSSFS},async()=>{
- const run=await setup({tables:[table]});try{
+ const run=await setup({tables:[table],exploration:limits});try{
   const seedStarted=performance.now();let bytes=0;
   for(let start=0;start<files*perFile;start+=chunk){
    const rows=[];
@@ -42,7 +43,7 @@ test('400MB级grep：字面量冷/热与正则rg基线',{skip:!process.env.PR05_
   assert.ok(p50<100,`literal hot p50 ${p50.toFixed(2)} ms`);
 
   const regex='[nc][ea][oe]d';
-  const options={maxInlineFileBytes:16777216,maxSearchBytes:536870912,maxSearchOutputBytes:67108864,maxSearchMs:30000};
+  const options=limits;
   const regexView=await run.ctx.database.snapshot({maxAgeMs:300000});
   let productMatches=0;await run.ctx.public.mount.search({root:'/public',pattern:regex,mode:'regex'},run.scope('a','m'),regexView,new AbortController().signal,()=>{productMatches++;return true});
   let regexTimes;

@@ -19,7 +19,7 @@ export const page={maxItems:20000,maxResponseBytes:67108864};
 export const frontier=()=>({codec:'step/1',value:0,logicalTime:0,completedCount:'0',pendingAcknowledgements:[]});
 export const migrationList=(source={consumer:'b4-mount'})=>[artifactsMigration,publicMigration(source),momentViewsMigration(source)];
 
-export async function setup({directory,tables=[table,single],docs=[],momentViews='clock',readerWorkers=2,maxSnapshots=8,audiences,migrate=true,resume,extra=[]}={}){
+export async function setup({directory,tables=[table,single],docs=[],momentViews='clock',readerWorkers=2,maxSnapshots=8,audiences,migrate=true,resume,extra=[],exploration={}}={}){
  const host=await createHost({boot:[]});
  try{
   const base=directory?undefined:await mkdtemp(join(tmpdir(),'b4-mount-')),run=directory??join(base,'run');
@@ -36,7 +36,7 @@ export async function setup({directory,tables=[table,single],docs=[],momentViews
    await host.ctx.database.activateFromCompletePoint(publication,resume);
    host.ctx.executionFence.resume(publication);
   }else if(migrate)await host.ctx.database.applyMigrations([...migrationList(),...extra]);
-  await host.ctx.plugin(Exploration,{maxInlineFileBytes:16777216,maxSearchBytes:67108864,maxSearchOutputBytes:16777216,maxSearchMs:30000});
+  await host.ctx.plugin(Exploration,{maxInlineFileBytes:16777216,maxSearchBytes:67108864,maxSearchOutputBytes:16777216,maxSearchMs:30000,...exploration});
   await host.ctx.plugin(Public,{});
   await host.ctx.plugin(MomentViews,{freeze:momentViews});
   for(const decl of tables)host.ctx.public.registry.table(decl);

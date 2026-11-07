@@ -24,6 +24,7 @@ export interface PublicMountHost {
     readonly tables: ReadonlyMap<string, PublicTableDecl>;
     readonly docs: ReadonlyMap<string, PublicDocDecl>;
     readonly momentViews?: () => MomentRevisionReader | undefined;
+    readonly searchOptions: () => { maxInlineFileBytes: number; maxSearchBytes: number; maxSearchOutputBytes: number; maxSearchMs: number };
     readonly stats: { searchStale: number; fallbackScans: number };
 }
 interface Virtual { readonly kind: 'readme' | 'schema'; readonly dir: string }
@@ -434,7 +435,12 @@ export class PublicMount implements ExplorationMount {
         }
         entries.sort((a, b) => compareCodePoints(a.node.path, b.node.path));
         const byDisk = new Map(entries.map(entry => [entry.disk, entry.node]));
-        const options = { maxInlineFileBytes: 16777216, maxSearchBytes: 536870912, maxSearchOutputBytes: 67108864, maxSearchMs: 30000 };
+        const options = this.host.searchOptions();
+        let totalBytes = 0;
+        for (const entry of entries)
+            totalBytes += Number(entry.node.rawBytes ?? 0);
+        if (totalBytes > options.maxSearchBytes)
+            return fail('EXPLORATION_SEARCH_BUDGET');
         for (let offset = 0; offset < entries.length; offset += SEARCH_BATCH) {
             const batch = entries.slice(offset, offset + SEARCH_BATCH);
             const search = new NativeSearch(pattern, request.mode, options, request.ignoreCase === true, batch.map(entry => entry.disk));

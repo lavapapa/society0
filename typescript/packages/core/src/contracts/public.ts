@@ -91,6 +91,7 @@ export interface PublicCacheDiagnostics {
     readonly diskHits: number;
     readonly misses: number;
     readonly entries: number;
+    readonly sizes: number;
     readonly bytes: number;
 }
 export interface PublicDiagnostics {
