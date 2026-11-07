@@ -96,18 +96,34 @@ export class RunController extends Service {
             await snapshot.close();
         }
     }
+    private async busy<T>(action: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+        while (true) {
+            signal?.throwIfAborted();
+            try { return await action(); }
+            catch (error) {
+                if (!/FENCE_BUSY/.test(error instanceof Error ? error.message : String(error)))
+                    throw error;
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
+        }
+    }
     private async publish(cut: CompletePoint, requiredOperations: readonly string[], view: GenerationView) {
         const revision = await this.ctx.database.readRevision();
         if (revision === cut.revision)
             return cut;
         if (!this.complete)
             throw Error('RUN_INCOMPLETE');
-        const lease = await this.ctx.executionFence.seal();
+        const lease = await this.busy(() => this.ctx.executionFence.seal());
+        const sealedRevision = lease.sealedRevision;
+        if (sealedRevision === cut.revision) {
+            this.ctx.executionFence.resume(lease);
+            return cut;
+        }
         const operationId = 'cut-' + randomUUID();
         let next: CompletePoint;
         try {
             next = await this.ctx.history.publish(lease, {
-                operationId, id: operationId, parentId: cut.id, expectedRevision: revision, requiredOperations
+                operationId, id: operationId, parentId: cut.id, expectedRevision: sealedRevision, requiredOperations
             });
         }
         catch (error) {
@@ -244,7 +260,7 @@ export class RunController extends Service {
             throw Error('RUN_PLAN_KIND');
         if (proposal.reservation && this.pending.length >= this.config.maxPendingAcknowledgements)
             session.cut = await this.publish(session.cut, [...session.required], view);
-        const reservation = await this.ctx.executionFence.reserve(proposal);
+        const reservation = await this.busy(() => this.ctx.executionFence.reserve(proposal), signal);
         this.complete = false;
         try {
             const trigger = (proposal.payload as {

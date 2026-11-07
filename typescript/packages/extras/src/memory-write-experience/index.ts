@@ -1,8 +1,8 @@
 import type { Context } from '@society0/cordis';
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
-import type { MemoryWritePolicy } from '@society0/core/contracts/cognition';
-import type { DeferredWork } from '@society0/core/contracts/deferred-work';
+import type { MemoryWritePolicy, MemoryExtractionContext } from '@society0/core/contracts/cognition';
+import type { DeferredProduce, DeferredWork } from '@society0/core/contracts/deferred-work';
 import type { Json } from '@society0/core/contracts/common';
 import type { ArtifactRef } from '@society0/core/artifacts-local';
 import type { StoredValue } from '@society0/core/contracts/data';
@@ -32,7 +32,7 @@ class ExplicitExperience implements MemoryWritePolicy {
             chunks.push(chunk);
         return Schema.resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')), Message, {})[0];
     }
-    async extract(thread: Parameters<MemoryWritePolicy['extract']>[0], context: Parameters<MemoryWritePolicy['extract']>[1]): Promise<readonly Experience[]> {
+    async extract(thread: Parameters<MemoryWritePolicy['extract']>[0], context: MemoryExtractionContext): Promise<readonly Experience[]> {
         const view = await context.database.snapshot({ maxAgeMs: 30000 });
         try {
             const current = await this.threads.open(context.actorId, context.momentId, view);
@@ -66,29 +66,50 @@ class ExplicitExperience implements MemoryWritePolicy {
     }
 }
 export const MEMORY_EXPERIENCE_JOB = 'memory-write-experience.extract';
+export const MEMORY_EXPERIENCE_NAMESPACE = 'memory-write-experience';
 export const inject = ['slots', 'threads'];
-export function apply(ctx: Context, options: ReturnType<typeof Config>) { ctx.slots.inject(memoryWrite, async (child) => { await child.plugin({ inject, apply(owner) { const policy = new ExplicitExperience(owner, options); owner.slots.contribute(memoryWrite, { id: 'explicit-experience/v1', value: policy }); const deferred = owner.get('deferredWork', false) as DeferredWork | undefined; if (deferred)
-    owner.effect(() => deferred.register(MEMORY_EXPERIENCE_JOB, {
-        run: async (job, context) => {
-            const inputs = job.inputs as { readonly threadId?: unknown; readonly actorId?: unknown; readonly momentId?: unknown } | null;
-            if (typeof inputs?.threadId !== 'string' || typeof inputs.actorId !== 'string' || typeof inputs.momentId !== 'string')
-                fail('MEMORY_JOB_INPUT');
-            const view = await context.database.snapshot({ maxAgeMs: 30000 });
-            let thread: Awaited<ReturnType<Context['threads']['open']>>;
-            try {
-                thread = await owner.threads.open(inputs.actorId, inputs.momentId, view);
+export function apply(ctx: Context, options: ReturnType<typeof Config>) { ctx.slots.inject(memoryWrite, async (child) => { await child.plugin({ inject, apply(owner) {
+    const policy = new ExplicitExperience(owner, options);
+    owner.slots.contribute(memoryWrite, { id: 'explicit-experience/v1', value: policy });
+    owner.inject(['deferredWork'], scoped => {
+        const deferred = scoped.get('deferredWork') as DeferredWork;
+        scoped.effect(() => deferred.register(MEMORY_EXPERIENCE_JOB, {
+            run: async (job, context) => {
+                const inputs = job.inputs as {
+                    readonly threadId?: unknown; readonly actorId?: unknown; readonly momentId?: unknown;
+                    readonly logicalTime?: unknown; readonly runId?: unknown; readonly generation?: unknown;
+                } | null;
+                if (typeof inputs?.threadId !== 'string' || typeof inputs.actorId !== 'string' || typeof inputs.momentId !== 'string'
+                    || inputs.logicalTime === undefined || typeof inputs.runId !== 'string' || typeof inputs.generation !== 'string')
+                    fail('MEMORY_JOB_INPUT');
+                const view = await context.database.snapshot({ maxAgeMs: 30000 });
+                let thread: Awaited<ReturnType<Context['threads']['open']>>;
+                try {
+                    thread = await owner.threads.open(inputs.actorId, inputs.momentId, view);
+                }
+                finally { await view.close(); }
+                if (thread.id !== inputs.threadId)
+                    fail('MEMORY_JOB_THREAD');
+                const extraction: MemoryExtractionContext = {
+                    ctx: owner, runId: inputs.runId, generation: inputs.generation,
+                    operationId: 'deferred:' + job.id, signal: context.signal,
+                    actorId: inputs.actorId, momentId: inputs.momentId,
+                    logicalTime: inputs.logicalTime as Json, database: context.database
+                };
+                const values = await policy.extract(thread, extraction);
+                const repository = owner.get('memoryRepository', false) as MemoryRepository | undefined;
+                if (values.length && !repository)
+                    fail('MEMORY_REPOSITORY_UNAVAILABLE');
+                const produce: DeferredProduce = {
+                    output: { count: values.length },
+                    async write(tx) {
+                        for (const value of values)
+                            await repository!.append(tx, value);
+                    }
+                };
+                return produce;
             }
-            finally { await view.close(); }
-            if (thread.id !== inputs.threadId)
-                fail('MEMORY_JOB_THREAD');
-            const extraction = { ctx: owner, runId: context.database.runId, generation: 'deferred', operationId: 'deferred:' + job.id, signal: context.signal, actorId: inputs.actorId, momentId: inputs.momentId, logicalTime: 0, database: context.database, writeLease: undefined as never } as Parameters<MemoryWritePolicy['extract']>[1];
-            const values = await policy.extract(thread, extraction);
-            const repository = owner.get('memoryRepository', false) as MemoryRepository | undefined;
-            if (values.length && !repository)
-                fail('MEMORY_REPOSITORY_UNAVAILABLE');
-            for (const value of values)
-                await context.transaction('deferred-memory-write:' + value.id, tx => repository!.append(tx, value));
-            return { count: values.length };
-        }
-    })); } }); }); }
+        }));
+    });
+} }); }); }
 export default { Config, inject, apply };

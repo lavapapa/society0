@@ -32,15 +32,26 @@ export interface DeferredJobRecord extends DeferredJob {
 
 export interface DeferredContext {
     readonly operationId: string;
-    /** 本次执行开始时生成；写入产出的事务与完成记录共用。 */
+    /** 产出所在的逻辑位置：登记该 job 的完整点 tick；不是墙钟。 */
     readonly producedAt: string;
+    /** 同一逻辑位置，便于 handler 构造真实执行上下文。 */
+    readonly logicalTime: Json;
+    readonly runId: string;
     readonly signal: AbortSignal;
     readonly database: SqliteDatabase;
     transaction<T>(operationId: string, body: (tx: SqliteTransaction) => Promise<T>, request?: Partial<TransactionRequest>): Promise<{ value: T; receipt: CommitReceipt }>;
 }
 
+/** handler 的产出写入与 job 完成标记由 DeferredWork 放在同一个事务里执行。 */
+export interface DeferredProduce {
+    readonly output?: Json;
+    write(tx: SqliteTransaction, job: DeferredJobRecord, context: DeferredContext): Promise<void>;
+}
+
+export type DeferredRunResult = Json | undefined | DeferredProduce;
+
 export interface DeferredHandler {
-    run(job: DeferredJobRecord, context: DeferredContext): Promise<Json | undefined>;
+    run(job: DeferredJobRecord, context: DeferredContext): Promise<DeferredRunResult>;
 }
 
 export interface DeferredWork {
@@ -61,6 +72,7 @@ export interface DeferredWork {
     wake(): void;
     pending(): readonly DeferredJob[];
     read(id: string): DeferredJobRecord | undefined;
+    failures(): readonly DeferredJobRecord[];
     describe(): { readonly queued: number; readonly running: number; readonly completed: number; readonly failed: number };
 }
 

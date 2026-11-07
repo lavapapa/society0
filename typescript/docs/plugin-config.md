@@ -241,6 +241,7 @@
 | ./memory | writePolicy | string | "explicit-experience/v1" | new-run | true | null |
 | ./memory | recallPolicy | string | "sql/v1" | new-run | true | null |
 | ./memory | maxExtractedBytes | number | 65536 | new-run | true | null |
+| ./memory | deferredMaxLag | number | 1 | new-run | true | null |
 | ./memory-repository | maxExperienceBytes | number | 16384 | new-run | true | null |
 | ./memory-repository | maxVectorBytes | number | 131072 | new-run | true | null |
 | ./memory-repository | maxPageItems | number | 256 | new-run | true | null |

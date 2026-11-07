@@ -7,7 +7,7 @@ import type { TaskScope } from '@society0/host/tasks';
 import type { CommitReceipt, SqliteTransaction, TransactionRequest, SqliteRow } from '../sqlite/index.js';
 import type { Json } from '../contracts/common.js';
 import type { ActivationAdmission, ActivationIntent, ExecutionContext } from '../contracts/runtime.js';
-import type { DeferredContext, DeferredHandler, DeferredJob, DeferredJobRecord, DeferredWork } from '../contracts/deferred-work.js';
+import type { DeferredContext, DeferredHandler, DeferredJob, DeferredJobRecord, DeferredProduce, DeferredRunResult, DeferredWork } from '../contracts/deferred-work.js';
 import { deferredJobId, deferredWorkMigration } from '../contracts/deferred-work.js';
 import { fault } from '../sqlite/contracts.js';
 import { metricsOf } from '../contracts/metrics.js';
@@ -15,7 +15,7 @@ import '../sqlite/index.js';
 import '../execution-fence/index.js';
 import '@society0/host/tasks';
 export { deferredJobId, deferredWorkMigration } from '../contracts/deferred-work.js';
-export type { DeferredContext, DeferredHandler, DeferredJob, DeferredJobRecord, DeferredWork } from '../contracts/deferred-work.js';
+export type { DeferredContext, DeferredHandler, DeferredJob, DeferredJobRecord, DeferredProduce, DeferredRunResult, DeferredWork } from '../contracts/deferred-work.js';
 
 export const Config = Schema.object({
     concurrency: Schema.natural().min(1).default(2),
@@ -101,7 +101,7 @@ export class DeferredWorkService extends Service implements DeferredWork {
         const view = await this.ctx.database.snapshot({ maxAgeMs: this.options.maxTransactionMs });
         try {
             const rows = await view.query({
-                sql: "SELECT * FROM deferred_jobs WHERE state IN ('queued','running') ORDER BY enqueued_tick,id"
+                sql: "SELECT * FROM deferred_jobs WHERE state IN ('queued','running','failed') ORDER BY enqueued_tick,id"
             }, { maxRows: 10000, maxBytes: 1048576 });
             for (const row of rows) this.records.set(String(row.id), record(row));
         }
@@ -138,6 +138,9 @@ export class DeferredWorkService extends Service implements DeferredWork {
     read(id: string): DeferredJobRecord | undefined {
         const found = this.records.get(id);
         return found ? { ...found } : undefined;
+    }
+    failures(): readonly DeferredJobRecord[] {
+        return [...this.records.values()].filter(job => job.state === 'failed').map(job => ({ ...job }));
     }
     describe() {
         const values = [...this.records.values()];
@@ -221,31 +224,37 @@ export class DeferredWorkService extends Service implements DeferredWork {
     private async run(job: DeferredJobRecord, signal: AbortSignal): Promise<void> {
         const handler = this.handlers.get(job.kind);
         if (!handler) return;
-        const producedAt = new Date().toISOString();
+        const producedAt = job.enqueuedTick;
         const context: DeferredContext = {
             operationId: 'deferred:' + job.id,
             producedAt,
+            logicalTime: job.enqueuedTick,
+            runId: this.ctx.database.runId,
             signal,
             database: this.ctx.database,
             transaction: (operationId, body, request) => this.transaction(signal, operationId, body, request)
         };
-        let output: unknown;
+        let result: DeferredRunResult;
         try {
-            output = await handler.run(job, context);
+            result = await handler.run(job, context);
         }
         catch (error) {
             if (signal.aborted || this.closing) this.records.set(job.id, { ...job, state: 'queued', attempts: job.attempts });
             else await this.failed(job, error, signal);
             return;
         }
+        const produce = result && typeof result === 'object' && !Array.isArray(result) && typeof (result as DeferredProduce).write === 'function'
+            ? result as DeferredProduce : undefined;
+        const output = produce ? produce.output : result as Json | undefined;
         try {
             await this.transaction(signal, 'deferred-complete-' + job.id, async tx => {
+                if (produce) await produce.write(tx, job, context);
                 await tx.execute({
                     sql: "UPDATE deferred_jobs SET state='done',produced_at=?,output=?,error=NULL,attempts=? WHERE id=?",
                     parameters: [producedAt, output === undefined ? null : JSON.stringify(output), job.attempts, job.id]
                 });
             });
-            this.records.set(job.id, { ...job, state: 'done', producedAt, ...(output === undefined ? {} : { output: output as Json }) });
+            this.records.set(job.id, { ...job, state: 'done', producedAt, ...(output === undefined ? {} : { output }) });
         }
         catch (error) {
             if (signal.aborted || this.closing) this.records.set(job.id, { ...job, state: 'queued', attempts: job.attempts });
@@ -255,6 +264,9 @@ export class DeferredWorkService extends Service implements DeferredWork {
     private async failed(job: DeferredJobRecord, error: unknown, signal: AbortSignal): Promise<void> {
         const message = errorMessage(error);
         this.records.set(job.id, { ...job, state: 'failed', error: message });
+        const metrics = metricsOf(this.ctx);
+        metrics?.gauge('deferred.failed', this.failures().length);
+        metrics?.gauge('deferred.queued', [...this.records.values()].filter(item => item.state === 'queued' || item.state === 'running').length);
         try {
             await this.transaction(signal, 'deferred-failed-' + job.id + '-' + job.attempts, async tx => {
                 await tx.execute({
@@ -292,6 +304,7 @@ export class DeferredWorkService extends Service implements DeferredWork {
         const metrics = metricsOf(this.ctx);
         if (!metrics) return;
         const values = [...this.records.values()].filter(job => job.state !== 'done' && job.state !== 'failed');
+        const failed = [...this.records.values()].filter(job => job.state === 'failed').length;
         const now = tickOrUndefined(currentTick);
         let lag = 0n;
         if (now !== undefined) {
@@ -301,6 +314,7 @@ export class DeferredWorkService extends Service implements DeferredWork {
             }
         }
         metrics.gauge('deferred.queued', values.length);
+        metrics.gauge('deferred.failed', failed);
         metrics.gauge('deferred.lagTicks', Number(lag));
     }
 }

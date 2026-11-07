@@ -2290,6 +2290,14 @@
               "mode": "new-run",
               "affectsResults": true,
               "secret": null
+            },
+            {
+              "name": "deferredMaxLag",
+              "type": "number",
+              "default": 1,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
             }
           ]
         },
