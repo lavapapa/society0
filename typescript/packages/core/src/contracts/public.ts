@@ -1,8 +1,8 @@
 /** 公开资料仓库：推式版本化文件、受众标签与写指令。 */
 import type { Disposer, Json } from './common.js';
+import type { DiscoveryScope, Page, PageRequest } from './data.js';
 import type { SqliteReadView, SqliteTransaction } from '../sqlite/contracts.js';
 import type { ArtifactRef } from '../artifacts-local/store.js';
-import type { DiscoveryScope } from './data.js';
 
 /** 粗粒度受众：'all' | 'role:x' | 'region:y'；个体专属数据放 /self。 */
 export type Audience = string;
@@ -75,10 +75,14 @@ export interface PublicWriter {
     unpublish(path: string): Promise<void>;
     setMeta(path: string, patch: Json): Promise<void>;
 }
+export interface PublicAudienceScope {
+    readonly actorId: string;
+    readonly momentId: string;
+}
 export interface PublicAudienceProvider {
     readonly id: string;
     /** 每 actor 每 moment 调用一次；结果缓存在挂载内，必须返回粗粒度受众。 */
-    audiences(scope: DiscoveryScope, view: SqliteReadView): Promise<readonly Audience[]>;
+    audiences(scope: PublicAudienceScope, view: SqliteReadView): Promise<readonly Audience[]>;
 }
 export interface PublicRegistry {
     table(decl: PublicTableDecl): Disposer;
@@ -100,7 +104,21 @@ export interface PublicDiagnostics {
     readonly searchStale: number;
     readonly fallbackScans: number;
 }
+export interface PublicChangeRows {
+    readonly added: number;
+    readonly updated: number;
+    readonly retracted: number;
+}
+export interface PublicChange {
+    readonly path: string;
+    readonly kind: 'added' | 'updated' | 'retracted' | 'meta';
+    readonly rows?: PublicChangeRows;
+    readonly revision: string;
+    readonly notify: 'digest' | 'percept';
+}
 export interface Public {
     readonly registry: PublicRegistry;
     writer(tx: SqliteTransaction): PublicWriter;
+    /** (from,to] 内按受众过滤并按路径聚合的变更；只读修订列/索引。 */
+    changes(scope: DiscoveryScope, from: string, to: string, request?: PageRequest): Promise<Page<PublicChange>>;
 }

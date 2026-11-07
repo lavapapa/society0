@@ -1,6 +1,5 @@
 /** 受众提供者：每 actor/moment 解析一次，结果用于可见性判断与缓存键。 */
 import { compareCodePoints } from '@society0/host/order';
-import type { DiscoveryScope } from '../contracts/data.js';
 import type { Audience, PublicAudienceProvider } from '../contracts/public.js';
 import type { SqliteReadView } from '../sqlite/contracts.js';
 
@@ -9,7 +8,7 @@ export class AudienceResolver {
     constructor(private readonly providers: () => readonly PublicAudienceProvider[]) { }
     get size() { return this.cache.size; }
     clear() { this.cache.clear(); }
-    async resolve(scope: DiscoveryScope, view: SqliteReadView): Promise<readonly Audience[]> {
+    async resolve(scope: { readonly actorId: string; readonly momentId: string }, view: SqliteReadView): Promise<readonly Audience[]> {
         const key = scope.actorId + '\u0000' + scope.momentId;
         const cached = this.cache.get(key);
         if (cached)
