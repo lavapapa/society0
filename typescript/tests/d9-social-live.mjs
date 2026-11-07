@@ -20,6 +20,12 @@ const maxRequests = 30;
 const watchdogMs = 15 * 60 * 1000;
 const runDirectory = `/var/tmp/society0-next-d9-${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}`;
 
+// 这个脚本是手动 live 验收，不属于 node --test 门禁；被 glob 选中时直接退出。
+if (process.env.NODE_TEST_CONTEXT) {
+  console.error('d9-social-live.mjs is a manual live acceptance script');
+  process.exit(0);
+}
+
 await mkdir(evidence, { recursive: true });
 const liveLog = join(evidence, 'live.log');
 await writeFile(liveLog, '');
@@ -184,6 +190,7 @@ try {
   await writeFile(lockPath, JSON.stringify({ lockfile: pathToFileURL(lockPath).href, packages }));
   const { runProfile } = await import(pathToFileURL(join(here, '..', 'examples', 'run-profile.mjs')).href);
   const { FileCredentialStore } = await import(pathToFileURL(join(here, '..', '.build', 'core', 'dist', 'model-credentials', 'store.js')).href);
+  let afterRunEvidence;
   const report = await runProfile({
     profile: join(here, '..', 'profiles', 'social-sqlite.json'),
     directory: runDirectory,
