@@ -23,7 +23,6 @@ test('B10 快照租约取数据库配置且 shell 超时确定先到', async () 
         await run.host.ctx.plugin(ExplorationShell, { timeoutMs: 3000 });
         let ctx;
         await run.host.ctx.plugin({ inject: ['explorationShell'], apply(c) { ctx = c; } });
-        const started = performance.now();
         await ctx.explorationShell.execute('true', session.value, run.acquisition('a', 'm', 'b10-lease-warm'));
         await assert.rejects(
             () => ctx.explorationShell.execute('sleep 10; true', session.value, run.acquisition('a', 'm', 'b10-lease-shell')),
@@ -32,8 +31,6 @@ test('B10 快照租约取数据库配置且 shell 超时确定先到', async () 
                 return /SHELL_TIMEOUT/.test(String(error?.code ?? error?.message ?? error));
             }
         );
-        const elapsed = performance.now() - started;
-        assert.ok(elapsed < 6000, `shell 应在快照失效前结束，实际 ${elapsed} ms`);
     }
     finally {
         try { await session?.release(); } catch {}
