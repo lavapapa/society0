@@ -28,7 +28,7 @@ interface NodeSpec {
     readonly artifact?: string;
     readonly bytes?: number;
 }
-interface Live { readonly rev: string; readonly sort: string; readonly audience: string; readonly line: Uint8Array }
+interface Live { readonly id: bigint; readonly rev: string; readonly sort: string; readonly audience: string; readonly line: Uint8Array }
 const states = new WeakMap<SqliteTransaction, State>();
 const BATCH = 8192;
 export function extensionOf(file: string): string {
@@ -59,11 +59,11 @@ export class PublicWriterImpl implements PublicWriter {
         let cursor: string | undefined;
         while (true) {
             const rows = await this.tx.query({
-                sql: 'SELECT row_key,rev_from,sort_key,audience,line FROM public_rows WHERE file=? AND rev_to IS NULL' + (cursor === undefined ? '' : ' AND row_key>?') + ' ORDER BY row_key LIMIT 512',
+                sql: 'SELECT rowid AS id,row_key,rev_from,sort_key,audience,line FROM public_rows WHERE file=? AND rev_to IS NULL' + (cursor === undefined ? '' : ' AND row_key>?') + ' ORDER BY row_key LIMIT 512',
                 parameters: cursor === undefined ? [file] : [file, cursor]
             }, { maxRows: 512, maxBytes: 4194304 });
             for (const row of rows)
-                live.set(String(row.row_key), { rev: String(row.rev_from), sort: String(row.sort_key), audience: String(row.audience), line: row.line as Uint8Array });
+                live.set(String(row.row_key), { id: row.id as bigint, rev: String(row.rev_from), sort: String(row.sort_key), audience: String(row.audience), line: row.line as Uint8Array });
             if (rows.length < 512)
                 return live;
             cursor = String(rows[rows.length - 1]!.row_key);
@@ -87,8 +87,9 @@ export class PublicWriterImpl implements PublicWriter {
         }
         let changed = 0;
         for (const [file, list] of files) {
+            const [maxRow] = await this.tx.query({ sql: 'SELECT coalesce(max(rowid),0) AS id FROM public_rows WHERE file=?', parameters: [file] }, { maxRows: 1, maxBytes: 4096 });
             const live = await this.liveRows(file);
-            const closes: (readonly (string | bigint)[])[] = [], inserts: (readonly (string | bigint | Uint8Array | null)[])[] = [], updates: (readonly (string | bigint | Uint8Array | null)[])[] = [];
+            const closes: (readonly (string | bigint)[])[] = [], inserts: (readonly (string | bigint | Uint8Array | null)[])[] = [], deletes: (readonly bigint[])[] = [];
             for (const entry of list) {
                 const current = live.get(entry.key);
                 if (!current) {
@@ -98,7 +99,8 @@ export class PublicWriterImpl implements PublicWriter {
                 else if (current.rev === String(this.state.rev)) {
                     if (same(current.line, current.sort, entry.audience, entry))
                         continue;
-                    updates.push([entry.sort, entry.audience, Buffer.from(entry.line, 'utf8'), entry.file, entry.key, this.state.rev]);
+                    deletes.push([current.id]);
+                    inserts.push([entry.file, entry.key, entry.sort, this.state.rev, entry.audience, Buffer.from(entry.line, 'utf8')]);
                     changed++;
                 }
                 else if (!same(current.line, current.sort, entry.audience, entry)) {
@@ -109,10 +111,12 @@ export class PublicWriterImpl implements PublicWriter {
             }
             if (closes.length)
                 await this.many('UPDATE public_rows SET rev_to=? WHERE file=? AND row_key=? AND rev_to IS NULL', closes);
-            if (inserts.length)
+            if (deletes.length)
+                await this.many('DELETE FROM public_rows WHERE rowid=?', deletes);
+            if (inserts.length) {
                 await this.many('INSERT INTO public_rows(file,row_key,sort_key,rev_from,rev_to,audience,line) VALUES(?,?,?,?,NULL,?,?)', inserts);
-            if (updates.length)
-                await this.many('UPDATE public_rows SET sort_key=?,audience=?,line=? WHERE file=? AND row_key=? AND rev_from=?', updates);
+                await this.tx.execute({ sql: 'INSERT INTO public_fts(rowid,line) SELECT rowid,line FROM public_rows WHERE file=? AND rev_from=? AND rowid>?', parameters: [file, this.state.rev, maxRow?.id as bigint ?? 0n] });
+            }
             this.state.dirty.set(file, list[0]!.decl);
             changed += await this.aggregate(file, list[0]!.decl);
         }
