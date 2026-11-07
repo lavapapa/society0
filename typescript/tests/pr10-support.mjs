@@ -56,7 +56,7 @@ export async function fixture(options = {}) {
         await c.plugin(Results.default);
         await c.plugin(Threads.default);
         await c.plugin(Repo.default);
-        await c.plugin(Init.default);
+        await c.plugin(Init.default, options.init ?? {});
         await c.plugin(Topology.default, {
             actors: options.actors ?? [{
                     id: 'a', attributes: {
