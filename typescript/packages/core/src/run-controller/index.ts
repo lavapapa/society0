@@ -3,6 +3,7 @@ import Schema from '@society0/schemastery';
 import { randomUUID } from 'node:crypto';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 import type { AdvanceResult, GenerationView, ExecutionContext, CompletePoint, Proposal, Json, BoundaryLease } from '../contracts/runtime.js';
+import type { DeferredWork } from '../contracts/deferred-work.js';
 import { metricsOf } from '../contracts/metrics.js';
 import type { RuntimeFrontier } from '../sqlite/contracts.js';
 import '../generation-views/index.js';
@@ -238,6 +239,7 @@ export class RunController extends Service {
         result: RunResult;
     }> {
         const proposal = session.proposal!;
+        this.deferred()?.begin();
         if (!view.runtime.planKinds.includes(proposal.planKind))
             throw Error('RUN_PLAN_KIND');
         if (proposal.reservation && this.pending.length >= this.config.maxPendingAcknowledgements)
@@ -299,6 +301,7 @@ export class RunController extends Service {
         }
     }
     private async incompleteProposal(session: RunSession, view: GenerationView, reservation: ExecutionReservation, result: AdvanceResult): Promise<RunResult> {
+        this.deferred()?.discard();
         await reservation.release();
         await view.source.release(session.proposal!);
         session.proposal = undefined;
@@ -322,11 +325,17 @@ export class RunController extends Service {
             codec: result.frontier.codec, value: result.frontier.value, logicalTime, completedCount: String(BigInt(session.frontier.completedCount) + 1n), pendingAcknowledgements: acknowledgements
         };
         const operationId = 'complete-' + randomUUID();
+        const deferred = this.deferred();
+        const pending = deferred?.pending().length ?? 0;
         await this.ctx.database.transaction(reservation.lease, {
-            operationId, maxDurationMs: this.config.maxTransactionMs, maxStatements: result.requiredOperations.length + 1, maxInputBytes: 1048576, maxChangedRows: 100, maxCapturedBytes: 4194304
-        }, tx => this.ctx.database.metadata.complete(tx, session.frontier, result.requiredOperations));
+            operationId, maxDurationMs: this.config.maxTransactionMs, maxStatements: result.requiredOperations.length + 1 + pending, maxInputBytes: 1048576, maxChangedRows: 100 + pending, maxCapturedBytes: 4194304
+        }, tx => this.ctx.database.metadata.complete(tx, session.frontier, result.requiredOperations).then(() => deferred?.commit(tx, String(logicalTime))));
         session.required.add(operationId);
         this.complete = true;
+        deferred?.wake();
+    }
+    private deferred(): DeferredWork | undefined {
+        return this.ctx.get('deferredWork', false) as DeferredWork | undefined;
     }
     /** 指标是观测：失败不改变推进、恢复与终止结果。 */
     private async flushMetrics(session: RunSession): Promise<void> {

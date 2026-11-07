@@ -167,8 +167,8 @@ export class MetricsAggregator implements MetricsCounters {
                 depsVisited: this.counter('history.depsVisited')
             },
             deferred: {
-                queued: this.counter('deferred.queued'),
-                lagTicks: this.counter('deferred.lagTicks')
+                queued: Math.trunc(this.gauges.get('deferred.queued') ?? this.counter('deferred.queued')),
+                lagTicks: Math.trunc(this.gauges.get('deferred.lagTicks') ?? this.counter('deferred.lagTicks'))
             }
         };
     }
