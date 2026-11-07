@@ -164,6 +164,26 @@
                   "config": {}
                 },
                 {
+                  "id": "moment-views",
+                  "name": "@society0/core/moment-views",
+                  "config": {}
+                },
+                {
+                  "id": "exploration",
+                  "name": "@society0/core/exploration",
+                  "config": {}
+                },
+                {
+                  "id": "public",
+                  "name": "@society0/core/public",
+                  "config": {}
+                },
+                {
+                  "id": "public-self",
+                  "name": "@society0/core/public-self",
+                  "config": {}
+                },
+                {
                   "id": "actions",
                   "name": "@society0/core/actions",
                   "config": {}
