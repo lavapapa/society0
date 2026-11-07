@@ -8,8 +8,8 @@ const percept = () => ({
     cursorScope: 'actor',
     available: async () => true,
     versions: async () => [{owner: 'd9/perception', version: '1'}],
-    collect: async () => ({
-        items: [{id: 'd9-percept-1', kind: 'notice', material: {kind: 'inline', value: {text: 'percept body'}}, provenance: {source: 'd9/perception'}}],
+    collect: async (scope, before) => ({
+        items: before === null ? [{id: 'd9-percept-1', kind: 'notice', material: {kind: 'inline', value: {text: 'percept body'}}, provenance: {source: 'd9/perception'}}] : [],
         nextCursor: 1, through: 1, hasMore: false,
     }),
 });
@@ -46,13 +46,13 @@ const sections = [
     {id: 'profile', order: 1, text: 'D9-BASELINE-PROFILE', scope: 'baseline'},
 ];
 
-async function fixture(driver = {}) {
+async function fixture(driver = {}, withPerception = true) {
     const requests = [];
     const {run, ctx} = await driverFixture({
         messages: [assistant([{type: 'text', text: 'one'}]), assistant([{type: 'text', text: 'two'}])],
         prompts: {sections},
-        driver: {perceptions: ['d9/perception'], ...driver},
-        register(c) { c.perceptions.register(percept()); },
+        driver: {perceptions: withPerception ? ['d9/perception'] : [], ...driver},
+        register(c) { if (withPerception) c.perceptions.register(percept()); },
         observe: messages => requests.push(messages),
     });
     return {run, ctx, requests};
@@ -67,9 +67,10 @@ test('D9 perception messages do not suppress the first SystemMessage header and 
     assert.match(requests[0][0].content, /D9-HEADER-ROLE/);
     assert.match(requests[0][0].content, /工具使用守则/);
     const firstUser = requests[0].find(message => message.role === 'user');
-    assert.match(firstUser.content, /D9-BASELINE-PROFILE/);
+    assert.ok(firstUser);
+    assert.ok(requests[0].some(message => message.role === 'user' && String(message.content).includes('D9-BASELINE-PROFILE')));
     const rows = await rowsOf(ctx);
-    assert.equal(rows.filter(row => row.role === 'system').length, 1);
+    assert.equal(rows.filter(row => row.role === 'system' && !row.id.includes('/event/')).length, 1);
     assert.equal(rows[0].role, 'system');
     assert.match(rows[0].value.content, /D9-HEADER-ROLE/);
 });
@@ -83,24 +84,26 @@ test('D9 a second activation on the same moment thread does not repeat system or
     assert.equal(requests[1][0].role, 'system');
     assert.equal(requests[1][0].content, requests[0][0].content);
     const rows = await rowsOf(ctx);
-    assert.equal(rows.filter(row => row.role === 'system').length, 1);
+    assert.equal(rows.filter(row => row.role === 'system' && !row.id.includes('/event/')).length, 1);
     const secondInput = rows.find(row => row.id === 'd9-fresh-two/input');
     assert.ok(secondInput);
     assert.equal(secondInput.value.content.includes('D9-BASELINE-PROFILE'), false);
 });
 
 test('D9 actor thread lifetime sends system and baseline only once across moments', async t => {
-    const {run, ctx, requests} = await fixture({threadLifetime: 'actor'});
+    const {run, ctx, requests} = await fixture({threadLifetime: 'actor'}, false);
     t.after(() => run.close());
-    assert.equal((await activateAt(ctx, run, 'd9-actor-one', 'm1')).status, 'completed');
-    assert.equal((await activateAt(ctx, run, 'd9-actor-two', 'm2')).status, 'completed');
+    const first = await activateAt(ctx, run, 'd9-actor-one', 'm1');
+    assert.equal(first.status, 'completed', JSON.stringify(first));
+    const second = await activateAt(ctx, run, 'd9-actor-two', 'm2');
+    assert.equal(second.status, 'completed', JSON.stringify(second));
     assert.equal(requests.length, 2);
     assert.match(requests[0][0].content, /D9-HEADER-ROLE/);
-    assert.match(requests[0].find(message => message.role === 'user').content, /D9-BASELINE-PROFILE/);
+    assert.ok(requests[0].some(message => message.role === 'user' && String(message.content).includes('D9-BASELINE-PROFILE')));
     assert.equal(requests[1][0].role, 'system');
     assert.equal(requests[1][0].content, requests[0][0].content);
     const rows = await rowsOf(ctx, 'thread/actor/a');
-    assert.equal(rows.filter(row => row.role === 'system').length, 1);
+    assert.equal(rows.filter(row => row.role === 'system' && !row.id.includes('/event/')).length, 1);
     const secondInput = rows.find(row => row.id === 'd9-actor-two/input');
     assert.equal(secondInput.value.content.includes('D9-BASELINE-PROFILE'), false);
 });

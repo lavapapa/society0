@@ -216,19 +216,20 @@ export class LlmActivation {
   this.held.push(frozen);
   const contexts=await this.step('persistence_error','artifact.stage',()=>Promise.all(texts.map(text=>prepareValue(text,16384,this.ctx.artifacts,this.context.signal))));
   const paths=[...frozen.value];
+  // fresh 判定发生在感知写入之前：感知消息不应让首轮 system/header 与 baseline 消失。
+  const initial=await this.history();
+  const fresh=!initial.messages.some(message=>message.role==='system'||message.role==='assistant');
+  if(fresh&&prompts.value.systemSections&&prompts.value.header.length){
+   const native:AgentMessage={role:'system',content:prompts.value.header.join('\n\n'),timestamp:Date.now()};
+   const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/system','system',native as unknown as Json,{activationId:this.context.operationId}));
+   await this.transaction('system',tx=>this.step('thread_error','thread.append',()=>this.ctx.threads.append(tx,this.thread.id,message)));
+  }
   await this.percepts(contexts,paths);
   const sections=prompts.value.systemSections?(prompts.value.baseline as string[]):([...prompts.value.header,...prompts.value.baseline] as string[]);
   let historyResult;
   try{historyResult=await this.history()}catch(error){await this.input(sections,paths,contexts,'',{}).catch(()=>{});throw error}
   const {messages:readHistory,delivery}=historyResult;
   const history=[...readHistory];
-  const fresh=history.length===0;
-  if(fresh&&prompts.value.systemSections&&prompts.value.header.length){
-   const native:AgentMessage={role:'system',content:prompts.value.header.join('\n\n'),timestamp:Date.now()};
-   const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/system','system',native as unknown as Json,{activationId:this.context.operationId}));
-   await this.transaction('system',tx=>this.step('thread_error','thread.append',()=>this.ctx.threads.append(tx,this.thread.id,message)));
-   history.push(native);
-  }
   const state=await this.state();
   const extras:Record<string,Json>={};
   if(state.record)extras.state=state.record;
