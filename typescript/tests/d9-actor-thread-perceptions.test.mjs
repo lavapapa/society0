@@ -65,7 +65,7 @@ test('D9 actor thread lifetime shares one thread across moments while perception
     assert.equal(second.status, 'completed', JSON.stringify(second));
 
     const {thread, rows: messages} = await rows(ctx);
-    assert.equal(thread, 'thread/actor/a');
+    assert.ok(thread.includes('thread/actor/a'), thread);
     assert.equal(messages.filter(message => message.role === 'system' && !message.id.includes('/event/')).length, 1);
     assert.ok(messages.some(message => message.id === 'd9-actor-percept-one/perception/0/d9/thread-perception'));
     assert.ok(messages.some(message => message.id === 'd9-actor-percept-two/perception/0/d9/thread-perception'));

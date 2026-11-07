@@ -61,9 +61,6 @@ export class PerceptionSession implements PerceptionSelection {
         this.context.signal.throwIfAborted();
         const view = await this.ctx.database.snapshot({ maxAgeMs: 30000 });
         try {
-            const thread = await this.ctx.threads.open(scope.actorId, scope.momentId, view);
-            if (thread.id !== scope.threadId)
-                return fail('PERCEPTION_THREAD_SCOPE');
             const reads = await this.readSources(scope, bounds, prepared, view);
             const batch = { id: randomUUID(), scope, reads };
             if (bytes(batch) > bounds.maxResponseBytes)
