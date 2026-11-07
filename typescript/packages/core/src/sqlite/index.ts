@@ -28,6 +28,8 @@ export class SqliteDatabase extends Service {
  }
  get directory(){return this.options.directory}
  get maxQueryBytes(){return this.options.maxQueryBytes!}
+ get maxQueryRows(){return this.options.maxQueryRows!}
+ get maxSnapshotAgeMs(){return this.options.maxSnapshotAgeMs!}
  get runId(){return this.database.runId}
  get metadata():SqliteRuntimeMetadata{return this.database.metadata}
  readRevision(){return this.database.readRevision()}

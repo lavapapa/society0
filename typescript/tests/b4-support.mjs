@@ -9,7 +9,7 @@ import {ExecutionFence} from '../.build/core/dist/execution-fence/index.js';
 import {SqliteDatabase} from '../.build/core/dist/sqlite/index.js';
 import {ArtifactsLocal,artifactsMigration} from '../.build/core/dist/artifacts-local/index.js';
 import {Exploration} from '../.build/core/dist/exploration/index.js';
-import Public,{publicMigration} from '../.build/core/dist/public/index.js';
+import Public,{publicMigration,publicIndexMigration} from '../.build/core/dist/public/index.js';
 import MomentViews,{momentViewsMigration} from '../.build/core/dist/moment-views/index.js';
 
 export const table={path:'/public/market/prices',title:'价格',description:'日度价格',schema:{type:'object',properties:{id:{type:'string'},at:{type:'string'},price:{type:'string'},note:{type:'string'}}},key:['id'],sort:[{field:'at'},{field:'id'}],shard:{by:'at',format:'month'},decimals:['price']};
@@ -17,9 +17,9 @@ export const single={path:'/public/actors',title:'主体',description:'公开字
 export const request=operationId=>({operationId,maxDurationMs:120000,maxStatements:200000,maxInputBytes:16777216,maxChangedRows:100000,maxCapturedBytes:33554432});
 export const page={maxItems:20000,maxResponseBytes:67108864};
 export const frontier=()=>({codec:'step/1',value:0,logicalTime:0,completedCount:'0',pendingAcknowledgements:[]});
-export const migrationList=(source={consumer:'b4-mount'})=>[artifactsMigration,publicMigration(source),momentViewsMigration(source)];
+export const migrationList=(source={consumer:'b4-mount'})=>[artifactsMigration,publicMigration(source),publicIndexMigration(source),momentViewsMigration(source)];
 
-export async function setup({directory,tables=[table,single],docs=[],momentViews='clock',readerWorkers=2,maxSnapshots=8,maxQueryBytes=16777216,audiences,migrate=true,resume,extra=[],exploration={}}={}){
+export async function setup({directory,tables=[table,single],docs=[],momentViews='clock',readerWorkers=2,maxSnapshots=8,maxQueryBytes=16777216,maxSnapshotAgeMs=300000,audiences,migrate=true,resume,extra=[],exploration={}}={}){
  const host=await createHost({boot:[]});
  try{
   const base=directory?undefined:await mkdtemp(join(tmpdir(),'b4-mount-')),run=directory??join(base,'run');
@@ -29,7 +29,7 @@ export async function setup({directory,tables=[table,single],docs=[],momentViews
   await host.ctx.plugin(strategies);
   await host.ctx.plugin(Slots);
   await host.ctx.plugin(ExecutionFence);
-  await host.ctx.plugin(SqliteDatabase,{directory:run,runId:'b4',generation:'g',maxTransactionMs:120000,busyTimeoutMs:120000,maxSnapshotAgeMs:300000,maxSnapshots,readerWorkers,maxInputBytes:16777216,maxQueuedBytes:67108864,maxQueryBytes,maxQueryRows:100000,maxInlineBytes:16777216});
+  await host.ctx.plugin(SqliteDatabase,{directory:run,runId:'b4',generation:'g',maxTransactionMs:120000,busyTimeoutMs:120000,maxSnapshotAgeMs,maxSnapshots,readerWorkers,maxInputBytes:16777216,maxQueuedBytes:67108864,maxQueryBytes,maxQueryRows:100000,maxInlineBytes:16777216});
   await host.ctx.plugin(ArtifactsLocal,{directory:join(run,'objects')});
   if(resume){
    const publication=await host.ctx.executionFence.seal();

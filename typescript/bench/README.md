@@ -44,7 +44,9 @@ node bench/public-vfs.mjs --mode public --actors 1000 --files 10000 --rows 20 \
 
 ### 单项 profile
 
-`--focus ls|read|find|cold|concurrent --profile-out <file.cpuprofile>`：装配与播种完成后，只对目标操作循环，用 `node:inspector` 程序化启停 profiler，避免把播种噪声算进来。`--focus-iterations` 默认 30；`cold` 固定 1 次，`concurrent` 固定跑一次 200 会话混合负载。
+`--focus ls|read|find|cold|concurrent|history-find --profile-out <file.cpuprofile>`：装配与播种完成后，只对目标操作循环，用 `node:inspector` 程序化启停 profiler，避免把播种噪声算进来。`--focus-iterations` 默认 30；`cold` 固定 1 次，`concurrent` 固定跑一次 200 会话混合负载，`history-find` 先推进 `--moments` 个 moment 再测 find。
+
+其他基准参数：`--note-pad`（每行 note 追加字符数，用于 2M 行/400 MB 规模）、`--mix read|mixed`（并发只读或混合）、`--task-concurrency`（TaskSupervisor 并发，默认 256；默认 8 会限制 200 并发基准）、`--concurrent-sessions`（并发基准复用会话数，默认 24，报告 `operations.concurrent.extra.snapshotQueuePeak`）、`--reader-workers`、`--max-snapshots`、`--share-agents`。
 
 ### 快照过期探针
 
@@ -53,7 +55,7 @@ node bench/public-vfs.mjs --mode public --expiry-probe --shell-timeout-ms 120000
   --out ../evidence/bench/public-vfs-snapshot-expiry-120000.json
 ```
 
-执行 `sleep 32; cat /public/...`，并在 session 上记录 RPC 错误。默认 shell `timeoutMs=30000` 与快照租约同为 30 s；把 shell 超时单独调大后，命令在 32 s 时触发读取，RPC 返回 `SQLITE_SNAPSHOT_EXPIRED`（报告里的 `rpcErrorCodes`）。租约取值来源见 `snapshotLeaseSource`：`exploration/session.ts` 固定 `snapshot({maxAgeMs:30000})`，SQLite 默认 `maxSnapshotAgeMs=30000`，`sqlite/worker.ts`/`reader.ts` 用 `setTimeout(maxAgeMs)` 关快照。
+执行 `sleep 32; cat /public/...`，并在 session 上记录 RPC 错误。B10 r1 起会话租约读 `database.maxSnapshotAgeMs`，shell 以该值的 95% 作为命令超时并在取到 worker 后才开视图，因此长命令稳定以 `SHELL_TIMEOUT` 结束，不会出现 `SQLITE_SNAPSHOT_EXPIRED`；r0 的旧探针结果保留在 `public-vfs-snapshot-expiry-120000.json`。租约取值来源见 `snapshotLeaseSource`。
 
 # Bench（C9）
 

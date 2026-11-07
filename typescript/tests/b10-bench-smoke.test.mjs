@@ -44,6 +44,7 @@ test('B10 基准冒烟：/public 模式生成字段齐全的最终报告', async
         for (const field of ['renderCount', 'cacheHitRate', 'rgProcesses', 'snapshotOpens', 'readerQueueWaitMs', 'sqliteSnapshotBudgetErrors'])
             assert.ok(field in report.counters, `counters.${field} 缺失`);
         assert.ok(report.coldRender.bytes > 0);
+        assert.ok(report.coldRender.queries <= 2, `冷渲染应一次查询取完，实际 ${report.coldRender.queries} 次`);
         assert.ok(report.write1000.ms >= 0);
         assert.ok(report.share.renders >= 1);
         assert.ok(report.operations.selfRead.samples >= 1);

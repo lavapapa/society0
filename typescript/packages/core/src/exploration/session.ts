@@ -65,6 +65,7 @@ export class ExplorationView implements ExplorationSession {
     }
     private async track<T>(body: () => Promise<T>): Promise<T> {
         this.check();
+        this.activity++;
         const work = body();
         this.active.add(work);
         try {
@@ -72,52 +73,121 @@ export class ExplorationView implements ExplorationSession {
         }
         finally {
             this.active.delete(work);
+            await this.idleRelease();
         }
     }
-    release() { return this.closed ??= (async () => { this.closing = true; await Promise.allSettled([...this.active]); await this.selected.release(); })(); }
+    release() { return this.closed ??= (async () => { this.closing = true; await Promise.allSettled([...this.active]); await this.releaseView(); await this.selected.release(); })(); }
     private leased?: SqliteSnapshot;
+    private retired = new Set<SqliteSnapshot>();
+    private opening?: Promise<SqliteSnapshot>;
+    private scoped = 0;
+    private users = 0;
+    private dirty = false;
+    private activity = 0;
+    private leaseAge() { return this.ctx.database.maxSnapshotAgeMs; }
+    /** 同一 revision 内复用视图；空闲或写入提交后立即释放，避免占用全局快照槽。 */
+    private ensureView(): Promise<SqliteSnapshot> {
+        this.opening ??= (async () => {
+            const current = this.leased;
+            if (current) {
+                const revision = await this.ctx.database.readRevision();
+                if (String(revision) === String(current.revision))
+                    return current;
+                if (this.users > 0) {
+                    this.dirty = true;
+                    return current;
+                }
+                this.leased = undefined;
+                await current.close().catch(() => {});
+            }
+            const view = await this.ctx.database.snapshot({ maxAgeMs: this.leaseAge() });
+            this.leased = view;
+            return view;
+        })();
+        return this.opening.finally(() => { this.opening = undefined; });
+    }
+    private async releaseView() {
+        const view = this.leased;
+        this.leased = undefined;
+        const retired = [...this.retired];
+        this.retired.clear();
+        if (view)
+            await view.close().catch(() => {});
+        for (const snapshot of retired)
+            await snapshot.close().catch(() => {});
+    }
+    private async settleLease() {
+        if (this.users > 0 || this.scoped > 0)
+            return;
+        const retired = [...this.retired];
+        this.retired.clear();
+        for (const snapshot of retired)
+            await snapshot.close().catch(() => {});
+        if (this.dirty) {
+            this.dirty = false;
+            await this.releaseView();
+        }
+    }
+    private async idleRelease() {
+        if (this.active.size > 0 || this.scoped > 0 || this.users > 0 || this.dirty)
+            return;
+        const token = this.activity;
+        await Promise.resolve();
+        if (token === this.activity && this.active.size === 0 && this.scoped === 0 && this.users === 0 && !this.dirty)
+            await this.releaseView();
+    }
     private read<T>(body: (view: SqliteReadView) => Promise<T>) {
         return this.track(async () => {
-            const borrowed = this.leased;
-            const view = borrowed ?? await this.ctx.database.snapshot({ maxAgeMs: 30000 });
+            let view = this.scoped > 0 && this.leased ? this.leased : await this.ensureView();
+            this.users++;
             try {
                 return await body(view);
             }
+            catch (error) {
+                if ((error as { code?: string })?.code !== 'SQLITE_SNAPSHOT_EXPIRED')
+                    throw error;
+                if (this.users > 1)
+                    throw error;
+                if (this.leased === view)
+                    await this.releaseView();
+                view = await this.ensureView();
+                return body(view);
+            }
             finally {
-                if (!borrowed)
-                    await view.close();
+                this.users--;
+                await this.settleLease();
             }
         });
     }
     withView<T>(body: (session: ExplorationSession) => Promise<T>): Promise<T> {
         return this.track(async () => {
-            if (this.leased)
-                return body(this);
-            const view = await this.ctx.database.snapshot({ maxAgeMs: 30000 });
-            this.leased = view;
+            if (this.scoped === 0)
+                await this.ensureView();
+            this.scoped++;
+            this.users++;
             try {
                 return await body(this);
             }
             finally {
-                const current = this.leased;
-                this.leased = undefined;
-                if (current && current !== view)
-                    await current.close();
-                await view.close();
+                this.scoped--;
+                this.users--;
+                await this.settleLease();
             }
         });
     }
-    /** 本会话自己的写提交后换一份快照，保证命令内的 read-your-writes。 */
+    /** 本会话自己的写提交后换一份快照，保证命令内的 read-your-writes；旧视图等并发读取结束后再关。 */
     private async advanceLease() {
         const previous = this.leased;
         if (!previous)
             return;
-        try {
-            this.leased = await this.ctx.database.snapshot({ maxAgeMs: 30000 });
+        if (this.users === 0) {
+            this.leased = undefined;
+            await previous.close().catch(() => {});
+            return;
         }
-        finally {
-            await previous.close();
-        }
+        this.retired.add(previous);
+        this.dirty = false;
+        this.leased = await this.ctx.database.snapshot({ maxAgeMs: this.leaseAge() });
     }
     private mount(path: string): ExplorationMount {
         canonical(path);
@@ -148,6 +218,7 @@ export class ExplorationView implements ExplorationSession {
                 finally {
                     pin.resolve();
                     this.active.delete(pin.promise);
+                    await this.idleRelease();
                 }
             } };
     }
@@ -204,6 +275,7 @@ export class ExplorationView implements ExplorationSession {
         finally {
             await task.settled;
             this.active.delete(task.settled);
+            await this.idleRelease();
         }
     }
     private async grepInView(request: GrepRequest, view: SqliteReadView, signal: AbortSignal) {

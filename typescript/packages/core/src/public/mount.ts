@@ -1,6 +1,7 @@
 /** /public 只读挂载：as-of 读取、受众求交、etag 与缓存。 */
 import { isDeepStrictEqual } from 'node:util';
 import { posix, matchesGlob } from 'node:path';
+import { readFile as readDisk } from 'node:fs/promises';
 import { compareCodePoints } from '@society0/host/order';
 import type { Context } from '@society0/cordis';
 import type { Page, PageRequest, DiscoveryScope, StoredValue } from '../contracts/data.js';
@@ -26,6 +27,7 @@ export interface PublicMountHost {
     readonly momentViews?: () => MomentRevisionReader | undefined;
     readonly searchIndex: 'trigram' | 'none';
     readonly searchOptions: () => { maxInlineFileBytes: number; maxSearchBytes: number; maxSearchOutputBytes: number; maxSearchMs: number };
+    readonly limits: { readonly maxQueryBytes: number; readonly maxQueryRows: number };
     readonly stats: { searchStale: number; fallbackScans: number };
 }
 interface Virtual { readonly kind: 'readme' | 'schema'; readonly dir: string }
@@ -49,6 +51,20 @@ export class PublicMount implements ExplorationMount {
                 return value;
         }
         return view.revision;
+    }
+    private render(file: PublicFile, revision: string, audiences: readonly Audience[], view: SqliteReadView) {
+        return renderRows(view, file.file, revision, audiences, this.host.limits, file.rows, file.bytes);
+    }
+    private readonly nodeSizes = new Map<string, number>();
+    private nodeBytes(node: ExplorationNode): number {
+        const known = this.nodeSizes.get(node.objectId);
+        if (known !== undefined)
+            return known;
+        const bytes = Buffer.byteLength(JSON.stringify(node), 'utf8');
+        if (this.nodeSizes.size >= this.host.limits.maxQueryRows * 2)
+            this.nodeSizes.clear();
+        this.nodeSizes.set(node.objectId, bytes);
+        return bytes;
     }
     private directories(): Set<string> {
         const directories = new Set<string>([this.prefix]);
@@ -144,7 +160,7 @@ export class PublicMount implements ExplorationMount {
         const etag = etagOf(file.file, file.revision, audiences);
         let bytes = file.bytes;
         if (!file.audiences.every(audience => agent.includes(audience)))
-            bytes = (await this.host.cache.bytes(etag, () => renderRows(view, file.file, revision, audiences))).byteLength;
+            bytes = (await this.host.cache.bytes(etag, () => this.render(file, revision, audiences, view))).byteLength;
         return this.fileNode(file, revision, agent, bytes);
     }
     private async virtualBytes(virtual: Virtual, scope: DiscoveryScope, view: SqliteReadView, revision: string, agent: readonly Audience[]): Promise<Uint8Array> {
@@ -173,44 +189,65 @@ export class PublicMount implements ExplorationMount {
         }
         return Buffer.from(lines.join('\n'));
     }
-    private async virtualNode(virtual: Virtual, revision: string, agent: readonly Audience[], view: SqliteReadView, scope?: DiscoveryScope): Promise<ExplorationNode> {
-        const path = virtual.dir + '/' + (virtual.kind === 'schema' ? 'schema.json' : 'README.md');
-        const bytes = await this.virtualBytes(virtual, { actorId: '', momentId: '', query: null }, view, revision, agent);
+    private virtualNodeFrom(kind: Virtual['kind'], dir: string, bytes: Uint8Array, revision: string, agent: readonly Audience[]): ExplorationNode {
+        const path = dir + '/' + (kind === 'schema' ? 'schema.json' : 'README.md');
         const etag = etagOf(path, revision, agent);
         return {
             path, objectId: 'public:virtual:' + etag, kind: 'file',
             versions: [{ owner: 'public', version: revision }, { owner: 'moment', version: revision }, { owner: 'audience', version: agent.join(',') }],
-            rawBytes: String(bytes.byteLength), provenance: { etag, media: virtual.kind === 'schema' ? 'application/schema+json' : 'text/markdown' }
+            rawBytes: String(bytes.byteLength), provenance: { etag, media: kind === 'schema' ? 'application/schema+json' : 'text/markdown' }
         };
     }
+    private readmeBytes(dir: string, files: readonly PublicFile[], children: readonly PublicNode[]): Uint8Array {
+        const table = this.host.tables.get(dir);
+        const lines = ['# ' + (table?.title ?? (posix.basename(dir) || dir)), ''];
+        if (table?.description)
+            lines.push(table.description, '');
+        if (files.length) {
+            lines.push('| 文件 | 行数 | 字节 |', '|---|---|---|');
+            for (const file of files)
+                lines.push(`| ${posix.basename(file.file)} | ${file.rows} | ${file.bytes} |`);
+            lines.push('');
+        }
+        if (children.length) {
+            lines.push('## 条目', '');
+            for (const child of children)
+                lines.push('- ' + posix.basename(child.path));
+            lines.push('');
+        }
+        return Buffer.from(lines.join('\n'));
+    }
+    private async virtualNode(virtual: Virtual, revision: string, agent: readonly Audience[], view: SqliteReadView, scope?: DiscoveryScope): Promise<ExplorationNode> {
+        const bytes = await this.virtualBytes(virtual, { actorId: '', momentId: '', query: null }, view, revision, agent);
+        return this.virtualNodeFrom(virtual.kind, virtual.dir, bytes, revision, agent);
+    }
     async list(path: string, scope: DiscoveryScope, view: SqliteReadView, request: PageRequest): Promise<Page<ExplorationNode>> {
-        if (!await this.visible(path, scope, view))
-            fail('EXPLORATION_NOT_VISIBLE');
-        if (!this.directories().has(path) && (await readNode(view, path, await this.revision(scope, view)))?.kind !== 'dir')
-            fail('EXPLORATION_NOT_DIRECTORY');
         const revision = await this.revision(scope, view), agent = await this.audiences(scope, view);
+        const directory = this.directories().has(path), virtual = this.virtual(path);
+        const file = directory ? null : await readFile(view, path, revision);
+        const node = file || directory ? null : await readNode(view, path, revision);
+        if (!file && !node && !directory && !virtual)
+            fail('EXPLORATION_NOT_VISIBLE');
+        if (!directory && node?.kind !== 'dir')
+            fail('EXPLORATION_NOT_DIRECTORY');
         const items = new Map<string, ExplorationNode>();
         for (const dir of this.directories())
             if (dir !== path && parentOf(dir) === path)
                 items.set(dir, this.directoryNode(dir, revision));
-        for (const node of await readChildren(view, path, revision, { maxRows: request.maxItems + 1024, maxBytes: 4 * 1024 * 1024 })) {
-            if (node.kind === 'table' || node.kind === 'derived')
+        const children = (await readChildren(view, path, revision, { maxRows: request.maxItems + 1024, maxBytes: 4 * 1024 * 1024, kinds: ['dir', 'doc', 'derived'] })).filter(node => audienceOk(node.audience, agent));
+        for (const child of children) {
+            if (child.kind === 'table' || child.kind === 'derived')
                 continue;
-            if (node.kind !== 'dir' && !audienceOk(node.audience, agent))
-                continue;
-            items.set(node.path, await this.nodeOf(node, revision, agent));
+            items.set(child.path, await this.nodeOf(child, revision, agent));
         }
-        for (const file of await readFiles(view, path, revision, { maxRows: request.maxItems + 1024, maxBytes: 4 * 1024 * 1024 })) {
-            if (!intersects(file.audiences, agent))
-                continue;
-            items.set(file.file, await this.fileStat(file, scope, view, revision, agent));
-        }
-        const readme = { kind: 'readme', dir: path } as const;
-        items.set(path + '/README.md', await this.virtualNode(readme, revision, agent, view));
+        const files = (await readFiles(view, path, revision, { maxRows: request.maxItems + 1024, maxBytes: 4 * 1024 * 1024 })).filter(file => intersects(file.audiences, agent));
+        for (const entry of files)
+            items.set(entry.file, await this.fileStat(entry, scope, view, revision, agent));
+        items.set(path + '/README.md', this.virtualNodeFrom('readme', path, this.readmeBytes(path, files, children), revision, agent));
         const table = this.host.tables.get(path);
         if (table) {
-            const schema = { kind: 'schema', dir: path } as const;
-            items.set(path + '/schema.json', await this.virtualNode(schema, revision, agent, view));
+            const bytes = Buffer.from(JSON.stringify({ path: table.path, title: table.title, description: table.description, schema: table.schema, key: table.key, sort: table.sort, shard: table.shard, ...(table.decimals ? { decimals: table.decimals } : {}), ...(table.notify ? { notify: table.notify } : {}) }, null, 2) + '\n');
+            items.set(path + '/schema.json', this.virtualNodeFrom('schema', path, bytes, revision, agent));
         }
         const id = identity(scope, view, { mount: this.id, path }), last = after(request.cursor, id);
         const nodes = [...items.values()].sort((a, b) => compareCodePoints(a.path, b.path));
@@ -229,20 +266,53 @@ export class PublicMount implements ExplorationMount {
             const audience = agent.map(audience => 'audiences LIKE ?');
             const fileMatch = suffix === undefined ? `file LIKE ? ESCAPE '\\'` : 'extension=?';
             const fileMatchParameters = suffix === undefined ? [pattern] : [suffix];
-            const fileFilter = `file>=? AND file<? AND ${AS_OF} AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}`;
-            const nodeFilter = `path>=? AND path<? AND ${AS_OF} AND (${agent.map(() => 'audience=?').join(' OR ')}) AND kind<>'dir' AND path LIKE ? ESCAPE '\\'`;
-            const [nodeTotal] = await view.query({ sql: `SELECT count(*) AS n FROM public_nodes WHERE ${nodeFilter}`, parameters: [lower, upper, at, at, ...agent, pattern] }, { maxRows: 1, maxBytes: 65536 });
+            const nodeFilter = `path>=? AND path<? AND ${AS_OF} AND (${agent.map(() => 'audience=?').join(' OR ')}) AND kind IN ('doc','derived') AND path LIKE ? ESCAPE '\\'`;
             const bound = last === undefined ? '' : ' AND file>?';
-            const nodeBound = last === undefined ? '' : ' AND path>?';
-            const [aggregate] = await view.query({ sql: `SELECT json_group_array(json_array(file,rev_from,audiences)) AS data FROM (SELECT file,rev_from,audiences FROM public_files WHERE ${fileFilter}${bound} ORDER BY file LIMIT ?)`, parameters: [lower, upper, at, at, ...agent.map(a => `%"${a}"%`), ...fileMatchParameters, ...(last === undefined ? [] : [String(last)]), request.maxItems + 1] }, { maxRows: 1, maxBytes: 4 * 1024 * 1024 });
-            const files = aggregate?.data === null || aggregate?.data === undefined ? [] : JSON.parse(String(aggregate.data)) as [string, number, string][];
+            const boundParameters = last === undefined ? [] : [String(last)];
+            const limit = request.maxItems + 1;
+            const audienceParameters = agent.map(a => `%"${a}"%`);
+            // 当前版本与历史版本分开查询：live 走部分索引，历史版本只覆盖 R_m 之前仍有效的旧版本。
+            const liveSql = `SELECT file,rev_from,audiences FROM public_files INDEXED BY public_files_live_name WHERE file>=? AND file<? AND rev_to IS NULL AND rev_from<=? AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}${bound}`;
+            const historySql = `SELECT file,rev_from,audiences FROM public_files INDEXED BY public_files_history_name WHERE file>=? AND file<? AND rev_to IS NOT NULL AND rev_to>? AND rev_from<=? AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}${bound}`;
+            const liveParameters = [lower, upper, at, ...audienceParameters, ...fileMatchParameters, ...boundParameters];
+            const historyParameters = [lower, upper, at, at, ...audienceParameters, ...fileMatchParameters, ...boundParameters];
+            // SQL 直接返回紧凑路径列；live 与历史版本分两条查询，JS 按文件合并，避免 OR/UNION 的大排序。
+            const [liveEncoded] = await view.query({
+                sql: `SELECT group_concat(file || char(31) || rev_from || char(31) || audiences, char(30)) AS data FROM (${liveSql} ORDER BY file LIMIT ?)`,
+                parameters: [...liveParameters, limit]
+            }, { maxRows: 1, maxBytes: 16 * 1024 * 1024 });
+            const [historyEncoded] = await view.query({
+                sql: `SELECT group_concat(file || char(31) || rev_from || char(31) || audiences, char(30)) AS data FROM (${historySql} ORDER BY file LIMIT ?)`,
+                parameters: [...historyParameters, limit]
+            }, { maxRows: 1, maxBytes: 16 * 1024 * 1024 });
+            const decode = (encoded: any) => {
+                const data = encoded?.data === null || encoded?.data === undefined ? '' : String(encoded.data);
+                return data ? data.split('\u001e').map(line => {
+                    const first = line.indexOf('\u001f'), second = line.indexOf('\u001f', first + 1);
+                    return [line.slice(0, first), line.slice(first + 1, second), line.slice(second + 1)] as const;
+                }) : [];
+            };
+            const live = decode(liveEncoded), history = decode(historyEncoded);
+            const files: [string, string, string][] = [];
+            let left = 0, right = 0;
+            while (files.length < limit && (left < live.length || right < history.length)) {
+                if (right >= history.length || (left < live.length && live[left]![0] < history[right]![0]))
+                    files.push([...live[left++]!]);
+                else
+                    files.push([...history[right++]!]);
+            }
             let fileTotal = files.length;
             if (last !== undefined || files.length > request.maxItems) {
-                const [counted] = await view.query({ sql: `SELECT count(*) AS n FROM public_files WHERE ${fileFilter}`, parameters: [lower, upper, at, at, ...agent.map(a => `%"${a}"%`), ...fileMatchParameters] }, { maxRows: 1, maxBytes: 65536 });
-                fileTotal = Number(counted?.n ?? 0);
+                const [liveCount] = await view.query({ sql: `SELECT count(*) AS n FROM public_files WHERE file>=? AND file<? AND rev_to IS NULL AND rev_from<=? AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}`, parameters: [lower, upper, at, ...audienceParameters, ...fileMatchParameters] }, { maxRows: 1, maxBytes: 65536 });
+                const [historyCount] = await view.query({ sql: `SELECT count(*) AS n FROM public_files WHERE file>=? AND file<? AND rev_to IS NOT NULL AND rev_to>? AND rev_from<=? AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}`, parameters: [lower, upper, at, at, ...audienceParameters, ...fileMatchParameters] }, { maxRows: 1, maxBytes: 65536 });
+                fileTotal = Number(liveCount?.n ?? 0) + Number(historyCount?.n ?? 0);
             }
-            const total = fileTotal + Number(nodeTotal?.n ?? 0);
+            const nodeBound = last === undefined ? '' : ' AND path>?';
             const nodes = await view.query({ sql: `SELECT path,kind,audience,rev_from FROM public_nodes WHERE ${nodeFilter}${nodeBound} ORDER BY path LIMIT ?`, parameters: [lower, upper, at, at, ...agent, pattern, ...(last === undefined ? [] : [String(last)]), request.maxItems + 1] }, { maxRows: request.maxItems + 1, maxBytes: 4 * 1024 * 1024 });
+            const nodeTotal = last === undefined && nodes.length <= request.maxItems
+                ? nodes.length
+                : Number((await view.query({ sql: `SELECT count(*) AS n FROM public_nodes WHERE ${nodeFilter}`, parameters: [lower, upper, at, at, ...agent, pattern] }, { maxRows: 1, maxBytes: 65536 }))[0]?.n ?? 0);
+            const total = fileTotal + nodeTotal;
             const matchedFiles: ExplorationNode[] = [], matchedNodes: ExplorationNode[] = [];
             for (const row of files) {
                 const path = String(row[0]), rawAudiences = String(row[2]), audiences = rawAudiences === '["all"]' ? ALL_AUDIENCES : JSON.parse(rawAudiences) as Audience[];
@@ -257,7 +327,7 @@ export class PublicMount implements ExplorationMount {
                 matchedNodes.push({ path, objectId: 'public:doc:' + path, kind: 'file', versions: [{ owner: 'public', version: String(row.rev_from) }, { owner: 'moment', version: revision }] });
             }
             const merged = this.mergeByPath(matchedFiles, matchedNodes);
-            return page(merged, String(total), view.revision, request, id, node => node.path, false, merged.map(node => Buffer.byteLength(JSON.stringify(node), 'utf8')));
+            return page(merged, String(total), view.revision, request, id, node => node.path, false, merged.map(node => this.nodeBytes(node)));
         }
         const files = await view.query({
             sql: `SELECT file,parent,rev_from,audiences FROM public_files WHERE file>=? AND file<? AND ${AS_OF} ORDER BY file LIMIT ?`,
@@ -276,7 +346,7 @@ export class PublicMount implements ExplorationMount {
         }
         for (const row of nodes) {
             const path = String(row.path), kind = String(row.kind);
-            if (kind === 'dir' || !audienceOk(String(row.audience), agent) || !this.match(path, glob))
+            if (kind === 'dir' || kind === 'table' || !audienceOk(String(row.audience), agent) || !this.match(path, glob))
                 continue;
             matchedNodes.push({ path, objectId: 'public:doc:' + path, kind: 'file', versions: [{ owner: 'public', version: String(row.rev_from) }, { owner: 'moment', version: revision }] });
         }
@@ -316,49 +386,73 @@ export class PublicMount implements ExplorationMount {
     private globLike(glob: string, basename: boolean) { const like = glob.replace(/[\\%_]/g, '\\$&').replace(/\*/g, '%'); return basename && !like.startsWith('%') ? '%/' + like : like; }
     private revisionValue(revision: string) { return BigInt(revision); }
     private match(path: string, glob: string) { return matchesGlob(path, glob) || matchesGlob(posix.basename(path), glob); }
+    private async openCached(node: ExplorationNode, etag: string, render: () => Promise<Uint8Array>): Promise<{ value: ExplorationContent; release: () => Promise<void> }> {
+        const handle = await this.host.cache.open(etag, render);
+        const size = (await handle.stat()).size;
+        let released = false;
+        return {
+            value: {
+                node,
+                read: async function* (range, signal) {
+                    if (released)
+                        fail('EXPLORATION_RELEASED');
+                    signal.throwIfAborted();
+                    const offset = Number(range.offset);
+                    if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(range.length) || range.length < 0 || range.length > range.maxBytes || offset + range.length > size)
+                        fail('PAYLOAD_RANGE');
+                    if (!range.length)
+                        return;
+                    const buffer = Buffer.allocUnsafe(range.length);
+                    let read = 0;
+                    while (read < range.length) {
+                        const result = await handle.read(buffer, read, range.length - read, offset + read);
+                        if (!result.bytesRead)
+                            break;
+                        read += result.bytesRead;
+                    }
+                    yield buffer.subarray(0, read);
+                }
+            },
+            release: async () => {
+                if (released)
+                    return;
+                released = true;
+                await handle.close();
+            }
+        };
+    }
     async open(node: ExplorationNode, scope: DiscoveryScope, view: SqliteReadView): Promise<{ value: ExplorationContent; release: () => Promise<void> }> {
-        const current = await this.stat(node.path, scope, view);
-        if (current.objectId !== node.objectId || !isDeepStrictEqual(current.versions, node.versions))
-            fail('EXPLORATION_STALE');
         const revision = await this.revision(scope, view), agent = await this.audiences(scope, view);
+        const provenance = node.provenance !== null && typeof node.provenance === 'object' && !Array.isArray(node.provenance) ? node.provenance as Record<string, unknown> : undefined;
+        const momentVersion = node.versions.find(version => version.owner === 'moment')?.version;
+        // 同一 moment 的 public 文件 etag 不变：stat 返回的节点自带 etag/rows 时直接开缓存，省一次主键查询。
+        if (momentVersion === revision && typeof provenance?.etag === 'string' && typeof provenance.rows === 'number') {
+            const publicVersion = node.versions.find(version => version.owner === 'public')?.version;
+            const audienceVersion = node.versions.find(version => version.owner === 'audience')?.version;
+            if (typeof publicVersion === 'string' && typeof audienceVersion === 'string') {
+                const audiences = audienceVersion === 'all' ? ALL_AUDIENCES : audienceVersion.split(',');
+                const file: PublicFile = {
+                    file: node.path, parent: '', tablePath: String(provenance.table ?? ''),
+                    rows: Number(provenance.rows), bytes: Number(node.rawBytes ?? 0), revision: publicVersion, audiences
+                };
+                return this.openCached(node, provenance.etag, () => this.render(file, revision, audiences, view));
+            }
+        }
         const file = await readFile(view, node.path, revision);
+        let current: ExplorationNode;
         if (file) {
             const audiences = effective(file.audiences, agent);
+            if (!audiences.length)
+                fail('EXPLORATION_STALE');
+            current = this.fileNode(file, revision, agent, file.bytes);
+            if (current.objectId !== node.objectId || !isDeepStrictEqual(current.versions, node.versions))
+                fail('EXPLORATION_STALE');
             const etag = etagOf(file.file, file.revision, audiences);
-            const handle = await this.host.cache.open(etag, () => renderRows(view, file.file, revision, audiences));
-            const size = (await handle.stat()).size;
-            let released = false;
-            return {
-                value: {
-                    node: current,
-                    read: async function* (range, signal) {
-                        if (released)
-                            fail('EXPLORATION_RELEASED');
-                        signal.throwIfAborted();
-                        const offset = Number(range.offset);
-                        if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(range.length) || range.length < 0 || range.length > range.maxBytes || offset + range.length > size)
-                            fail('PAYLOAD_RANGE');
-                        if (!range.length)
-                            return;
-                        const buffer = Buffer.allocUnsafe(range.length);
-                        let read = 0;
-                        while (read < range.length) {
-                            const result = await handle.read(buffer, read, range.length - read, offset + read);
-                            if (!result.bytesRead)
-                                break;
-                            read += result.bytesRead;
-                        }
-                        yield buffer.subarray(0, read);
-                    }
-                },
-                release: async () => {
-                    if (released)
-                        return;
-                    released = true;
-                    await handle.close();
-                }
-            };
+            return this.openCached(current, etag, () => this.render(file, revision, audiences, view));
         }
+        current = await this.stat(node.path, scope, view);
+        if (current.objectId !== node.objectId || !isDeepStrictEqual(current.versions, node.versions))
+            fail('EXPLORATION_STALE');
         const record = await readNode(view, node.path, revision);
         const virtual = this.virtual(node.path);
         const bytes = record?.body ?? (record?.artifact ? await this.artifact(record) : virtual ? await this.virtualBytes(virtual, scope, view, revision, agent) : undefined);
@@ -387,6 +481,37 @@ export class PublicMount implements ExplorationMount {
         for await (const chunk of this.host.ctx.artifacts.read(ref))
             chunks.push(chunk);
         return Buffer.concat(chunks);
+    }
+    private async searchLiteral(entries: readonly { readonly node: ExplorationNode; readonly disk: string }[], needle: Buffer, signal: AbortSignal, emit: (m: ExplorationMatch) => boolean): Promise<boolean> {
+        const text = needle.toString('utf8');
+        for (const entry of entries) {
+            signal.throwIfAborted();
+            const bytes = await readDisk(entry.disk);
+            let start = 0, line = 1;
+            while (start <= bytes.length) {
+                signal.throwIfAborted();
+                const newline = bytes.indexOf(10, start), end = newline < 0 ? bytes.length : newline;
+                const content = bytes.subarray(start, end);
+                let index = content.indexOf(needle);
+                if (index >= 0) {
+                    const lineText = content.toString('utf8');
+                    while (index >= 0) {
+                        const match: ExplorationMatch = {
+                            path: entry.node.path, objectId: entry.node.objectId, versions: entry.node.versions,
+                            rawOffset: String(start + index), text, lineText, line, column: index + 1
+                        };
+                        if (!emit(match))
+                            return true;
+                        index = content.indexOf(needle, index + needle.length);
+                    }
+                }
+                if (newline < 0)
+                    break;
+                start = newline + 1;
+                line++;
+            }
+        }
+        return false;
     }
     async search(request: { readonly root: string; readonly pattern: string; readonly mode: 'literal' | 'regex'; readonly ignoreCase?: boolean }, scope: DiscoveryScope, view: SqliteReadView, signal: AbortSignal, emit: (match: ExplorationMatch) => boolean): Promise<void> {
         if (request.root !== this.prefix && !request.root.startsWith(this.prefix + '/'))
@@ -430,7 +555,7 @@ export class PublicMount implements ExplorationMount {
                 continue;
             const audiences = effective(record.audiences, agent);
             const etag = etagOf(record.file, record.revision, audiences);
-            const cached = await this.host.cache.ensureFile(etag, () => renderRows(view, record.file, revision, audiences));
+            const cached = await this.host.cache.ensureFile(etag, () => this.render(record, revision, audiences, view));
             const node = this.fileNode(record, revision, agent, cached.bytes);
             entries.push({ node, disk: cached.path });
         }
@@ -442,6 +567,12 @@ export class PublicMount implements ExplorationMount {
             totalBytes += Number(entry.node.rawBytes ?? 0);
         if (totalBytes > options.maxSearchBytes)
             return fail('EXPLORATION_SEARCH_BUDGET');
+        // 小候选集字面量搜索走进程内匹配，避免每次 grep spawn rg；大集合仍由 rg 做精确核对。
+        const literalNeedle = request.mode === 'literal' && request.ignoreCase !== true ? Buffer.from(request.pattern, 'utf8') : undefined;
+        if (literalNeedle && literalNeedle.length && entries.length <= SEARCH_BATCH && totalBytes <= options.maxSearchOutputBytes) {
+            await this.searchLiteral(entries, literalNeedle, signal, emit);
+            return;
+        }
         for (let offset = 0; offset < entries.length; offset += SEARCH_BATCH) {
             const batch = entries.slice(offset, offset + SEARCH_BATCH);
             const search = new NativeSearch(pattern, request.mode, options, request.ignoreCase === true, batch.map(entry => entry.disk));

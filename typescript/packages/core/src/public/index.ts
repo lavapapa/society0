@@ -89,6 +89,7 @@ export class PublicRepository extends Service {
                     throw new Error('EXPLORATION_SEARCH_CONFIG');
                 return exploration.limits;
             },
+            limits: { maxQueryBytes: ctx.database.maxQueryBytes, maxQueryRows: ctx.database.maxQueryRows },
             stats: this.stats
         });
     }
@@ -165,7 +166,7 @@ export class PublicRepository extends Service {
     }
 }
 export default PublicRepository;
-export { publicMigration } from './schema.js';
+export { publicMigration, publicIndexMigration } from './schema.js';
 export * from './canonical.js';
 export { readRows, readFile, readFiles, readNode, readChildren, renderRows } from './store.js';
 export { AudienceResolver } from './audience.js';
