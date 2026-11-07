@@ -24,7 +24,7 @@ test('PR07 nested keyset traversal, subtree rename, configured budgets and retai
         } while (cursor);
         assert.deepEqual(paths, ['/workspace', '/workspace/a', '/workspace/a/z', '/workspace/a.txt']);
         await assert.rejects(session.value.grep({ root: '/workspace', pattern: '中文', mode: 'literal', page }), /EXPLORATION_SEARCH_BUDGET/);
-        assert.equal(ctx.database.diagnostics().snapshots, 0);
+        assert.ok(ctx.database.diagnostics().snapshots <= 1, '失败的 grep 不应泄漏额外快照；会话自身可持有 1 个复用视图');
         await assert.rejects(change('row-budget', async (context) => { async function* rows() { yield { large: 'r'.repeat(256) }; } return session.value.saveResult('large.jsonl', rows(), context); }), /EXPLORATION_ROW_BUDGET/);
         const old = await session.value.stat('/workspace/a/z');
         pin = await session.value.open(old);

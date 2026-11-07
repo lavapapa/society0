@@ -24,6 +24,7 @@ test('B10 快照租约取数据库配置且 shell 超时确定先到', async () 
         let ctx;
         await run.host.ctx.plugin({ inject: ['explorationShell'], apply(c) { ctx = c; } });
         const started = performance.now();
+        await ctx.explorationShell.execute('true', session.value, run.acquisition('a', 'm', 'b10-lease-warm'));
         await assert.rejects(
             () => ctx.explorationShell.execute('sleep 10; true', session.value, run.acquisition('a', 'm', 'b10-lease-shell')),
             error => {
