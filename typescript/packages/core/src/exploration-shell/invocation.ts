@@ -9,7 +9,7 @@ export class ShellInvocation implements ShellInvocationSink {
     private accepting = true;
     private slot?: WorkerSlot;
     private readonly settled = Promise.withResolvers<void>();
-    constructor(private command: string, private files: ExplorationFiles, private config: ShellOptions, private signal: AbortSignal, private pool: ShellPool) { }
+    constructor(private command: string, private files: ExplorationFiles, private config: ShellOptions, private signal: AbortSignal, private pool: ShellPool, slot?: WorkerSlot) { this.slot = slot; }
     private stop(reason: unknown) {
         this.failure ??= reason;
         this.accepting = false;
@@ -63,7 +63,7 @@ export class ShellInvocation implements ShellInvocationSink {
         this.signal.addEventListener('abort', this.abort, { once: true });
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
-            const slot = await this.pool.acquire(this.signal);
+            const slot = this.slot ?? await this.pool.acquire(this.signal);
             this.slot = slot;
             if (!this.accepting || this.failure) {
                 this.pool.release(slot);

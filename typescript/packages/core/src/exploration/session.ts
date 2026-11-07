@@ -74,50 +74,70 @@ export class ExplorationView implements ExplorationSession {
             this.active.delete(work);
         }
     }
-    release() { return this.closed ??= (async () => { this.closing = true; await Promise.allSettled([...this.active]); await this.selected.release(); })(); }
+    release() { return this.closed ??= (async () => { this.closing = true; await Promise.allSettled([...this.active]); await this.releaseView(); await this.selected.release(); })(); }
     private leased?: SqliteSnapshot;
+    private opening?: Promise<SqliteSnapshot>;
+    private scoped = 0;
+    private leaseAge() { return this.ctx.database.maxSnapshotAgeMs; }
+    /** 同一会话在 revision 未变时复用一个视图；写事务提交后由 readRevision 判定失效。 */
+    private ensureView(): Promise<SqliteSnapshot> {
+        this.opening ??= (async () => {
+            const current = this.leased;
+            if (current) {
+                const revision = await this.ctx.database.readRevision();
+                if (String(revision) === String(current.revision))
+                    return current;
+                this.leased = undefined;
+                await current.close().catch(() => {});
+            }
+            const view = await this.ctx.database.snapshot({ maxAgeMs: this.leaseAge() });
+            this.leased = view;
+            return view;
+        })();
+        return this.opening.finally(() => { this.opening = undefined; });
+    }
+    private async releaseView() {
+        const view = this.leased;
+        this.leased = undefined;
+        if (view)
+            await view.close().catch(() => {});
+    }
     private read<T>(body: (view: SqliteReadView) => Promise<T>) {
         return this.track(async () => {
-            const borrowed = this.leased;
-            const view = borrowed ?? await this.ctx.database.snapshot({ maxAgeMs: 30000 });
+            let view = this.scoped > 0 && this.leased ? this.leased : await this.ensureView();
             try {
                 return await body(view);
             }
-            finally {
-                if (!borrowed)
-                    await view.close();
+            catch (error) {
+                if ((error as { code?: string })?.code !== 'SQLITE_SNAPSHOT_EXPIRED')
+                    throw error;
+                if (this.leased === view) {
+                    this.leased = undefined;
+                    await view.close().catch(() => {});
+                }
+                view = await this.ensureView();
+                return body(view);
             }
         });
     }
     withView<T>(body: (session: ExplorationSession) => Promise<T>): Promise<T> {
         return this.track(async () => {
-            if (this.leased)
-                return body(this);
-            const view = await this.ctx.database.snapshot({ maxAgeMs: 30000 });
-            this.leased = view;
+            if (this.scoped === 0)
+                await this.ensureView();
+            this.scoped++;
             try {
                 return await body(this);
             }
             finally {
-                const current = this.leased;
-                this.leased = undefined;
-                if (current && current !== view)
-                    await current.close();
-                await view.close();
+                this.scoped--;
             }
         });
     }
     /** 本会话自己的写提交后换一份快照，保证命令内的 read-your-writes。 */
     private async advanceLease() {
-        const previous = this.leased;
-        if (!previous)
+        if (!this.leased)
             return;
-        try {
-            this.leased = await this.ctx.database.snapshot({ maxAgeMs: 30000 });
-        }
-        finally {
-            await previous.close();
-        }
+        await this.releaseView();
     }
     private mount(path: string): ExplorationMount {
         canonical(path);
