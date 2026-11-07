@@ -1794,6 +1794,14 @@
               "secret": false
             },
             {
+              "name": "maxRetries",
+              "type": "number",
+              "default": 2,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
               "name": "temperature",
               "type": "number",
               "default": null,

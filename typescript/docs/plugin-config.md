@@ -183,6 +183,7 @@
 | ./model-pi | credential | string | null | recreate | true | false |
 | ./model-pi | models | array | [] | recreate | true | false |
 | ./model-pi | maxTokens | number | 256 | recreate | true | false |
+| ./model-pi | maxRetries | number | 2 | recreate | true | false |
 | ./model-pi | temperature | number | null | recreate | true | false |
 | ./model-pi | maxEventBytes | number | 1048576 | recreate | true | false |
 | ./model-pi | maxRawBytes | number | 16777216 | recreate | true | false |

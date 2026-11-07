@@ -69,8 +69,10 @@ test('RV3-04-T01 model physical outcome follows recorded dispatch facts', async 
     server = await withServer(complete(503, '{"error":{"message":"busy"}}'));
     result = await exercise(run, server.port, 'rv304-c');
     await server.close();
-    assert.equal(result.settlements[0]?.status, 'unknown');
-    assert.equal(result.probe.record.status, 'unknown');
+    assert.equal(result.settlements[0]?.status, 'failed');
+    assert.equal(result.probe.record.status, 'settled');
+    assert.equal(result.probe.record.result.status, 'failed');
+    assert.match(String(result.probe.record.result.error), /MODEL_UPSTREAM_ERROR/);
 
     server = await withServer(sse);
     result = await exercise(run, server.port, 'rv304-d');

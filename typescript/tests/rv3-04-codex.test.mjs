@@ -56,8 +56,10 @@ test('RV3-04-T04 codex physical outcome follows recorded dispatch facts',async()
     server=await withServer(complete(429,JSON.stringify({error:{message:'usage limit fixture'}})));
     result=await exercise(run,server.port,'rv304-codex-429');
     await server.close();
-    assert.equal(result.settlements[0]?.status,'unknown');
-    assert.equal(result.probe.record.status,'unknown');
+    assert.equal(result.settlements[0]?.status,'failed');
+    assert.equal(result.probe.record.status,'settled');
+    assert.equal(result.probe.record.result.status,'failed');
+    assert.match(String(result.probe.record.result.error), /MODEL_RATE_LIMITED/);
   } finally {
     await run.close();
   }

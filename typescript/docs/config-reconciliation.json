@@ -408,6 +408,10 @@
       "state": "added",
       "consumer": "typescript/packages/core/src/model-pi/index.ts:18"
     },
+    "@society0/core/model-pi/maxRetries": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/index.ts:18"
+    },
     "@society0/core/model-pi/models": {
       "state": "added",
       "consumer": "typescript/packages/core/src/model-pi/index.ts:14"
