@@ -185,6 +185,14 @@
       "types": "./dist/moment-views/index.d.ts",
       "default": "./dist/moment-views/index.js"
     },
+    "./public-self": {
+      "types": "./dist/public-self/index.d.ts",
+      "default": "./dist/public-self/index.js"
+    },
+    "./contracts/public-self": {
+      "types": "./dist/contracts/public-self.d.ts",
+      "default": "./dist/contracts/public-self.js"
+    },
     "./contracts/moment-views": {
       "types": "./dist/contracts/moment-views.d.ts",
       "default": "./dist/contracts/moment-views.js"

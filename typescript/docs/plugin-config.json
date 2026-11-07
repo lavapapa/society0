@@ -1095,6 +1095,20 @@
           ]
         },
         {
+          "exportPath": "./public-self",
+          "title": "public-self",
+          "fields": [
+            {
+              "name": "mount",
+              "type": "string",
+              "default": "/self",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
           "exportPath": "./exploration",
           "title": "exploration",
           "fields": [
