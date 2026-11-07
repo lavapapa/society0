@@ -78,6 +78,7 @@ test('C8 resume: job 未完成时 kill，恢复后只完成一次', async () => 
     migrations: [outputMigration]
   });
   try {
+    await second.ctx.history.activate();
     second.ctx.deferredWork.register('resume-extract', handler(marks));
     await second.deferred.await(NAMESPACE, '2');
     const view = await second.ctx.database.snapshot({ maxAgeMs: 30000 });

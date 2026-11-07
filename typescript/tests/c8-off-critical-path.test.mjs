@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { fixture } from './metrics-support.mjs';
 
 // C8：deferred work 不在 tick 关键路径上（DESIGN §5.2）。
@@ -70,5 +72,9 @@ test('C8 defer: 5s 抽取不进入 tick 墙钟，await 在 lag 内不阻塞、�
       assert.equal(rows.length, 1);
       assert.ok(String(rows[0].produced_at).length > 0);
     } finally { await view.close(); }
+
+    const metrics = (await readFile(join(f.directory, 'metrics.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+    assert.ok(metrics.some(line => Number(line.deferred?.queued) >= 1), 'metrics.jsonl 的 deferred.queued 应来自真实队列');
+    assert.ok(metrics.some(line => Number(line.deferred?.lagTicks) >= 0));
   } finally { await f.host.close(); }
 });

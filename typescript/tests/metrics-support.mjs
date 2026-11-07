@@ -85,7 +85,7 @@ export async function fixture(options = {}) {
     } });
     const root = await ctx.sqliteBootstrap.create({
       operationId: 'create', runId, directory, input: {},
-      migrations: [artifactsMigration, actorsMigration, ...(options.deferred ? [deferredWorkMigration] : []), ...(options.migrations ?? [])],
+      migrations: [artifactsMigration, actorsMigration, ...(options.deferred ? [deferredWorkMigration({ consumer: 'metrics-test' })] : []), ...(options.migrations ?? [])],
       initialFrontier: { codec: 'staged/1', value: '0', logicalTime: '0', completedCount: '0', pendingAcknowledgements: [] },
       initialControl: { generation: 'g', controlSequence: '0', planId: 'metrics-plan' },
       requiredInitializerIds: ['seed']
