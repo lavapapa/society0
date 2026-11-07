@@ -47,7 +47,7 @@ async function boot(task) {
     await c.plugin(Random, { seed: 'redirect-social-live' });
     await runtime(f, { event: true, sourceConfig: { source: 'llm-events' } });
     await c.plugin(Workspace);
-    for (const name of ['perception', 'exploration', 'mount-workspace', 'mount-results', 'mount-world', 'plain', 'prompts', 'mount-context', 'exploration-shell', 'actor-tools', 'model-providers', 'model-credentials', 'model-pi', 'agent-runtimes', 'agent-runtime-pi', 'inference-defaults'])
+    for (const name of ['perception', 'exploration', 'mount-workspace', 'mount-results', 'plain', 'prompts', 'mount-context', 'exploration-shell', 'actor-tools', 'model-providers', 'model-credentials', 'model-pi', 'agent-runtimes', 'agent-runtime-pi', 'inference-defaults'])
         await c.plugin(await core(name), name === 'prompts' ? {
             sections: [{ id: 'social-live', text: 'You are a social actor. You must invoke the act tool with an action name and a JSON object input. Never satisfy the instruction by printing JSON text.' }]
         } : name === 'model-credentials' ? {

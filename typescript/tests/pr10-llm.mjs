@@ -45,7 +45,7 @@ test('PR10-T20 actual event and DriverLLM consume Social percepts and commit nat
             }
         });
         await c.plugin(Workspace);
-        for (const name of ['perception', 'exploration', 'mount-workspace', 'mount-results', 'mount-world', 'plain', 'prompts', 'mount-context', 'exploration-shell', 'actor-tools', 'model-providers', 'agent-runtimes', 'agent-runtime-pi', 'inference-defaults'])
+        for (const name of ['perception', 'exploration', 'mount-workspace', 'mount-results', 'plain', 'prompts', 'mount-context', 'exploration-shell', 'actor-tools', 'model-providers', 'agent-runtimes', 'agent-runtime-pi', 'inference-defaults'])
             await c.plugin(await core(name), name === 'prompts' ? {
                 sections: [{
                         id: 'social', text: 'Read the original social material and execute the requested social action.'
