@@ -24,6 +24,7 @@ export interface PublicMountHost {
     readonly tables: ReadonlyMap<string, PublicTableDecl>;
     readonly docs: ReadonlyMap<string, PublicDocDecl>;
     readonly momentViews?: () => MomentRevisionReader | undefined;
+    readonly stats: { searchStale: number; fallbackScans: number };
 }
 interface Virtual { readonly kind: 'readme' | 'schema'; readonly dir: string }
 
@@ -395,7 +396,12 @@ export class PublicMount implements ExplorationMount {
         const literal = this.literalOf(pattern, request.mode);
         const [state] = await view.query({ sql: 'SELECT max(rowid) AS revision FROM public_search_state' }, { maxRows: 1, maxBytes: 1024 });
         const indexed = state?.revision === null || state?.revision === undefined ? null : BigInt(state.revision as bigint | number | string);
-        if (literal && literal.length >= 3 && indexed !== null && indexed >= at) {
+        const stale = indexed === null || indexed < at;
+        if (stale) {
+            this.host.stats.searchStale++;
+            this.host.stats.fallbackScans++;
+        }
+        if (literal && literal.length >= 3 && !stale) {
             try {
                 const rows = await view.query({
                     sql: `SELECT DISTINCT pr.file AS file FROM public_fts f JOIN public_rows pr ON pr.rowid=f.rowid WHERE public_fts MATCH ? AND pr.file>=? AND pr.file<? AND pr.rev_from<=? AND (pr.rev_to IS NULL OR pr.rev_to>?) AND (pr.audience='all' OR pr.audience IN (${agent.map(() => '?').join(',')})) ORDER BY pr.file LIMIT ?`,

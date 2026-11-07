@@ -96,6 +96,8 @@ export interface PublicCacheDiagnostics {
 export interface PublicDiagnostics {
     readonly cache: PublicCacheDiagnostics;
     readonly audiences: number;
+    readonly searchStale: number;
+    readonly fallbackScans: number;
 }
 export interface Public {
     readonly registry: PublicRegistry;

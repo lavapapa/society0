@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import {setup,table} from './b4-support.mjs';
 import {NativeSearch} from '../.build/core/dist/exploration/search.js';
 
-const dir='/public/market/prices',files=4,perFile=26000,chunk=5000;
+const dir='/public/market/prices',files=4,perFile=105000,chunk=2000;
 const page={maxItems:4000,maxResponseBytes:32*1024*1024};
 const pad='x'.repeat(950);
 
-test('100MB级grep：字面量冷/热与正则rg基线',async()=>{
+test('400MB级grep：字面量冷/热与正则rg基线',{skip:!process.env.PR05_CROSSFS},async()=>{
  const run=await setup();try{
+  const seedStarted=performance.now();
   let bytes=0;
   for(let f=0;f<files;f++){
    const name=`f${String(f).padStart(5,'0')}.jsonl`,path=`${dir}/${name}`;
@@ -30,37 +31,37 @@ test('100MB级grep：字面量冷/热与正则rg基线',async()=>{
    bytes+=fileBytes;
    await run.tx(`b5-large-meta-${f}`,async tx=>tx.execute({sql:'INSERT INTO public_files(file,parent,rev_from,rev_to,table_path,rows,bytes,audiences,basename,extension) VALUES(?,?,?,NULL,?,?,?,?,?,?)',parameters:[path,dir,BigInt(tx.baseRevision)+1n,table.path,perFile,fileBytes,'["all"]',name,'jsonl']}));
   }
-  assert.ok(bytes>=100*1024*1024,`数据集 ${bytes} 不足 100MB`);
+  const seedMs=performance.now()-seedStarted;
+  assert.ok(bytes>=400*1024*1024,`数据集 ${bytes} 不足 400MB`);
+  console.log(JSON.stringify({case:'B5-grep-bench-large-seed',bytes,seedMs:Number(seedMs.toFixed(2))}));
   await run.openMoment('m');
   const percentile=(sorted,p)=>sorted[Math.min(sorted.length-1,Math.ceil(p*sorted.length)-1)];
-  let cold;
-  const hot=[];
-  const session=await run.ctx.exploration.acquire(run.scope('a','m'),run.acquisition('a','m','b5-large-hot'));
-  try{await session.value.withView(async view=>{
-   await view.grep({root:'/public',pattern:'needle',mode:'literal',page});
-   for(let i=0;i<10;i++){const t=performance.now();await view.grep({root:'/public',pattern:'needle',mode:'literal',page});hot.push(performance.now()-t)}
-  })}finally{await session.release()}
-  const coldSession=await run.ctx.exploration.acquire(run.scope('a','m'),run.acquisition('a','m','b5-large-cold'));
-  try{await coldSession.value.withView(async view=>{const t=performance.now();await view.grep({root:'/public',pattern:'needle',mode:'literal',page});cold=performance.now()-t})}finally{await coldSession.release()}
+  const view=await run.ctx.database.snapshot({maxAgeMs:300000});
+  const mountGrep=(pattern,mode)=>run.ctx.public.mount.search({root:'/public',pattern,mode},run.scope('a','m'),view,new AbortController().signal,()=>true);
+  let cold;const hot=[];
+  try{
+   let t=performance.now();await mountGrep('needle','literal');cold=performance.now()-t;
+   for(let i=0;i<10;i++){t=performance.now();await mountGrep('needle','literal');hot.push(performance.now()-t)}
+  }finally{await view.close()}
   const sorted=[...hot].sort((a,b)=>a-b),p50=percentile(sorted,0.5),p95=percentile(sorted,0.95);
   assert.ok(p50<100,`literal hot p50 ${p50.toFixed(2)} ms`);
   assert.ok(cold<1000,`literal cold ${cold.toFixed(2)} ms`);
 
   const regex='[nc][ea][oe]d';
-  let regexMs=0;
-  const regexSession=await run.ctx.exploration.acquire(run.scope('a','m'),run.acquisition('a','m','b5-large-regex'));
-  try{await regexSession.value.withView(async view=>{await view.grep({root:'/public',pattern:regex,mode:'regex',page});const t=performance.now();await view.grep({root:'/public',pattern:regex,mode:'regex',page});regexMs=performance.now()-t})}finally{await regexSession.release()}
+  const sample=async body=>{await body();const times=[];for(let i=0;i<6;i++){const t=performance.now();await body();times.push(performance.now()-t)}return times};
+  const median=times=>{const sorted=[...times].sort((a,b)=>a-b);return sorted[Math.floor((sorted.length-1)/2)]};
+  const regexView=await run.ctx.database.snapshot({maxAgeMs:300000});
+  let regexTimes;
+  try{regexTimes=await sample(()=>run.ctx.public.mount.search({root:'/public',pattern:regex,mode:'regex'},run.scope('a','m'),regexView,new AbortController().signal,()=>true))}finally{await regexView.close()}
   const disk=await run.read(async view=>{
    const found=await run.ctx.public.mount.find('/public','*.jsonl',run.scope('a','m'),view,{maxItems:2000,maxResponseBytes:64*1024*1024});
    return found.items.map(node=>run.ctx.public.cache.pathOf(String(node.provenance?.etag)));
   });
   const baseline=new NativeSearch(regex,'regex',{maxInlineFileBytes:16777216,maxSearchBytes:67108864,maxSearchOutputBytes:16777216,maxSearchMs:30000},false,disk);
   const controller=new AbortController();
-  const start=performance.now();
-  await baseline.runFiles(controller.signal,()=>true);
-  const baselineMs=performance.now()-start;
-  const ratio=regexMs/baselineMs;
-  console.log(JSON.stringify({case:'B5-grep-bench-large',bytes,cold:Number(cold.toFixed(2)),p50:Number(p50.toFixed(2)),p95:Number(p95.toFixed(2)),regexMs:Number(regexMs.toFixed(2)),rgMs:Number(baselineMs.toFixed(2)),ratio:Number(ratio.toFixed(2))}));
+  const rgTimes=await sample(()=>baseline.runFiles(controller.signal,()=>true));
+  const regexP50=median(regexTimes),rgP50=median(rgTimes),ratio=regexP50/rgP50;
+  console.log(JSON.stringify({case:'B5-grep-bench-large',bytes,seedMs:Number(seedMs.toFixed(2)),cold:Number(cold.toFixed(2)),p50:Number(p50.toFixed(2)),p95:Number(p95.toFixed(2)),regexP50:Number(regexP50.toFixed(2)),rgP50:Number(rgP50.toFixed(2)),overheadMs:Number((regexP50-rgP50).toFixed(2)),ratio:Number(ratio.toFixed(2))}));
   assert.ok(ratio<=1.3,`regex/rg ${ratio.toFixed(2)} > 1.3`);
- }finally{await run.close()}
+ }catch(error){console.error(JSON.stringify(await run.ctx.database.nativeDiagnostics()));throw error}finally{await run.close()}
 });

@@ -14,8 +14,12 @@ test('索引落后/为空时退化为全量受众过滤rg，结果与索引就�
   };
   const fresh=await search();
   assert.equal(fresh.length,1);
+  const before=run.ctx.public.diagnostics();
   await run.tx('b5-stale-state',tx=>tx.execute({sql:"INSERT INTO public_search_state(public_search_state) VALUES('delete-all')"}));
   assert.deepEqual(await search(),fresh,'索引版本落后时结果必须一致');
+  const stale=run.ctx.public.diagnostics();
+  assert.ok(stale.searchStale>before.searchStale);
+  assert.ok(stale.fallbackScans>before.fallbackScans);
   await run.tx('b5-stale-fts',tx=>tx.execute({sql:"INSERT INTO public_fts(public_fts) VALUES('delete-all')"}));
   assert.deepEqual(await search(),fresh,'索引为空时结果必须一致');
   await run.tx('b5-stale-rebuild',tx=>run.ctx.public.rebuildSearch(tx));
