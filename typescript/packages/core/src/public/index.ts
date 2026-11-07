@@ -166,7 +166,7 @@ export class PublicRepository extends Service {
     }
 }
 export default PublicRepository;
-export { publicMigration } from './schema.js';
+export { publicMigration, publicIndexMigration } from './schema.js';
 export * from './canonical.js';
 export { readRows, readFile, readFiles, readNode, readChildren, renderRows } from './store.js';
 export { AudienceResolver } from './audience.js';

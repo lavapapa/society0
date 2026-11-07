@@ -42,3 +42,16 @@ CREATE VIRTUAL TABLE public_search_state USING fts5(state,content='');`
         }]
     };
 }
+
+/** v2：为旧 run 补 r1 的 as-of 查询索引；已存在的索引不重建。 */
+export function publicIndexMigration(source: Readonly<Record<string, unknown>>): SqliteMigration {
+    return {
+        owner: 'public', from: 1, to: 2, after: [], source,
+        statements: [{
+            sql: `CREATE INDEX IF NOT EXISTS public_files_parent ON public_files(parent,file,rev_from,rev_to);
+CREATE INDEX IF NOT EXISTS public_files_live_name ON public_files(extension,file,rev_from,audiences) WHERE rev_to IS NULL;
+CREATE INDEX IF NOT EXISTS public_files_history_name ON public_files(extension,file,rev_to,rev_from,audiences) WHERE rev_to IS NOT NULL;
+CREATE INDEX IF NOT EXISTS public_nodes_kind ON public_nodes(kind,path,rev_from);`
+        }]
+    };
+}
