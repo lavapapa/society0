@@ -56,12 +56,23 @@ async function bindingFor(ctx: Context, entry: PluginEntry, lock: ModuleLock, se
     const module = await ctx.moduleResolver.importVerified(identity);
     return { plugin: module.plugin, metadata: meta.metadata, api, identity };
 }
-export async function loadBindings(ctx: Context, tree: readonly PluginEntry[], lock: ModuleLock, session: PreflightSession): Promise<Record<string, ModuleBinding>> {
+export async function loadBindings(ctx: Context, tree: readonly PluginEntry[], lock: ModuleLock, session: PreflightSession, problems?: import('./types.js').ProfileProblem[]): Promise<Record<string, ModuleBinding>> {
     const bindings: Record<string, ModuleBinding> = {};
     for (const entry of allEntries(tree)) {
         if (entry.group || bindings[entry.name])
             continue;
-        bindings[entry.name] = await bindingFor(ctx, entry, lock, session);
+        try {
+            bindings[entry.name] = await bindingFor(ctx, entry, lock, session);
+        }
+        catch (error) {
+            if (!problems)
+                throw error;
+            problems.push({
+                kind: 'plugin', id: entry.name, requiredBy: entry.id,
+                hint: `无法加载插件 ${entry.name}（${entry.id}）：${error instanceof Error ? error.message : String(error)}；检查 lockfile、安装目录与宿主 ABI`,
+                detail: error instanceof Error ? error.message : String(error)
+            });
+        }
     }
     return bindings;
 }

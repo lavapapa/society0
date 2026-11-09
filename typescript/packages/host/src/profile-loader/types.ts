@@ -62,3 +62,16 @@ export interface CompositionPlan {
     readonly flat: readonly PlannedEntry[];
     readonly layers: readonly ConfigLayer[];
 }
+/** Stable platform-facing diagnostic item produced by ProfileLoader.analyze. */
+export interface ProfileProblem {
+    readonly kind: 'slot' | 'service' | 'migration' | 'plugin' | 'config' | 'credential';
+    readonly id: string;
+    readonly requiredBy?: string;
+    readonly hint: string;
+    readonly detail?: string;
+}
+export interface ProfileAnalysis {
+    readonly plan: CompositionPlan;
+    readonly missing: readonly ProfileProblem[];
+    readonly warnings: readonly string[];
+}

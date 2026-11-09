@@ -1,0 +1,54 @@
+{
+  "schema": "society0.check/1",
+  "ok": true,
+  "missing": [],
+  "warnings": [],
+  "resolved": {
+    "plugins": [
+      "@society0/core/actions",
+      "@society0/core/activation",
+      "@society0/core/activation-mailbox",
+      "@society0/core/actor-eligibility",
+      "@society0/core/actors",
+      "@society0/core/artifacts-local",
+      "@society0/core/attempts",
+      "@society0/core/checkpoint-policy",
+      "@society0/core/clock-ticks",
+      "@society0/core/completion-strict",
+      "@society0/core/driver-rule",
+      "@society0/core/drivers",
+      "@society0/core/execution-fence",
+      "@society0/core/exploration",
+      "@society0/core/generation-binding",
+      "@society0/core/generation-views",
+      "@society0/core/information",
+      "@society0/core/initializers",
+      "@society0/core/metrics",
+      "@society0/core/moment-views",
+      "@society0/core/observation",
+      "@society0/core/perception",
+      "@society0/core/perception-actor",
+      "@society0/core/plain",
+      "@society0/core/plain-init",
+      "@society0/core/proposal-sequence",
+      "@society0/core/public",
+      "@society0/core/public-self",
+      "@society0/core/random",
+      "@society0/core/results",
+      "@society0/core/rule-passive",
+      "@society0/core/run-controller",
+      "@society0/core/runtime-staged",
+      "@society0/core/sqlite",
+      "@society0/core/sqlite-bootstrap",
+      "@society0/core/sqlite-history",
+      "@society0/core/termination",
+      "@society0/core/thread",
+      "@society0/host/slots"
+    ],
+    "slots": {
+      "core/drivers/rule": [
+        "driver-rule"
+      ]
+    }
+  }
+}
