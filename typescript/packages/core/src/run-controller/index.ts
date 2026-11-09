@@ -38,7 +38,7 @@ export const api: ApiEntry = {
         }, optional: false, phase: 'module'
     }))
 };
-import type { RunResult, ProposalResult } from '../contracts/runtime.js';
+import type { RunResult, ProposalResult, RunActivationSummary, RunActivationSummaries } from '../contracts/runtime.js';
 export type { RunResult } from '../contracts/runtime.js';
 type ViewLease = Awaited<ReturnType<Context['generationViews']['acquire']>>;
 type ExecutionReservation = Awaited<ReturnType<Context['executionFence']['reserve']>>;
@@ -70,6 +70,9 @@ export class RunController extends Service {
     private latestCut?: CompletePoint;
     private complete = true;
     private pending: Proposal[] = [];
+    private activationEntries: RunActivationSummary[] = [];
+    private activationIndex = new Map<string, number>();
+    private activationTruncated = false;
     private recovery?: { proposalId: string; attempts: number; completed: Set<string>; operations: Set<string> };
     constructor(ctx: Context, input = {}) {
         super(ctx, 'runs');
@@ -87,13 +90,64 @@ export class RunController extends Service {
         if (this.lastFailure)
             throw Error('RUN_FAILED ' + this.lastFailure);
         this.stop = false;
-        const task = this.loop(signal);
+        const task = this.loop(signal).then(result => this.withActivations(result));
         this.running = task;
         void task.finally(() => {
             this.running = undefined;
         }).catch(() => {
         });
         return task;
+    }
+    private tickText(value: Json) {
+        return typeof value === 'string' ? value : JSON.stringify(value);
+    }
+    private withActivations(result: RunResult): RunResult {
+        return { ...result, activations: this.activationSummaries() };
+    }
+    private activationSummaries(): RunActivationSummaries {
+        return { entries: [...this.activationEntries], truncated: this.activationTruncated };
+    }
+    /** 从 runtime 的激活证据提取摘要；同一 activationId 保留最后一次结果，超过 run 级上限就截断。 */
+    private recordActivations(result: AdvanceResult, logicalTime: Json) {
+        const evidence = result.evidence as { activations?: unknown } | undefined;
+        const list = evidence?.activations;
+        if (!Array.isArray(list))
+            return;
+        for (const raw of list) {
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+                continue;
+            const entry = raw as { activationId?: unknown; actorId?: unknown; status?: unknown; value?: unknown; evidence?: unknown };
+            const key = typeof entry.activationId === 'string' ? entry.activationId : undefined;
+            const index = key ? this.activationIndex.get(key) : undefined;
+            if (index !== undefined) {
+                this.activationEntries[index] = this.activationSummary(entry, logicalTime);
+                continue;
+            }
+            if (this.activationEntries.length >= this.config.maxPendingAcknowledgements) {
+                this.activationTruncated = true;
+                continue;
+            }
+            this.activationEntries.push(this.activationSummary(entry, logicalTime));
+            if (key !== undefined)
+                this.activationIndex.set(key, this.activationEntries.length - 1);
+        }
+    }
+    private activationSummary(entry: { activationId?: unknown; actorId?: unknown; status?: unknown; value?: unknown; evidence?: unknown }, logicalTime: Json) {
+        const value = entry.value && typeof entry.value === 'object' && !Array.isArray(entry.value) ? entry.value as Record<string, unknown> : {};
+        const activationEvidence = entry.evidence && typeof entry.evidence === 'object' && !Array.isArray(entry.evidence) ? entry.evidence as Record<string, unknown> : {};
+        const reason = typeof value.reason === 'string' ? value.reason : typeof activationEvidence.reason === 'string' ? activationEvidence.reason : String(entry.status ?? 'incomplete');
+        const count = (name: string) => typeof value[name] === 'number' ? value[name] as number : typeof activationEvidence[name] === 'number' ? activationEvidence[name] as number : 0;
+        return {
+            actorId: typeof entry.actorId === 'string' ? entry.actorId : '',
+            tick: this.tickText(logicalTime),
+            reason,
+            requests: count('requests'),
+            toolCalls: count('toolCalls'),
+            explorationErrors: count('explorationErrors'),
+            actRecoverable: count('actRecoverable'),
+            actFailed: count('actFailed'),
+            requiredSatisfied: typeof value.requiredSatisfied === 'boolean' ? value.requiredSatisfied : entry.status === 'completed'
+        };
     }
     private async frontier() {
         const snapshot = await this.ctx.database.snapshot({
@@ -350,6 +404,7 @@ export class RunController extends Service {
             for (const operation of completed) this.recovery!.operations.add(operation);
             const merged = this.recovery?.proposalId === filtered.id && this.recovery.operations.size ? { ...raw, requiredOperations: [...new Set([...raw.requiredOperations, ...this.recovery.operations])] } : raw;
             const result = merged;
+            this.recordActivations(result, logicalTime);
             const completion = view.completion.evaluate(result);
             if (result.status !== 'settled' || !completion.complete) {
                 const effective = result.status === 'incomplete' || !completion.complete ? { ...result, status: 'incomplete' as const } : result;

@@ -98,6 +98,16 @@ export interface InferenceOutcome {
   readonly attemptIds: readonly string[];
   /** 与selection登记一致；unknown表示物理请求已有未知外部后果。 */
   readonly modelAttempts: readonly ModelAttemptSettlement[];
+  /** 本激活实际发起的工具调用数；摘要用。 */
+  readonly toolCalls?: number;
+  /** 查资料工具错误数；不直接判定激活失败。 */
+  readonly explorationErrors?: number;
+  /** 可恢复的 act 错误数（拒绝、参数校验、行动名不存在）。 */
+  readonly actRecoverable?: number;
+  /** 不可恢复的 act 失败数。 */
+  readonly actFailed?: number;
+  /** requiredActions 是否满足。 */
+  readonly requiredSatisfied?: boolean;
   /** 输出预算本地拒绝的诊断；仅在本地拒绝时出现。 */
   readonly outputBudget?: OutputBudgetDiagnostics;
 }
@@ -133,6 +143,8 @@ export interface InferenceRequest {
   readonly toolChoice?: 'auto' | 'required-first';
   /** 正文工具调用纠正重试次数；默认 1。 */
   readonly textualToolCallRetries?: number;
+  /** 工具错误的失败语义；actions 只按 act 判失败，all 恢复任何工具错误都失败。 */
+  readonly failOnToolError?: 'actions' | 'all';
 }
 /** 每次activation创建独立AgentContext；selection/extensions的lease由调用者持有至run结算。 */
 export interface AgentRuntime {

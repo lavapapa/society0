@@ -160,6 +160,11 @@
       "state": "added",
       "consumer": "typescript/packages/core/src/driver-llm/activation.ts:242"
     },
+    "@society0/core/driver-llm/failOnToolError": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/agent-runtime-pi/activation.ts",
+      "reason": "默认 actions 只按 act 判失败；all 恢复任何工具错误都失败的旧语义。"
+    },
     "@society0/core/driver-llm/threadLifetime": {
       "state": "added",
       "consumer": "typescript/packages/core/src/driver-llm/activation.ts:176"

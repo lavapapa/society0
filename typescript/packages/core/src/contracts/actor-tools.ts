@@ -4,6 +4,9 @@ import type { Lease } from './common.js';
 import type { ActivationContext } from './runtime.js';
 import type { ActionReceiptReader } from './inference.js';
 import type { OfferFoldState, OfferLimits } from './affordance.js';
+/** 工具对激活完成判定的类别；未声明按 action 保守处理。 */
+export type ActorToolKind = 'exploration' | 'action';
+export type ActorAgentTool = AgentTool & { readonly kind: ActorToolKind };
 export interface ActorToolBinding {
   readonly tools: readonly AgentTool[];
   /**

@@ -16,6 +16,7 @@ import InferenceDefaults from '../.build/core/dist/inference-defaults/index.js';
 import {DriverRegistry} from '../.build/core/dist/drivers/index.js';
 import {DriverLlm} from '../.build/core/dist/driver-llm/index.js';
 import {PiModelProvider} from '../.build/core/dist/model-pi/provider.js';
+import {INFERENCE_REQUEST} from '../.build/core/dist/contracts/inference.js';
 
 // 核对值见 docs/model-context.md：2026-11-09 读取 本地 LiteLLM 网关 的 /v1/models 与 /model/info。
 export const VERIFIED_CONTEXT_WINDOW=262144;
@@ -23,17 +24,17 @@ const OUTPUT_SLOT=512;
 // 14500 个 ASCII 字符约 4100-4300 token；加上 header 规则与输入，估算约 4.2k。
 const PROMPT_CHARS=14500;
 
-function sse(request,response){
+function sse(request,response,text='ok'){
   request.resume();
   response.writeHead(200,{'content-type':'text/event-stream'});
-  response.write('data: '+JSON.stringify({id:'d2',object:'chat.completion.chunk',created:0,model:'budget',choices:[{index:0,delta:{role:'assistant',content:'ok'},finish_reason:'stop'}],usage:{prompt_tokens:10,completion_tokens:1,total_tokens:11}})+'\n\n');
+  response.write('data: '+JSON.stringify({id:'d2',object:'chat.completion.chunk',created:0,model:'budget',choices:[{index:0,delta:{role:'assistant',content:text},finish_reason:'stop'}],usage:{prompt_tokens:10,completion_tokens:1,total_tokens:11}})+'\n\n');
   response.end('data: [DONE]\n\n');
 }
 
-async function fixture({contextWindow}){
+async function fixture({contextWindow,reply='ok',maxRequests=2,requiredActions=[],middleware}){
   const run=await setup({migrations:[actorToolsMigration({test:'d2-budget'})]});
   const bodies=[];
-  const server=createServer(async(request,response)=>{let text='';for await(const chunk of request)text+=chunk;bodies.push(JSON.parse(text));sse(request,response)});
+  const server=createServer(async(request,response)=>{let text='';for await(const chunk of request)text+=chunk;bodies.push(JSON.parse(text));sse(request,response,reply)});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   let ctx,provider;
   try{
@@ -44,8 +45,8 @@ async function fixture({contextWindow}){
     const models=createModels({credentials,authContext:{env:async()=>undefined,fileExists:async()=>false}});
     models.setProvider(createProvider({id:'budget',models:[model],auth:{apiKey:envApiKeyAuth('explicit',[])},api:completions}));
     provider=new PiModelProvider(models,run.ctx.attempts,{runId:'pr07',providerId:'budget',maxEventBytes:1048576,maxRawBytes:2097152,maxRequestBytes:1048576,maxPendingEvents:32,maxPendingBytes:1048576,options:{maxTokens:2048,maxRetries:0,transport:'sse'},timeoutMs:30000});
-    await run.host.ctx.plugin({inject:['modelProviders','drivers','actorTools','threads','contextMount','prompts','database','perceptions','artifacts','attempts','agentRuntimes','slots','actions'],apply(c){ctx=c;c.modelProviders.register('http/v1',provider)}});
-    await run.host.ctx.plugin(DriverLlm,{name:'llm/v1',provider:'http/v1',model:'budget',perceptions:[],requiredActions:[],maxRequests:2,maxToolCalls:1,budget:{output:OUTPUT_SLOT}});
+    await run.host.ctx.plugin({inject:['modelProviders','drivers','actorTools','threads','contextMount','prompts','database','perceptions','artifacts','attempts','agentRuntimes','slots','actions'],apply(c){ctx=c;c.modelProviders.register('http/v1',provider);if(middleware)c.slots.contribute(INFERENCE_REQUEST,{id:'d1b-middleware',value:{prepare:async(input,next)=>{middleware.calls++;const context={...input.context,messages:[...input.context.messages,{role:'user',content:'d1b-middleware-marker',timestamp:0}]};return next({...input,context})}}})}});
+    await run.host.ctx.plugin(DriverLlm,{name:'llm/v1',provider:'http/v1',model:'budget',perceptions:[],requiredActions,maxRequests,maxToolCalls:1,budget:{output:OUTPUT_SLOT}});
     const base=run.directory;
     return {run,bodies,activate:async operationId=>{
       const context=run.context(operationId);
@@ -85,6 +86,24 @@ test('D2 verified context window lets the same prompt request max_tokens at or a
     const maxTokens=env.bodies[0].max_tokens??env.bodies[0].max_completion_tokens;
     assert.ok(maxTokens>=OUTPUT_SLOT,`max_tokens=${maxTokens}`);
     console.log(JSON.stringify({case:'D2-verified-window',status:result.status,reason:result.value.reason,maxTokens,contextWindow:VERIFIED_CONTEXT_WINDOW}));
+  }finally{await env.close()}
+});
+
+test('D1b request middleware runs before the maxRequests check without persisting its transform',{timeout:900000},async()=>{
+  const middleware={calls:0};
+  const env=await fixture({contextWindow:VERIFIED_CONTEXT_WINDOW,reply:'{"action":"record_sum"}',maxRequests:1,requiredActions:[{name:'record_sum',minimumCompleted:1}],middleware});
+  try{
+    const result=await env.activate('d1b/order');
+    assert.equal(middleware.calls,2,JSON.stringify({reason:result.value.reason,calls:middleware.calls}));
+    assert.equal(env.bodies.length,1,JSON.stringify(env.bodies.length));
+    assert.equal(result.status,'incomplete',JSON.stringify(result));
+    assert.equal(result.value.reason,'budget_exhausted',JSON.stringify(result.value));
+    assert.equal(result.value.requests,1,JSON.stringify(result.value));
+    const view=await env.run.ctx.database.snapshot({maxAgeMs:30000});
+    let rows;
+    try{rows=await view.query({sql:"SELECT thread_id,seq,role,payload FROM thread_messages WHERE payload LIKE '%d1b-middleware-marker%'"},{maxRows:10,maxBytes:65536})}finally{await view.close()}
+    assert.equal(rows.length,0,JSON.stringify(rows));
+    console.log(JSON.stringify({case:'D1b-order',middlewareCalls:middleware.calls,requestBodies:env.bodies.length,reason:result.value.reason}));
   }finally{await env.close()}
 });
 

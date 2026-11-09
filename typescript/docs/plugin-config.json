@@ -1595,6 +1595,14 @@
               "secret": false
             },
             {
+              "name": "failOnToolError",
+              "type": "union",
+              "default": "actions",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
               "name": "persistDeltas",
               "type": "union",
               "default": "none",

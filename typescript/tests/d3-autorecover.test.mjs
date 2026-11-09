@@ -111,6 +111,21 @@ test('D3-P3B autoRecover resumes the tick without duplicating completed writes',
   } finally { await f.host.close(); }
 });
 
+test('D1b recovered tick reports each activation once with its final reason', async () => {
+  const {f, result} = await scenario({enabled: true, fail: true});
+  try {
+    assert.equal(result.status, 'completed', JSON.stringify(result));
+    assert.ok(result.activations, JSON.stringify(result));
+    const entries = result.activations.entries;
+    assert.equal(entries.length, 2, JSON.stringify(entries));
+    for (const entry of entries) {
+      assert.equal(entry.reason, 'success', JSON.stringify(entry));
+      assert.equal(entry.tick, '1', JSON.stringify(entry));
+    }
+    assert.deepEqual(entries.map(entry => entry.actorId), ['a', 'b'], JSON.stringify(entries));
+  } finally { await f.host.close(); }
+});
+
 test('D3-P3B recovered world equals a clean run table for table', async () => {
   const recovered = await scenario({enabled: true, fail: true});
   const clean = await scenario({enabled: true, fail: false});
