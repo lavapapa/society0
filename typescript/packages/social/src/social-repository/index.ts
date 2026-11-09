@@ -187,7 +187,8 @@ export class SocialRepository extends Service {
         id: string;
         attributes: Json;
     }) {
-        await this.ctx.actors.create(tx, actor);
+        if (!await this.ctx.actors.get(actor.id, tx))
+            throw Error('ACTOR_MISSING ' + actor.id);
         await tx.execute({
             sql: "INSERT INTO social_members SELECT ?,coalesce(max(ordinal),0)+1,'{}' FROM social_members", parameters: [actor.id]
         });

@@ -85,7 +85,9 @@
             {
               "id": "actors",
               "name": "@society0/core/actors",
-              "config": {}
+              "config": {
+                "seed": true
+              }
             },
             {
               "id": "results",

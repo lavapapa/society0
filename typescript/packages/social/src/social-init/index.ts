@@ -74,6 +74,7 @@ async function seedEdges(ctx: Context, context: BootstrapContext, graph: Graph, 
     }
     return operations;
 }
+export const initializerAfter = ['actors.seed'] as const;
 async function initialize(ctx: Context, config: ReturnType<typeof Config>, context: BootstrapContext) {
     const selection = await ctx.slots.acquire(topologySlot, {
         generation: context.generation
@@ -114,7 +115,7 @@ export default {
             }
         });
         ctx.initializers.register({
-            id: 'social.seed', after: [], initialize: context => initialize(ctx, config, context)
+            id: 'social.seed', after: [...initializerAfter], initialize: context => initialize(ctx, config, context)
         });
     }
 };

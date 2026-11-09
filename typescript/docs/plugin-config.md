@@ -64,6 +64,7 @@
 | ./sqlite-history | mirrorPolicy | union | "every-point" | new-run | true | null |
 | ./sqlite-history | mirrorIntervalMs | number | 60000 | new-run | true | null |
 | ./sqlite-history | mirrorMaxLagPoints | number | 3 | new-run | true | null |
+| ./actors | seed | boolean | false | new-run | true | null |
 | ./deferred-work | concurrency | number | 2 | new-run | true | null |
 | ./deferred-work | maxAttempts | number | 3 | new-run | true | null |
 | ./deferred-work | maxTransactionMs | number | 30000 | new-run | true | null |
@@ -88,6 +89,7 @@
 | ./run-controller | maxTransactionMs | number | 15000 | new-run | false | null |
 | ./run-controller | maxPendingAcknowledgements | number | 1024 | new-run | true | null |
 | ./run-controller | pauseTimeoutMs | number | 30000 | boundary | false | null |
+| ./run-controller | maxTicks | number | null | new-run | true | null |
 | ./run-controller | autoRecover | object | {} | boundary | true | null |
 | ./random | algorithm | const | "philox4x32-10/v1" | new-run | true | null |
 | ./random | seed | string | "study-1" | new-run | true | null |
