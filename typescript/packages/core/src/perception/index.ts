@@ -21,6 +21,7 @@ export function perceptionMigration(source: Readonly<Record<string, unknown>>): 
 CREATE TABLE perception_material(batch_id TEXT NOT NULL,source_id TEXT NOT NULL,percept_id TEXT NOT NULL,thread_id TEXT NOT NULL,kind TEXT NOT NULL,material TEXT NOT NULL,provenance TEXT NOT NULL,PRIMARY KEY(batch_id,source_id,percept_id));
 CREATE TABLE perception_links(batch_id TEXT NOT NULL,source_id TEXT NOT NULL,percept_id TEXT NOT NULL,message_id TEXT NOT NULL,PRIMARY KEY(batch_id,source_id,percept_id),FOREIGN KEY(batch_id,source_id,percept_id) REFERENCES perception_material(batch_id,source_id,percept_id));` }] };
 }
+export const migrations = (source: Readonly<Record<string, unknown>>) => [perceptionMigration(source)];
 declare module '@society0/cordis' {
     interface Context {
         perceptions: Perceptions;

@@ -50,6 +50,7 @@ export function workspaceInitializer(options: { readonly id?: string; readonly a
         return { operationIds };
     } };
 }
+export const migrations = (source: Readonly<Record<string, unknown>>) => [workspaceMigration(source)];
 
 const qb = { maxRows: 1, maxBytes: 65536 };
 const request = (operationId: string) => ({ operationId, maxDurationMs: 15000, maxStatements: 30, maxInputBytes: 65536, maxChangedRows: 1000, maxCapturedBytes: 1048576 });

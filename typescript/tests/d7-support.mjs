@@ -88,7 +88,7 @@ export async function waitFor(runDir, predicate, timeout = 180_000) {
     throw Error('status timeout: ' + JSON.stringify(last));
 }
 
-export async function localExperiment(directory, name = '@fixture/local-plugin', version = '1.2.3') {
+export async function localExperiment(directory, name = '@fixture/local-plugin', version = '1.2.3', options = {}) {
     const exp = join(directory, 'experiment');
     const plugin = join(exp, 'plugin');
     await mkdir(join(plugin), { recursive: true });
@@ -97,7 +97,7 @@ export async function localExperiment(directory, name = '@fixture/local-plugin',
         society: { plugin: { metadata: './plugin.meta.json', configSchema: './plugin.schema.json', api: './plugin.api.json' } },
         peerDependencies: { '@society0/host': '0.1.0' }
     }));
-    await writeFile(join(plugin, 'index.js'), 'export default { apply() {} };\n');
+    await writeFile(join(plugin, 'index.js'), options.source ?? 'export default { apply() {} };\n');
     const git = args => spawnSync('git', ['-C', plugin, ...args], { encoding: 'utf8' });
     git(['init', '-q']);
     git(['-c', 'user.email=entry2@example.invalid', '-c', 'user.name=entry2', 'add', 'index.js', 'package.json']);
@@ -105,7 +105,7 @@ export async function localExperiment(directory, name = '@fixture/local-plugin',
     const commit = git(['rev-parse', 'HEAD']).stdout.trim();
     const source = { package: name, version, gitCommit: commit, dirty: true, lockfile: 'BUILD-LOCK.json', patches: [], hostAbi: 'society0/host/1' };
     const metadata = {
-        title: 'local-plugin', summary: 'local experiment plugin', configVersion: 1, configPolicy: [], scope: 'run', hostAbi: 'society0/host/1'
+        title: 'local-plugin', summary: 'local experiment plugin', configVersion: 1, configPolicy: [], scope: options.scope ?? 'run', hostAbi: 'society0/host/1'
     };
     await writeFile(join(plugin, 'plugin.meta.json'), JSON.stringify({
         format: 'society-plugin-metadata/v1', package: { name, version }, source,

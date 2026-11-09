@@ -249,23 +249,6 @@ function flag(plan: CompositionPlan, name: string): boolean {
     return active(plan).some(entry => entry.name === name);
 }
 
-/** Entries whose migrations are collected by the explicit list below, not the plugin convention. */
-const BUILTIN_MIGRATIONS = new Set([
-    '@society0/core/artifacts-local',
-    '@society0/core/actors',
-    '@society0/core/results',
-    '@society0/core/thread',
-    '@society0/core/actions',
-    '@society0/core/perception',
-    '@society0/core/moment-views',
-    '@society0/core/public',
-    '@society0/extras/workspace',
-    '@society0/core/driver-llm',
-    '@society0/core/runtime-events',
-    '@society0/social/social-repository',
-    '@society0/social/measurement-repository'
-]);
-
 function canonical(value: unknown): string {
     if (Array.isArray(value))
         return '[' + value.map(canonical).join(',') + ']';
@@ -313,93 +296,14 @@ function parsePluginMigration(raw: unknown): ParsedMigration {
     };
 }
 
-async function importMigration(problems: ProfileProblem[], provider: string, load: () => Promise<MigrationValue>): Promise<CollectedMigration | undefined> {
-    try {
-        const value = await load();
-        if (!value || typeof value.owner !== 'string' || !Array.isArray(value.after))
-            throw Error('MIGRATION_SHAPE');
-        return { owner: value.owner, after: value.after.filter((item): item is string => typeof item === 'string'), requiredBy: provider, value };
-    }
-    catch (error) {
-        problems.push({ kind: 'migration', id: provider, requiredBy: provider, hint: `无法加载 ${provider} 的 migration：${error instanceof Error ? error.message : String(error)}`, detail: error instanceof Error ? error.message : String(error) });
-        return;
-    }
-}
-
 async function collectMigrations(plan: CompositionPlan, problems: ProfileProblem[]): Promise<CollectedMigration[]> {
     const result: CollectedMigration[] = [];
     const source = (entry: PlannedEntry) => entry.binding?.identity?.source ?? {};
-    const isActive = (name: string) => flag(plan, name);
-    const entryOf = (name: string) => active(plan).find(entry => entry.name === name);
-    if (isActive('@society0/core/artifacts-local')) {
-        const item = await importMigration(problems, 'artifacts-local', async () => (await import('@society0/core/artifacts-local')).artifactsMigration);
-        if (item) result.push(item);
-    }
-    if (isActive('@society0/core/actors')) {
-        const item = await importMigration(problems, 'actors', async () => (await import('@society0/core/actors')).actorsMigration);
-        if (item) result.push(item);
-    }
-    if (isActive('@society0/core/results')) {
-        const entry = entryOf('@society0/core/results');
-        const item = await importMigration(problems, 'results', async () => (await import('@society0/core/results')).resultsMigration(source(entry!)));
-        if (item) result.push(item);
-    }
-    if (isActive('@society0/core/thread')) {
-        const entry = entryOf('@society0/core/thread');
-        const item = await importMigration(problems, 'thread', async () => (await import('@society0/core/thread')).threadMigration(source(entry!)));
-        if (item) result.push(item);
-    }
-    if (isActive('@society0/core/actions')) {
-        const entry = entryOf('@society0/core/actions');
-        const item = await importMigration(problems, 'actions', async () => (await import('@society0/core/actions')).actionsMigration(source(entry!)));
-        if (item) result.push(item);
-    }
-    if (isActive('@society0/core/perception')) {
-        const entry = entryOf('@society0/core/perception');
-        const item = await importMigration(problems, 'perception', async () => (await import('@society0/core/perception')).perceptionMigration(source(entry!)));
-        if (item) result.push(item);
-    }
-    if (isActive('@society0/core/moment-views')) {
-        const entry = entryOf('@society0/core/moment-views');
-        const item = await importMigration(problems, 'moment-views', async () => (await import('@society0/core/moment-views')).momentViewsMigration(source(entry!)));
-        if (item) result.push(item);
-    }
-    if (isActive('@society0/core/public')) {
-        const entry = entryOf('@society0/core/public');
-        const item = await importMigration(problems, 'public', async () => (await import('@society0/core/public')).publicMigration(source(entry!)));
-        if (item) result.push(item);
-        const index = await importMigration(problems, 'public-index', async () => (await import('@society0/core/public')).publicIndexMigration(source(entry!)));
-        if (index) result.push(index);
-    }
-    if (isActive('@society0/extras/workspace')) {
-        const entry = entryOf('@society0/extras/workspace');
-        const item = await importMigration(problems, 'workspace', async () => (await import('@society0/extras/workspace')).workspaceMigration(source(entry!)));
-        if (item) result.push(item);
-    }
-    if (isActive('@society0/core/driver-llm')) {
-        const entry = entryOf('@society0/core/driver-llm');
-        const item = await importMigration(problems, 'actor-tools', async () => (await import('@society0/core/actor-tools')).actorToolsMigration(source(entry!)));
-        if (item) result.push(item);
-    }
-    if (isActive('@society0/core/runtime-events')) {
-        const item = await importMigration(problems, 'runtime-events', async () => (await import('@society0/core/runtime-events')).eventsMigration);
-        if (item) result.push(item);
-    }
-    if (isActive('@society0/social/social-repository')) {
-        const item = await importMigration(problems, 'social-repository', async () => (await import('@society0/social/social-repository')).socialMigration);
-        if (item) result.push(item);
-    }
-    if (isActive('@society0/social/measurement-repository')) {
-        const item = await importMigration(problems, 'measurement-repository', async () => (await import('@society0/social/measurement-repository')).measurementMigration);
-        if (item) result.push(item);
-    }
     const seen = new Map<string, { value: MigrationValue; origin: string; id: string }>();
     for (const item of result)
         if (typeof item.value.owner === 'string' && typeof item.value.from === 'number' && typeof item.value.to === 'number')
             seen.set(migrationKey(item.value.owner, item.value.from, item.value.to), { value: item.value, origin: item.requiredBy, id: item.requiredBy });
     for (const entry of active(plan)) {
-        if (BUILTIN_MIGRATIONS.has(entry.name))
-            continue;
         const url = entry.binding?.identity?.url;
         if (!url)
             continue;
@@ -501,6 +405,20 @@ function actorReferences(plan: CompositionPlan): Map<string, string[]> {
                 addActorIds(config[key], entry, references);
     }
     return references;
+}
+
+/** Initializer ids the profile needs at root creation; derived from the plugins that own actor creation and domain seeding. */
+function requiredInitializers(plan: CompositionPlan): string[] {
+    const entries = active(plan);
+    const actors = entries.find(entry => entry.name === '@society0/core/actors');
+    const ids: string[] = [];
+    if (actors && (actors.config as { seed?: unknown }).seed === true)
+        ids.push('actors.seed');
+    if (entries.some(entry => entry.name === '@society0/core/plain-init'))
+        ids.push('plain.seed');
+    if (flag(plan, '@society0/social/social'))
+        ids.push('social.seed');
+    return ids;
 }
 
 interface ActorAnalysis {
@@ -848,18 +766,18 @@ export async function prepareRunPlan(options: StartOptions): Promise<PreparedPla
     }
     if (analysis.missing.length)
         throw new PlatformError('CHECK_FAILED', `profile 未通过装配检查：${analysis.missing.map(item => `${item.kind}:${item.id}`).join(', ')}`, '先运行 society0 check --profile <p> --json 查看缺失项');
-    const entryOf = (id: string) => analysis.plan.flat.find(entry => entry.id === id);
+    const entryOf = (name: string) => active(analysis.plan).find(entry => entry.name === name);
     const directory = resolve(options.dir);
     const lineage = resolve(options.lineage ?? join(dirname(directory), 'lineages', basename(directory)));
     const overrides: EntryPatch[] = [];
-    const sqlite = entryOf('sqlite');
-    if (sqlite) overrides.push({ id: 'sqlite', config: { ...(sqlite.config as Record<string, unknown>), directory, runId: basename(directory) } });
-    const artifacts = entryOf('artifacts-local');
-    if (artifacts) overrides.push({ id: 'artifacts-local', config: { ...(artifacts.config as Record<string, unknown>), directory: join(directory, 'artifacts') } });
-    const history = entryOf('sqlite-history');
-    if (history) overrides.push({ id: 'sqlite-history', config: { ...(history.config as Record<string, unknown>), directory, runId: basename(directory) } });
-    const attempts = entryOf('attempts');
-    if (attempts) overrides.push({ id: 'attempts', config: { ...(attempts.config as Record<string, unknown>), directory: lineage, lineage: basename(lineage) } });
+    const sqlite = entryOf('@society0/core/sqlite');
+    if (sqlite) overrides.push({ id: sqlite.id, config: { ...(sqlite.config as Record<string, unknown>), directory, runId: basename(directory) } });
+    const artifacts = entryOf('@society0/core/artifacts-local');
+    if (artifacts) overrides.push({ id: artifacts.id, config: { ...(artifacts.config as Record<string, unknown>), directory: join(directory, 'artifacts') } });
+    const history = entryOf('@society0/core/sqlite-history');
+    if (history) overrides.push({ id: history.id, config: { ...(history.config as Record<string, unknown>), directory, runId: basename(directory) } });
+    const attempts = entryOf('@society0/core/attempts');
+    if (attempts) overrides.push({ id: attempts.id, config: { ...(attempts.config as Record<string, unknown>), directory: lineage, lineage: basename(lineage) } });
     overrides.push(...tickOverride(analysis.plan, options.ticks));
     const input = options.world && options.mode === 'start' ? await readWorld(options.world) : {};
     const host2 = await platformHost(modelSeeds(profile), options.base);
@@ -883,7 +801,7 @@ async function createRunRoot(prepared: PreparedPlan, options: StartOptions): Pro
     const seed: BootEntry[] = HOST_BOOT.map(specifier => specifier === 'module-resolver' && options.base
         ? { specifier: '@society0/host/module-resolver', config: { baseURL: baseURLOf(options.base) } }
         : { specifier: '@society0/host/' + specifier });
-    const modelEnabled = prepared.plan.flat.some(entry => !entry.disabled && ['@society0/core/model-pi', '@society0/core/model-codex-subscription'].includes(entry.name));
+    const modelEnabled = prepared.plan.flat.some(entry => !entry.disabled && entry.binding?.api.requires.some(required => required.service.key === 'modelCredentials' && !required.optional && required.phase === 'module'));
     if (modelEnabled || options.credentialsEnv)
         seed.push({ specifier: '@society0/host/slots' }, { specifier: '@society0/core/model-credentials', config: { stores: [] } });
     const host = await createHost({ baseURL: import.meta.url, boot: seed });
@@ -903,7 +821,7 @@ async function createRunRoot(prepared: PreparedPlan, options: StartOptions): Pro
         }
         const plan = prepared.plan;
         const runId = basename(prepared.dir);
-        const entryOf = (id: string) => plan.flat.find(entry => entry.id === id);
+        const entryOf = (name: string) => active(plan).find(entry => entry.name === name);
         const migrationIssues: ProfileProblem[] = [];
         const migrations = await collectMigrations(plan, migrationIssues);
         migrationIssues.push(...migrationProblems(migrations));
@@ -914,12 +832,16 @@ async function createRunRoot(prepared: PreparedPlan, options: StartOptions): Pro
                 migrationIssues.map(item => item.hint).join('；')
             );
         const migrationValues = migrations.map(item => item.value);
-        const databaseEntry = entryOf('sqlite');
-        const historyEntry = entryOf('sqlite-history');
+        const databaseEntry = entryOf('@society0/core/sqlite');
+        const historyEntry = entryOf('@society0/core/sqlite-history');
         const event = flag(plan, '@society0/core/runtime-events');
+        const runGroup = plan.flat.find(entry => entry.group && entry.scope === 'run');
+        const bootstrapGroup = plan.flat.find(entry => entry.group && entry.scope === 'bootstrap');
+        if (!runGroup || !bootstrapGroup)
+            throw new PlatformError('MOUNT_GROUP_MISSING', 'profile 缺少 run 或 bootstrap 作用域组，无法挂载运行目录', '在 profile 里保留 run 组和 bootstrap 组');
         let context: Context | undefined;
         const handle = await host.ctx.runDirectory.create({
-            runId, generation: plan, mount: { runEntryId: 'run', bootstrapEntryId: 'bootstrap' },
+            runId, generation: plan, mount: { runEntryId: runGroup.id, bootstrapEntryId: bootstrapGroup.id },
             prepare: async (bootstrapCtx, phase) => {
                 const consumer = await phase!.run.plugin({ name: 'platform.prepare', inject: ['attempts', 'sqliteBootstrap', 'history', 'database'], apply(value: Context) { context = value; } });
                 await consumer.await();
@@ -938,7 +860,7 @@ async function createRunRoot(prepared: PreparedPlan, options: StartOptions): Pro
                         migrations: migrationValues as never,
                         initialFrontier: frontier,
                         initialControl: { generation: (databaseEntry!.config as { generation: string }).generation, controlSequence: (historyEntry!.config as { controlSequence: string }).controlSequence, planId: prepared.profileUrl },
-                        requiredInitializerIds: [flag(plan, '@society0/social/social') ? 'social.seed' : 'plain.seed']
+                        requiredInitializerIds: requiredInitializers(plan)
                     });
                 }
                 const status = await ctx.history.status();

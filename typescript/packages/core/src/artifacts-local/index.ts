@@ -2,9 +2,10 @@ import {Config} from './config.js';
 export {Config,metadata,api} from './config.js';
 import {Context,Service} from '@society0/cordis';
 import '@society0/host/resources';
-import {LocalArtifacts,type ArtifactOptions,type ArtifactRef} from './store.js';
+import {LocalArtifacts,artifactsMigration,type ArtifactOptions,type ArtifactRef} from './store.js';
 import type {SqliteTransaction} from '../sqlite/contracts.js';
 export * from './store.js';
+export const migrations = [artifactsMigration];
 declare module '@society0/cordis' {interface Context {artifacts:ArtifactsLocal}}
 export class ArtifactsLocal extends Service {
  static Config=Config;static inject=['resources'];private store!:LocalArtifacts;private closeOwned!:()=>Promise<void>;
