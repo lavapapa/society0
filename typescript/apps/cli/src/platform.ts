@@ -43,6 +43,8 @@ export interface CheckReport {
         readonly plugins: readonly string[];
         readonly slots: Readonly<Record<string, readonly string[]>>;
     };
+    /** Owners actually collected from the plan, including plugin-provided migrations. */
+    readonly migrations: readonly string[];
 }
 
 interface ProfileDocument {
@@ -241,10 +243,74 @@ export function readCredentialsEnv(name: string, environment: NodeJS.ProcessEnv 
 
 interface MigrationInfo { owner: string; after: readonly string[]; requiredBy: string }
 interface CollectedMigration extends MigrationInfo { value: MigrationValue }
-type MigrationValue = { owner?: unknown; after?: unknown };
+type MigrationValue = { owner?: unknown; from?: unknown; to?: unknown; after?: unknown };
 
 function flag(plan: CompositionPlan, name: string): boolean {
     return active(plan).some(entry => entry.name === name);
+}
+
+/** Entries whose migrations are collected by the explicit list below, not the plugin convention. */
+const BUILTIN_MIGRATIONS = new Set([
+    '@society0/core/artifacts-local',
+    '@society0/core/actors',
+    '@society0/core/results',
+    '@society0/core/thread',
+    '@society0/core/actions',
+    '@society0/core/perception',
+    '@society0/core/moment-views',
+    '@society0/core/public',
+    '@society0/extras/workspace',
+    '@society0/core/driver-llm',
+    '@society0/core/runtime-events',
+    '@society0/social/social-repository',
+    '@society0/social/measurement-repository'
+]);
+
+function canonical(value: unknown): string {
+    if (Array.isArray(value))
+        return '[' + value.map(canonical).join(',') + ']';
+    if (value && typeof value === 'object')
+        return '{' + Object.keys(value as Record<string, unknown>).sort(compareCodePoints)
+            .map(key => JSON.stringify(key) + ':' + canonical((value as Record<string, unknown>)[key])).join(',') + '}';
+    return JSON.stringify(value) ?? 'undefined';
+}
+
+function migrationKey(owner: string, from: number, to: number): string {
+    return `${owner}\u0000${from}\u0000${to}`;
+}
+
+interface ParsedMigration {
+    owner: string;
+    from: number;
+    to: number;
+    after: readonly string[];
+    value: MigrationValue;
+}
+
+/** Validate one element of a plugin's ``migrations`` export against the SqliteMigration shape. */
+function parsePluginMigration(raw: unknown): ParsedMigration {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+        throw Error('migration 元素必须是对象');
+    const value = raw as Record<string, unknown>;
+    if (typeof value.owner !== 'string' || !value.owner)
+        throw Error('owner 必须是非空字符串');
+    if (!Number.isSafeInteger(value.from) || (value.from as number) < 0)
+        throw Error('from 必须是非负整数');
+    if (!Number.isSafeInteger(value.to) || (value.to as number) <= (value.from as number))
+        throw Error('to 必须是大于 from 的整数');
+    if (!Array.isArray(value.after) || value.after.some(item => typeof item !== 'string'))
+        throw Error('after 必须是字符串数组');
+    if (!value.source || typeof value.source !== 'object' || Array.isArray(value.source) || !Object.keys(value.source).length)
+        throw Error('source 必须是非空对象');
+    if (!Array.isArray(value.statements) || value.statements.some(item => !item || typeof item !== 'object' || typeof (item as { sql?: unknown }).sql !== 'string'))
+        throw Error('statements 必须是包含 sql 字符串的对象数组');
+    return {
+        owner: value.owner,
+        from: value.from as number,
+        to: value.to as number,
+        after: value.after as string[],
+        value: value as MigrationValue
+    };
 }
 
 async function importMigration(problems: ProfileProblem[], provider: string, load: () => Promise<MigrationValue>): Promise<CollectedMigration | undefined> {
@@ -326,6 +392,65 @@ async function collectMigrations(plan: CompositionPlan, problems: ProfileProblem
     if (isActive('@society0/social/measurement-repository')) {
         const item = await importMigration(problems, 'measurement-repository', async () => (await import('@society0/social/measurement-repository')).measurementMigration);
         if (item) result.push(item);
+    }
+    const seen = new Map<string, { value: MigrationValue; origin: string; id: string }>();
+    for (const item of result)
+        if (typeof item.value.owner === 'string' && typeof item.value.from === 'number' && typeof item.value.to === 'number')
+            seen.set(migrationKey(item.value.owner, item.value.from, item.value.to), { value: item.value, origin: item.requiredBy, id: item.requiredBy });
+    for (const entry of active(plan)) {
+        if (BUILTIN_MIGRATIONS.has(entry.name))
+            continue;
+        const url = entry.binding?.identity?.url;
+        if (!url)
+            continue;
+        const origin = `${entry.name} (${entry.id})`;
+        let namespace: Record<string, unknown>;
+        try { namespace = await import(url) as Record<string, unknown>; }
+        catch (error) {
+            problems.push({
+                kind: 'migration', id: entry.name, requiredBy: entry.id,
+                hint: `无法加载 ${origin} 的 migration：${error instanceof Error ? error.message : String(error)}`,
+                detail: error instanceof Error ? error.message : String(error)
+            });
+            continue;
+        }
+        if (!('migrations' in namespace))
+            continue;
+        let exported: unknown;
+        try {
+            exported = (namespace as { migrations?: unknown }).migrations;
+            exported = typeof exported === 'function' ? await exported(source(entry)) : exported;
+            if (!Array.isArray(exported))
+                throw Error('migrations 导出必须是数组或返回数组的函数');
+        }
+        catch (error) {
+            const detail = error instanceof Error ? error.message : String(error);
+            problems.push({ kind: 'migration', id: entry.name, requiredBy: entry.id, hint: `${origin} 的 migrations 导出不可用：${detail}`, detail });
+            continue;
+        }
+        const list = exported as readonly unknown[];
+        for (const [index, raw] of list.entries()) {
+            let parsed: ParsedMigration;
+            try { parsed = parsePluginMigration(raw); }
+            catch (error) {
+                const detail = error instanceof Error ? error.message : String(error);
+                problems.push({ kind: 'migration', id: entry.name, requiredBy: entry.id, hint: `${origin} 的 migrations[${index}] 形状不合法：${detail}`, detail });
+                continue;
+            }
+            const key = migrationKey(parsed.owner, parsed.from, parsed.to);
+            const existing = seen.get(key);
+            if (existing) {
+                if (canonical(existing.value) !== canonical(parsed.value))
+                    problems.push({
+                        kind: 'migration', id: parsed.owner, requiredBy: `${existing.id},${entry.id}`,
+                        hint: `migration ${parsed.owner} (${parsed.from}->${parsed.to}) 在 ${existing.origin} 与 ${origin} 的内容不同`,
+                        detail: `${existing.origin} vs ${origin}`
+                    });
+                continue;
+            }
+            seen.set(key, { value: parsed.value, origin, id: entry.id });
+            result.push({ owner: parsed.owner, after: parsed.after, requiredBy: entry.name, value: parsed.value });
+        }
     }
     return result;
 }
@@ -664,7 +789,8 @@ export async function checkProfile(options: {
             ok: unique.size === 0,
             missing: [...unique.values()],
             warnings: [...analysis.warnings, ...actors.warnings],
-            resolved: { plugins, slots: driverProviders(analysis.plan) }
+            resolved: { plugins, slots: driverProviders(analysis.plan) },
+            migrations: [...new Set(migrations.map(item => item.owner))].sort(compareCodePoints)
         };
     }
     finally {

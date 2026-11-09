@@ -50,5 +50,15 @@
         "driver-rule"
       ]
     }
-  }
+  },
+  "migrations": [
+    "actions",
+    "actors",
+    "artifacts-local",
+    "moment-views",
+    "perception",
+    "public",
+    "results",
+    "thread"
+  ]
 }
