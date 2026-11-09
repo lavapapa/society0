@@ -74,7 +74,16 @@ export interface UndispatchedToolReceipt {
 export type InferenceStopReason =
   | 'success' | 'context_limit' | 'output_limit' | 'budget_exhausted'
   | 'required_action_failed' | 'tool_failed' | 'cancelled' | 'provider_error'
-  | 'transport_unknown' | 'persistence_unknown' | 'persistence_error';
+  | 'transport_unknown' | 'persistence_unknown' | 'persistence_error'
+  | 'BUDGET_OUTPUT_TOO_SMALL';
+/** pi-ai 实际可用于输出的 token 低于 driver output 槽时的本地拒绝证据；未发请求。 */
+export interface OutputBudgetDiagnostics {
+  readonly estimatedPrompt: number;
+  readonly contextWindow: number;
+  readonly safety: number;
+  readonly output: number;
+  readonly maxTokens: number;
+}
 export interface InferenceOutcome {
   readonly status: 'completed' | 'incomplete';
   /** 正文被识别为工具调用的次数；只作诊断，不执行正文。 */
@@ -86,6 +95,8 @@ export interface InferenceOutcome {
   readonly attemptIds: readonly string[];
   /** 与selection登记一致；unknown表示物理请求已有未知外部后果。 */
   readonly modelAttempts: readonly ModelAttemptSettlement[];
+  /** 输出预算本地拒绝的诊断；仅在本地拒绝时出现。 */
+  readonly outputBudget?: OutputBudgetDiagnostics;
 }
 export interface InferenceEventSink {
   readonly limits: InferenceSinkLimits;
@@ -112,6 +123,8 @@ export interface InferenceRequest {
   readonly actionReceipts: ActionReceiptReader;
   readonly selection: ResolvedModelSelection;
   readonly budget: InferenceBudget;
+  /** driver output 槽；pi-ai 实际 max_tokens 低于此值时不发请求。 */
+  readonly minOutputTokens?: number;
   readonly requiredActions: readonly RequiredAction[];
   /** required-first 只用于线程第一次请求；默认 auto。 */
   readonly toolChoice?: 'auto' | 'required-first';

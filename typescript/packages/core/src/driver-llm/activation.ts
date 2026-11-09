@@ -265,7 +265,7 @@ export class LlmActivation {
  private async infer(prepared:PreparedContext):Promise<ActivationResult>{
   const {binding,selected,runtime,extensions,sink,history}=prepared;
   const actionReceipts={read:()=>this.step('persistence_error','actions.receipts',()=>binding.value.actionReceipts.read())};
-  const outcome=await this.runRuntime(runtime,{threadId:this.thread.id,interactionId:this.thread.interactionId,history,prompts:[],tools:binding.value.tools,actionReceipts,selection:this.measured(selected.value),budget:{maxRequests:this.config.maxRequests,maxToolCalls:this.config.maxToolCalls,maxTurns:this.config.maxTurns},requiredActions:this.config.requiredActions,toolChoice:this.config.toolChoice,textualToolCallRetries:this.config.textualToolCallRetries},sink,extensions);
+  const outcome=await this.runRuntime(runtime,{threadId:this.thread.id,interactionId:this.thread.interactionId,history,prompts:[],tools:binding.value.tools,actionReceipts,selection:this.measured(selected.value),budget:{maxRequests:this.config.maxRequests,maxToolCalls:this.config.maxToolCalls,maxTurns:this.config.maxTurns},minOutputTokens:this.config.budget.output,requiredActions:this.config.requiredActions,toolChoice:this.config.toolChoice,textualToolCallRetries:this.config.textualToolCallRetries},sink,extensions);
   const incompleteStream=outcome.status==='incomplete'&&(outcome.reason==='provider_error'||outcome.reason==='cancelled'||outcome.reason==='transport_unknown');
   if(!incompleteStream)await this.flushEvents();
   for(const item of outcome.actionReceipts)for(const operationId of item.receipt.requiredOperations??[])this.operations.add(operationId);
