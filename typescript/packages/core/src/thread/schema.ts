@@ -7,3 +7,4 @@ CREATE TABLE thread_contexts(thread_id TEXT NOT NULL REFERENCES threads(id),mess
 CREATE INDEX threads_actor ON threads(actor_id,moment_id);` }] };
 }
 export const threadMigrations = threadMigration;
+export const migrations = (source: Readonly<Record<string, unknown>>) => [threadMigration(source)];

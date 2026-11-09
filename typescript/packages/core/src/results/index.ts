@@ -19,6 +19,7 @@ export function resultsMigration(source: Readonly<Record<string, unknown>>): Sql
 CREATE TABLE result_records(set_id TEXT NOT NULL REFERENCES result_sets(id),ordinal INTEGER NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(set_id,ordinal));
 CREATE TABLE result_current(name TEXT PRIMARY KEY NOT NULL,payload TEXT NOT NULL);` }] };
 }
+export const migrations = (source: Readonly<Record<string, unknown>>) => [resultsMigration(source)];
 declare module '@society0/cordis' {
     interface Context {
         results: Results;

@@ -203,7 +203,7 @@ export const migrations = [{
 }];
 ```
 
-platform 会和内置的 core/social migration 一起收集并交给 sqlite-bootstrap，不需要修改 host 插件契约。复制安装到实验 `node_modules` 的包和以 symlink 安装的包都按 run 加载插件时的同一解析结果读取。没有 `migrations` 导出的插件会被跳过。同一个 `owner+from+to` 只收一次；内容不同的同名 migration 会报 `kind: 'migration'` 冲突。`check` 的 JSON 输出里 `migrations` 列出实际收到的 owner。
+platform 按同一约定收集所有活动入口的 `migrations` 导出，包括内置的 core/social 插件；不再维护额外的内置 migration 名单。复制安装到实验 `node_modules` 的包和以 symlink 安装的包都按 run 加载插件时的同一解析结果读取。没有 `migrations` 导出的插件会被跳过。同一个 `owner+from+to` 只收一次；内容不同的同名 migration 会报 `kind: 'migration'` 冲突。`check` 的 JSON 输出里 `migrations` 列出实际收到的 owner。
 
 ## world 与 actors
 

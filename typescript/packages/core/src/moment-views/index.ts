@@ -24,6 +24,8 @@ import { fault } from '../sqlite/contracts.js';
 import type { SqliteReadView, SqliteSnapshot } from '../sqlite/contracts.js';
 import '../sqlite/index.js';
 export { momentViewsMigration } from './schema.js';
+import { momentViewsMigration } from './schema.js';
+export const migrations = (source: Readonly<Record<string, unknown>>) => [momentViewsMigration(source)];
 
 export interface MomentViewsOptions { readonly freeze: 'clock' | 'first-acquire' | 'live' }
 declare module '@society0/cordis' {

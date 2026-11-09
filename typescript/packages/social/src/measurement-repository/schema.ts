@@ -7,3 +7,4 @@ export const measurementMigration: SqliteMigration = {
         }]
 };
 export const measurementMigrations = [measurementMigration] as const;
+export const migrations = measurementMigrations;

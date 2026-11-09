@@ -54,6 +54,7 @@ const offerKeySlot = slotKey<OfferProvider>('society/action-offers');
 const notifyKeySlot = slotKey<ActionNotifier>('society/action-notify');
 export function actionsMigration(source: Readonly<Record<string, unknown>>): SqliteMigration { return { owner: 'actions', from: 0, to: 2, after: [], source, statements: [{ sql: 'CREATE TABLE action_receipts(operation_id TEXT PRIMARY KEY NOT NULL,invocation_id TEXT NOT NULL,actor_id TEXT NOT NULL,moment_id TEXT NOT NULL,action TEXT NOT NULL,registration_id TEXT NOT NULL,input TEXT NOT NULL,value TEXT NOT NULL,target TEXT NULL,offer_key TEXT NULL,provider TEXT NULL); CREATE INDEX action_receipts_actor ON action_receipts(actor_id,operation_id); CREATE INDEX action_receipts_invocation ON action_receipts(invocation_id); CREATE INDEX action_receipts_target ON action_receipts(actor_id,action,target)' }] }; }
 export function actionsReceiptsMigration(source: Readonly<Record<string, unknown>>): SqliteMigration { return { owner: 'actions', from: 1, to: 2, after: [], source, statements: [{ sql: 'ALTER TABLE action_receipts ADD COLUMN target TEXT NULL; ALTER TABLE action_receipts ADD COLUMN offer_key TEXT NULL; ALTER TABLE action_receipts ADD COLUMN provider TEXT NULL; CREATE INDEX action_receipts_target ON action_receipts(actor_id,action,target)' }] }; }
+export const migrations = (source: Readonly<Record<string, unknown>>) => [actionsMigration(source)];
 declare module '@society0/cordis' {
     interface Context {
         actions: Actions;

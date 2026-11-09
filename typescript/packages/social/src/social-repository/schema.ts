@@ -31,3 +31,4 @@ CREATE INDEX social_messages_inbox ON social_messages(receiver,round_no,ordinal)
         }]
 };
 export const socialMigrations = [socialMigration] as const;
+export const migrations = socialMigrations;

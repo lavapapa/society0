@@ -168,6 +168,8 @@ export class PublicRepository extends Service {
 }
 export default PublicRepository;
 export { publicMigration, publicIndexMigration } from './schema.js';
+import { publicMigration, publicIndexMigration } from './schema.js';
+export const migrations = (source: Readonly<Record<string, unknown>>) => [publicMigration(source), publicIndexMigration(source)];
 export * from './canonical.js';
 export { readRows, readFile, readFiles, readNode, readChildren, renderRows } from './store.js';
 export { AudienceResolver } from './audience.js';
