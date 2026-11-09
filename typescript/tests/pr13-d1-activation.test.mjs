@@ -109,6 +109,39 @@ row('D1 failOnToolError all restores old tool_failed semantics',async()=>{
   }finally{await env.close()}
 });
 
+row('D1 budget exhausted after required actions is success with BUDGET_AFTER_REQUIRED warning',async()=>{
+  const env=await fixture({script:[actSum,toolTurn('d1-over','read',{path:'/workspace/over'}),finalTurn],driver:{maxToolCalls:1}});
+  try{
+    const result=await env.activate('d1/budget-after-required');
+    assert.equal(result.status,'completed',JSON.stringify(result));
+    assert.equal(result.value.reason,'success',JSON.stringify(result.value));
+    assert.deepEqual(result.value.warnings,['BUDGET_AFTER_REQUIRED'],JSON.stringify(result.value));
+    assert.equal(result.value.requiredSatisfied,true,JSON.stringify(result.value));
+  }finally{await env.close()}
+  const blocked=await fixture({script:[toolTurn('d1-blocked','read',{path:'/workspace/blocked'}),finalTurn],driver:{maxToolCalls:0}});
+  try{
+    const result=await blocked.activate('d1/budget-unsatisfied');
+    assert.equal(result.status,'incomplete',JSON.stringify(result));
+    assert.equal(result.value.reason,'budget_exhausted',JSON.stringify(result.value));
+    assert.equal(result.value.warnings,undefined,JSON.stringify(result.value));
+    assert.equal(result.value.requiredSatisfied,false,JSON.stringify(result.value));
+  }finally{await blocked.close()}
+});
+
+row('D1 perception commit retries stale batch in the same activation',async()=>{
+  let versionCalls=0,collects=0;
+  const perception={id:'fixture/events',cursorScope:'thread',schema:{},available:async()=>true,
+    versions:async()=>[{owner:'fixture/events',version:++versionCalls===1?'a':'b'}],
+    collect:async()=>{collects++;return {items:[{id:'event-1',kind:'notice',material:{kind:'inline',value:{event:'wake'}},provenance:{source:'fixture/events'}}],nextCursor:true,through:true,hasMore:false}}};
+  const env=await fixture({script:[actSum,finalTurn],perception});
+  try{
+    const result=await env.activate('d1/perception-retry');
+    assert.equal(result.status,'completed',JSON.stringify(result));
+    assert.equal(result.value.reason,'success',JSON.stringify(result.value));
+    assert.equal(collects,2,JSON.stringify({collects,versionCalls}));
+  }finally{await env.close()}
+});
+
 const req=operationId=>({operationId,maxDurationMs:15000,maxStatements:100,maxInputBytes:1048576,maxChangedRows:1000,maxCapturedBytes:4194304});
 const base='../.build/core/dist/';
 const modules=await Promise.all(['execution-fence','sqlite','sqlite-bootstrap','sqlite-history','artifacts-local','initializers','actors','actor-eligibility','drivers','activation-mailbox','activation','clock-ticks','proposal-sequence','runtime-staged','completion-strict','checkpoint-policy','termination','generation-views','generation-binding','run-controller'].map(name=>import(base+name+'/index.js')));
@@ -130,7 +163,7 @@ async function runFixture(){
   await c.plugin(Runtime.default);await c.plugin(Completion.default);await c.plugin(Checkpoint.default,{every:3});await c.plugin(Termination.default);await c.plugin(Views.default);
   await c.plugin(Binding.default,{generation:'g'});
   await c.plugin(Runs.default,{maxPendingAcknowledgements:1});
-  await c.plugin({inject:['drivers'],apply(ctx){ctx.drivers.register('summary',{async activate(intent){return {status:'completed',value:{reason:'success',requests:2,toolCalls:3,explorationErrors:1,actRecoverable:1,actFailed:0,requiredSatisfied:true},evidence:{reason:'success'},requiredOperations:[]}}})}});
+  await c.plugin({inject:['drivers'],apply(ctx){ctx.drivers.register('summary',{async activate(intent){return {status:'completed',value:{reason:'success',requests:2,toolCalls:3,explorationErrors:1,actRecoverable:1,actFailed:0,requiredSatisfied:true,warnings:['BUDGET_AFTER_REQUIRED']},evidence:{reason:'success'},requiredOperations:[]}}})}});
   return {host,ctx:c};
 }
 
@@ -142,6 +175,6 @@ row('D1 RunResult carries bounded activation summaries',async()=>{
     assert.ok(result.activations,JSON.stringify(result));
     assert.equal(result.activations.truncated,true,JSON.stringify(result.activations));
     assert.equal(result.activations.entries.length,1,JSON.stringify(result.activations));
-    assert.deepEqual(result.activations.entries[0],{actorId:'a',tick:'1',reason:'success',requests:2,toolCalls:3,explorationErrors:1,actRecoverable:1,actFailed:0,requiredSatisfied:true});
+    assert.deepEqual(result.activations.entries[0],{actorId:'a',tick:'1',reason:'success',requests:2,toolCalls:3,explorationErrors:1,actRecoverable:1,actFailed:0,requiredSatisfied:true,warnings:['BUDGET_AFTER_REQUIRED']});
   }finally{await env.host.close()}
 });

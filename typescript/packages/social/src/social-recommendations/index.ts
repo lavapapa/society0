@@ -221,7 +221,7 @@ export class Recommendations extends Service {
             owner, version
         })).sort((a, b) => compareCodePoints(a.owner, b.owner));
     }
-    private async collectInput(held: readonly Lease<RecommendationSource>[], scope: DiscoveryScope, view: import('../contracts.js').SqliteReadView, bounds: PreparationBounds) {
+    private async collectInput(held: readonly Lease<RecommendationSource>[], scope: DiscoveryScope, view: import('../contracts.js').SqliteReadView, bounds: PreparationBounds, versions: readonly DomainVersion[]) {
         const items: RecommendationInput['items'][number][] = [], sourcePages: {
             sourceId: string;
             total: string;
@@ -241,12 +241,30 @@ export class Recommendations extends Service {
                     throw Error('RECOMMENDATION_DUPLICATE_ITEM');
                 seen.add(item.id);
                 items.push(item);
-                if (items.length > bounds.maxItems || bytes(items) > bounds.maxBytes)
+                if (items.length > bounds.maxItems)
                     throw Error('RECOMMENDATION_ITEM_BUDGET');
             }
         }
+        // 候选按来源返回顺序排列（帖子按 ordinal 升序）。超预算时从最早的候选开始丢弃，
+        // 保留最新的内容；用最终 input 的固定开销估算，确保截断后不会再触发 RECOMMENDATION_INPUT_BYTES。
+        const envelope = {
+            id: 'x'.repeat(36), runId: view.runId, scope, versions, maxBytes: bounds.maxBytes, sourcePages
+        };
+        let truncated = 0;
+        while (items.length && bytes({
+            ...envelope, items
+        }) > bounds.maxBytes) {
+            items.shift();
+            truncated++;
+        }
+        if (bytes({
+            ...envelope, items
+        }) > bounds.maxBytes)
+            throw Error('RECOMMENDATION_INPUT_BYTES');
         return {
-            items, sourcePages
+            items, sourcePages, ...(truncated ? {
+                truncated
+            } : {})
         };
     }
     private async capture(held: readonly Lease<RecommendationSource>[], scope: DiscoveryScope, bounds: PreparationBounds, context: Invocation) {
@@ -266,7 +284,7 @@ export class Recommendations extends Service {
                     cached: true, key, input: structuredClone(cached.input)
                 };
             }
-            const collected = await this.collectInput(held, scope, view, bounds);
+            const collected = await this.collectInput(held, scope, view, bounds, versions);
             const input: RecommendationInput = {
                 id: randomUUID(), runId: view.runId, scope: structuredClone(scope), versions, ...collected, maxBytes: bounds.maxBytes
             };
