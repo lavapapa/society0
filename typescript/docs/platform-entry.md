@@ -190,6 +190,21 @@ society0 lock --base <d> --out <lock.json> <package>... --json
 
 `--base` 只改变插件解析的起点，不会修改 `node_modules` 或安装包；实验目录之外仍用 profile 自带的 lockfile。
 
+本地插件可以自带 migration。入口模块导出 `migrations`，值是数组，或 `(source) => 数组`；每个元素的形状与 `@society0/core/sqlite/contracts` 的 `SqliteMigration` 相同：
+
+```js
+export const migrations = [{
+  owner: 'my-domain',
+  from: 0,
+  to: 1,
+  after: [],                       // 依赖的其他 migration owner
+  source: { package: 'my-plugin', entry: '.', version: 1 },
+  statements: [{ sql: 'CREATE TABLE my_domain_rows (id TEXT PRIMARY KEY NOT NULL)' }]
+}];
+```
+
+platform 会和内置的 core/social migration 一起收集并交给 sqlite-bootstrap，不需要修改 host 插件契约。复制安装到实验 `node_modules` 的包和以 symlink 安装的包都按 run 加载插件时的同一解析结果读取。没有 `migrations` 导出的插件会被跳过。同一个 `owner+from+to` 只收一次；内容不同的同名 migration 会报 `kind: 'migration'` 冲突。`check` 的 JSON 输出里 `migrations` 列出实际收到的 owner。
+
 ## world 与 actors
 
 `--world` 的 `actors` 段是 Core `actors.seed` 的唯一输入，每个记录为 `{id, attributes, source}`。本单采用做法 A（D6 §2）：`s0_actors` 只由 `actors.seed` 在根创建事务里写一次；`social-init` 的 `social.seed` 声明 `after: ["actors.seed"]`，`social-repository.addMember` 只写 `social_members`，actor 不存在时报 `ACTOR_MISSING`。profile 里 `@society0/core/actors` 需要显式开启：
