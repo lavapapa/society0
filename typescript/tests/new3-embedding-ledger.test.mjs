@@ -86,10 +86,18 @@ async function serverWith(responses) {
   return {server, calls: () => index};
 }
 
+function fetchSequence(responses) {
+  let index = 0;
+  return async () => {
+    const status = responses[Math.min(index++, responses.length - 1)];
+    if (status === 200) return new Response(JSON.stringify({data: [{index: 0, embedding: [1, 0]}], usage: {tokens: 1}}), {status: 200, headers: {'content-type': 'application/json'}});
+    return new Response(JSON.stringify({error: {message: 'status ' + status}}), {status, headers: {'content-type': 'application/json'}});
+  };
+}
+
 test('NEW-3-T02 HTTP 400 settles failed and queue continues', async () => {
   const ledger = fakeLedger();
-  const {server} = await serverWith([400, 200]);
-  const provider = new HttpEmbeddingProvider({identity, url: 'http://127.0.0.1:' + server.address().port + '/embed', credentialProvider: '', timeoutMs: 1000, maxResponseBytes: 65536, maxRequestBytes: 4096}, undefined, ledger);
+  const provider = new HttpEmbeddingProvider({identity, url: 'http://127.0.0.1:9/embed', credentialProvider: '', timeoutMs: 1000, maxResponseBytes: 65536, maxRequestBytes: 4096, fetch: fetchSequence([400, 200])}, undefined, ledger);
   const queue = new EmbeddingQueue('r', provider, limits, ledger);
   try {
     await assert.rejects(queue.embed({identity, texts: ['x']}, context()));
@@ -101,7 +109,23 @@ test('NEW-3-T02 HTTP 400 settles failed and queue continues', async () => {
     assert.deepEqual(output[0].vector, [1, 0]);
   } finally {
     await queue.close();
-    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+test('NEW-3-T02c timeout before headers is unknown, never a fabricated failure', async () => {
+  const ledger = fakeLedger();
+  const hang = (input, init) => new Promise((_, reject) => {
+    const signal = init.signal;
+    signal.addEventListener('abort', () => reject(signal.reason), {once: true});
+  });
+  const provider = new HttpEmbeddingProvider({identity, url: 'http://127.0.0.1:9/embed', credentialProvider: '', timeoutMs: 5, maxResponseBytes: 65536, maxRequestBytes: 4096, fetch: hang}, undefined, ledger);
+  const queue = new EmbeddingQueue('r', provider, limits, ledger);
+  try {
+    await assert.rejects(queue.embed({identity, texts: ['x']}, context()));
+    assert.equal(ledger.calls.settle, 0);
+    assert.equal(ledger.calls.markUnknown, 1);
+  } finally {
+    await queue.close();
   }
 });
 
