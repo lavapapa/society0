@@ -52,12 +52,13 @@ export class RuntimeDriver extends Service implements Runtime {
             throw Error('STAGED_CURSOR');
         return plan;
     }
-    private async submitPhase(phase: StagedPlan['phases'][number], context: ExecutionContext, admissions: Json[]) {
+    private async submitPhase(phase: StagedPlan['phases'][number], context: ExecutionContext, admissions: Json[], intents: ActivationIntent[]) {
         context.signal.throwIfAborted();
         if (!Array.isArray(phase.activations))
             throw Error('STAGED_PHASE');
         let rejected = false;
         for (const intent of phase.activations) {
+            intents.push(intent);
             const result = await this.ctx.activation.submit(intent, context);
             admissions.push({
                 ...result
@@ -69,17 +70,17 @@ export class RuntimeDriver extends Service implements Runtime {
         return rejected;
     }
     private async advance(proposal: Proposal, context: ExecutionContext): Promise<AdvanceResult> {
-        const plan = this.plan(proposal), admissions: Json[] = [];
+        const plan = this.plan(proposal), admissions: Json[] = [], intents: ActivationIntent[] = [];
         let rejected = false;
         try {
             for (const phase of plan.phases)
-                rejected = await this.submitPhase(phase, context, admissions) || rejected;
+                rejected = await this.submitPhase(phase, context, admissions, intents) || rejected;
             const results = await this.ctx.activation.drain(context);
             return {
                 status: activationStatus(rejected, results), frontier: {
                     codec: 'staged/1', value: plan.nextCursor
                 }, requiredOperations: results.flatMap(result => result.requiredOperations ?? []), evidence: {
-                    admissions, activations: results as unknown as Json
+                    admissions, activations: results.map((result, index) => ({ ...(intents[index] ? { id: intents[index]!.id, actorId: intents[index]!.actorId } : {}), ...result })) as unknown as Json
                 }
             };
         }

@@ -121,5 +121,5 @@ export async function runtime(f, options = {}) {
     await c.plugin((await core('generation-binding')).default, {
         generation: 'g'
     });
-    await c.plugin((await core('run-controller')).default);
+    await c.plugin((await core('run-controller')).default, options.runConfig ?? {});
 }
