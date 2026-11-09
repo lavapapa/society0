@@ -1,4 +1,5 @@
 /** C8 延后任务通道（DESIGN §5.2）的公共合同。 */
+import { compareCodePoints } from '@society0/host/order';
 import type { Disposer, Json } from './common.js';
 import type { ActivationAdmission, ActivationIntent, ExecutionContext } from './runtime.js';
 import type { CommitReceipt, SqliteDatabase, SqliteMigration, SqliteTransaction, TransactionRequest } from '../sqlite/index.js';
@@ -81,7 +82,7 @@ export function deferredJobId(job: DeferredJob): string {
         if (value === null || typeof value !== 'object') return JSON.stringify(value);
         if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';
         const object = value as { readonly [key: string]: Json };
-        return '{' + Object.keys(object).sort().map(key => JSON.stringify(key) + ':' + stable(object[key]!)).join(',') + '}';
+        return '{' + Object.keys(object).sort(compareCodePoints).map(key => JSON.stringify(key) + ':' + stable(object[key]!)).join(',') + '}';
     };
     const body = stable({ kind: job.kind, inputs: job.inputs, produces: job.produces, maxLagTicks: job.maxLagTicks });
     // 稳定内容哈希；不引入额外运行时依赖。

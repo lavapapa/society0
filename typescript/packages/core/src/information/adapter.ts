@@ -4,6 +4,7 @@
  * 新代码应注册 /public 推式表或 /self 提供者；此适配器只用于一个 generation 的过渡。
  * 渲染语义固定为 `query({})` 全量分页，保留来源返回顺序；批内分页大小由调用方 request 控制。
  */
+import { compareCodePoints } from '@society0/host/order';
 import type { DiscoveryScope, DomainVersion, PageRequest, StoredValue } from '../contracts/data.js';
 import type { InformationSource } from '../contracts/domain.js';
 import type { SqliteReadView } from '../sqlite/contracts.js';
@@ -109,7 +110,7 @@ export function publicFromInformation(source: InformationSource, options: Inform
             else
                 for (const row of await all(scope, view))
                     names.add(fileName(options, row));
-            return [...names].sort().map(name => ({ name, kind: 'file' as const }));
+            return [...names].sort(compareCodePoints).map(name => ({ name, kind: 'file' as const }));
         },
         async *render(path, scopeOrView, viewOrSignal, signal) {
             let scope: DiscoveryScope, view: SqliteReadView | undefined, actualSignal: AbortSignal | undefined = signal;
