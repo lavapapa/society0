@@ -103,6 +103,20 @@ type PreparationBounds = {
     maxItems: number;
     maxBytes: number;
 };
+type RecommendationSourcePage = {
+    sourceId: string;
+    total: string;
+    next?: string;
+};
+// 截断循环和 capture 共用同一构造函数，保证估算对象与最终 input、cacheInput、assertInput
+// 校验的对象形状（字段及是否有 truncated）完全一致。
+function recommendationInput(id: string, runId: string, scope: DiscoveryScope, versions: readonly DomainVersion[], items: readonly RecommendationInput['items'][number][], sourcePages: readonly RecommendationSourcePage[], maxBytes: number, truncated: number): RecommendationInput {
+    return {
+        id, runId, scope, versions, items, sourcePages, ...(truncated ? {
+            truncated
+        } : {}), maxBytes
+    };
+}
 function preparationEnvelope(input: RecommendationInput) {
     return JSON.stringify({
         id: input.id, runId: input.runId, scope: input.scope, versions: input.versions, items: input.items.map(item => [item.id, item.authorId]), maxBytes: input.maxBytes, sourcePages: input.sourcePages
@@ -221,12 +235,8 @@ export class Recommendations extends Service {
             owner, version
         })).sort((a, b) => compareCodePoints(a.owner, b.owner));
     }
-    private async collectInput(held: readonly Lease<RecommendationSource>[], scope: DiscoveryScope, view: import('../contracts.js').SqliteReadView, bounds: PreparationBounds, versions: readonly DomainVersion[]) {
-        const items: RecommendationInput['items'][number][] = [], sourcePages: {
-            sourceId: string;
-            total: string;
-            next?: string;
-        }[] = [], seen = new Set<string>();
+    private async collectInput(held: readonly Lease<RecommendationSource>[], scope: DiscoveryScope, view: import('../contracts.js').SqliteReadView, bounds: PreparationBounds, versions: readonly DomainVersion[], id: string): Promise<RecommendationInput> {
+        const items: RecommendationInput['items'][number][] = [], sourcePages: RecommendationSourcePage[] = [], seen = new Set<string>();
         for (const source of held) {
             const result = await source.value.collect(scope, view, {
                 maxItems: bounds.maxItems, maxResponseBytes: bounds.maxBytes
@@ -246,26 +256,17 @@ export class Recommendations extends Service {
             }
         }
         // 候选按来源返回顺序排列（帖子按 ordinal 升序）。超预算时从最早的候选开始丢弃，
-        // 保留最新的内容；用最终 input 的固定开销估算，确保截断后不会再触发 RECOMMENDATION_INPUT_BYTES。
-        const envelope = {
-            id: 'x'.repeat(36), runId: view.runId, scope, versions, maxBytes: bounds.maxBytes, sourcePages
-        };
+        // 保留最新的内容；直接测量包含 truncated 的最终对象，确保截断后不会再触发 RECOMMENDATION_INPUT_BYTES。
+        const inputScope = structuredClone(scope), candidate = (truncated: number) => recommendationInput(id, view.runId, inputScope, versions, items, sourcePages, bounds.maxBytes, truncated);
         let truncated = 0;
-        while (items.length && bytes({
-            ...envelope, items
-        }) > bounds.maxBytes) {
+        while (items.length && bytes(candidate(truncated)) > bounds.maxBytes) {
             items.shift();
             truncated++;
         }
-        if (bytes({
-            ...envelope, items
-        }) > bounds.maxBytes)
-            throw Error('RECOMMENDATION_INPUT_BYTES');
-        return {
-            items, sourcePages, ...(truncated ? {
-                truncated
-            } : {})
-        };
+        const input = candidate(truncated), size = bytes(input);
+        if (size > bounds.maxBytes)
+            throw Error(`RECOMMENDATION_INPUT_BYTES size=${size} max=${bounds.maxBytes} at=envelope`);
+        return input;
     }
     private async capture(held: readonly Lease<RecommendationSource>[], scope: DiscoveryScope, bounds: PreparationBounds, context: Invocation) {
         const view = await this.ctx.database.snapshot({
@@ -284,12 +285,9 @@ export class Recommendations extends Service {
                     cached: true, key, input: structuredClone(cached.input)
                 };
             }
-            const collected = await this.collectInput(held, scope, view, bounds, versions);
-            const input: RecommendationInput = {
-                id: randomUUID(), runId: view.runId, scope: structuredClone(scope), versions, ...collected, maxBytes: bounds.maxBytes
-            };
-            if (bytes(input) > bounds.maxBytes)
-                throw Error('RECOMMENDATION_INPUT_BYTES');
+            const input = await this.collectInput(held, scope, view, bounds, versions, randomUUID()), size = bytes(input);
+            if (size > bounds.maxBytes)
+                throw Error(`RECOMMENDATION_INPUT_BYTES size=${size} max=${bounds.maxBytes} at=final`);
             return {
                 cached: false, key, input
             };
@@ -331,7 +329,7 @@ export class Recommendations extends Service {
     private cacheInput(key: string, input: RecommendationInput, bounds: PreparationBounds) {
         const size = bytes(input);
         if (size > bounds.maxBytes)
-            throw Error('RECOMMENDATION_INPUT_BYTES');
+            throw Error(`RECOMMENDATION_INPUT_BYTES size=${size} max=${bounds.maxBytes} at=cache`);
         if (size > this.config.cacheBytes)
             return;
         const previous = this.cache.get(key);
