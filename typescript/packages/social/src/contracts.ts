@@ -66,6 +66,8 @@ export interface RecommendationInput {
     readonly versions: readonly DomainVersion[];
     readonly items: readonly RecommendationItem[];
     readonly maxBytes: number;
+    /** 按页预算截断时丢弃的候选条数；从最早的候选开始丢弃，保留最新内容。 */
+    readonly truncated?: number;
     readonly sourcePages?: readonly {
         sourceId: string;
         total: string;

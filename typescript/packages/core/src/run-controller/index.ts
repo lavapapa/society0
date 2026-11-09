@@ -140,6 +140,7 @@ export class RunController extends Service {
         const activationEvidence = entry.evidence && typeof entry.evidence === 'object' && !Array.isArray(entry.evidence) ? entry.evidence as Record<string, unknown> : {};
         const reason = typeof value.reason === 'string' ? value.reason : typeof activationEvidence.reason === 'string' ? activationEvidence.reason : String(entry.status ?? 'incomplete');
         const count = (name: string) => typeof value[name] === 'number' ? value[name] as number : typeof activationEvidence[name] === 'number' ? activationEvidence[name] as number : 0;
+        const warnings = Array.isArray(value.warnings) ? value.warnings.filter(item => typeof item === 'string') : [];
         return {
             actorId: typeof entry.actorId === 'string' ? entry.actorId : '',
             tick: this.tickText(logicalTime),
@@ -149,7 +150,8 @@ export class RunController extends Service {
             explorationErrors: count('explorationErrors'),
             actRecoverable: count('actRecoverable'),
             actFailed: count('actFailed'),
-            requiredSatisfied: typeof value.requiredSatisfied === 'boolean' ? value.requiredSatisfied : entry.status === 'completed'
+            requiredSatisfied: typeof value.requiredSatisfied === 'boolean' ? value.requiredSatisfied : entry.status === 'completed',
+            ...(warnings.length ? { warnings } : {})
         };
     }
     private async frontier() {

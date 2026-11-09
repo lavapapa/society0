@@ -6,6 +6,7 @@ import type {Json,Lease} from '../contracts/common.js';
 import type {ThreadView,Message,PreparedMessage} from '../contracts/domain.js';
 import type {StoredValue} from '../contracts/data.js';
 import type {PerceptionInput} from '../contracts/perception.js';
+import type {PerceptionBatch} from '../contracts/perception.js';
 import type {SequencedInferenceEvent,InferenceStopReason,InferenceRequest,InferenceOutcome,InferenceExtensions,InferenceEventSink,UndispatchedToolReceipt,AgentRuntime} from '../contracts/inference.js';
 import type {SqliteSnapshot,SqliteTransaction} from '../sqlite/contracts.js';
 import {OrderedInferenceSink} from '../agent-runtime-pi/sink.js';
@@ -221,20 +222,32 @@ export class LlmActivation {
   this.held.push(selected);
   for(let page=0;page<this.config.maxPerceptionPages;page++){
    const scope={actorId:this.context.actorId,momentId:this.context.momentId,threadId:this.thread.id,logicalTime,reason:this.intent.input};
-   const batch=await this.step('perception_error','perception.collect',()=>selected.value.collect(scope,{maxItems:this.config.maxPageItems,maxResponseBytes:this.config.maxPageBytes},this.context));
-   if(!batch.reads.length)return;
-   const inputs:PerceptionInput[]=[];
-   for(const read of batch.reads){
-    if(!read.page.items.length)continue;
-    const texts=await this.step('perception_error','perception.material',()=>Promise.all(read.page.items.map(async item=>JSON.stringify({source:read.sourceId,id:item.id,kind:item.kind,provenance:item.provenance,material:await this.readValue(item.material)}))));
-    const mounted=await this.step('setup_error','context.freeze',()=>this.ctx.contextMount.freeze(texts,{...this.context,operationId:this.context.operationId+'/perception/'+page+'/'+read.sourceId}));
-    this.held.push(mounted);paths.push(...mounted.value);
-    const linked=await this.step('persistence_error','artifact.stage',()=>Promise.all(texts.map(text=>prepareValue(text,16384,this.ctx.artifacts,this.context.signal))));
-    const native={role:'user',content:JSON.stringify({source:read.sourceId,percepts:read.page.items,paths:mounted.value}),timestamp:Date.now()};
-    inputs.push({sourceId:read.sourceId,perceptIds:read.page.items.map(item=>item.id),message:await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/perception/'+page+'/'+read.sourceId,'user',native)),contexts:[...contexts,...linked]});
+   let batch:PerceptionBatch|undefined,committed=false;
+   for(let attempt=0;!committed;attempt++){
+    const current=await this.step('perception_error','perception.collect',()=>selected.value.collect(scope,{maxItems:this.config.maxPageItems,maxResponseBytes:this.config.maxPageBytes},this.context));
+    batch=current;
+    if(!current.reads.length)return;
+    const inputs:PerceptionInput[]=[],staged:string[]=[];
+    for(const read of current.reads){
+     if(!read.page.items.length)continue;
+     const tag=attempt?'/'+attempt:'';
+     const texts=await this.step('perception_error','perception.material',()=>Promise.all(read.page.items.map(async item=>JSON.stringify({source:read.sourceId,id:item.id,kind:item.kind,provenance:item.provenance,material:await this.readValue(item.material)}))));
+     const operationId=this.context.operationId+'/perception/'+page+'/'+read.sourceId+tag;
+     const mounted=await this.step('setup_error','context.freeze',()=>this.ctx.contextMount.freeze(texts,{...this.context,operationId}));
+     this.held.push(mounted);staged.push(...mounted.value);
+     const linked=await this.step('persistence_error','artifact.stage',()=>Promise.all(texts.map(text=>prepareValue(text,16384,this.ctx.artifacts,this.context.signal))));
+     const native={role:'user',content:JSON.stringify({source:read.sourceId,percepts:read.page.items,paths:mounted.value}),timestamp:Date.now()};
+     inputs.push({sourceId:read.sourceId,perceptIds:read.page.items.map(item=>item.id),message:await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(operationId,'user',native)),contexts:[...contexts,...linked]});
+    }
+    try{
+     await this.transaction('perception/'+page,tx=>this.step('perception_error','perception.commit',()=>selected.value.commit(tx,current,inputs)));
+     paths.push(...staged);committed=true;
+    }catch(error){
+     // 并发 publish 会让感知在 collect 与 commit 之间失效：同一次激活内重新 collect 再 commit，最多重试 2 次。
+     if(!(error instanceof LlmActivationError)||error.code!=='PERCEPTION_STALE'||attempt>=2)throw error;
+    }
    }
-   await this.transaction('perception/'+page,tx=>this.step('perception_error','perception.commit',()=>selected.value.commit(tx,batch,inputs)));
-   if(!batch.reads.some(read=>read.page.hasMore))return;
+   if(!batch!.reads.some(read=>read.page.hasMore))return;
   }
   throw new LlmActivationError('perception_error','PERCEPTION_PAGE_BUDGET','perception.collect');
  }
@@ -377,7 +390,7 @@ export class LlmActivation {
   const incompleteStream=outcome.status==='incomplete'&&(outcome.reason==='provider_error'||outcome.reason==='cancelled'||outcome.reason==='transport_unknown');
   if(!incompleteStream)await this.flushEvents();
   for(const item of outcome.actionReceipts)for(const operationId of item.receipt.requiredOperations??[])this.operations.add(operationId);
-  return {status:outcome.status,value:{reason:outcome.reason,requests:outcome.requests,toolCalls:outcome.toolCalls??0,explorationErrors:outcome.explorationErrors??0,actRecoverable:outcome.actRecoverable??0,actFailed:outcome.actFailed??0,requiredSatisfied:outcome.requiredSatisfied===true},evidence:outcome as unknown as Json,requiredOperations:[...this.operations]};
+  return {status:outcome.status,value:{reason:outcome.reason,requests:outcome.requests,toolCalls:outcome.toolCalls??0,explorationErrors:outcome.explorationErrors??0,actRecoverable:outcome.actRecoverable??0,actFailed:outcome.actFailed??0,requiredSatisfied:outcome.requiredSatisfied===true,...(outcome.warnings?.length?{warnings:[...outcome.warnings]}:{})},evidence:outcome as unknown as Json,requiredOperations:[...this.operations]};
  }
  private failureReason(failure:LlmActivationError):LlmActivationReason{
   const unknown=failure.reason==='persistence_unknown'||failure.reason==='transport_unknown';
