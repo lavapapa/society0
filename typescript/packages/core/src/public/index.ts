@@ -80,6 +80,7 @@ export class PublicRepository extends Service {
             cache: this.cache,
             audiences: this.audiences,
             tables: registry.tables,
+            tableForDirectory: path => registry.tableForDirectory(path),
             docs: registry.docs,
             momentViews: () => ctx.get('momentViews', false),
             searchIndex: options.searchIndex,

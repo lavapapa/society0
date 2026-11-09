@@ -55,7 +55,9 @@ SELECT (SELECT count(*) FROM closed) AS closed,
   )) AS updated`;
 }
 function notifyMode(reader: PublicChangeReader, path: string, tablePath?: string): PublicNotify {
-    const declared = tablePath ? reader.tables.get(tablePath)?.notify : reader.docs.get(path)?.notify;
+    const declared = tablePath
+        ? reader.tables.get(tablePath)?.notify ?? [...reader.tables.values()].find(decl => decl.path === tablePath)?.notify
+        : reader.docs.get(path)?.notify;
     return declared ?? reader.defaultNotify;
 }
 function audienceOk(audience: Audience, agent: readonly Audience[]): boolean { return audience === 'all' || agent.includes(audience); }

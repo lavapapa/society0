@@ -43,7 +43,40 @@ Social 的信息入口 `social/posts` 接受可选 `{id}`（空串也是合法�
 
 结果包含完整点、观察页、历史计数、耗时、RSS/heap 与关闭报告。`advanceAndSaveMs` 是推进与保存的合计时间；`history.timings` 记录实际 JSON 编码、文件发布 IO、压缩/解压流水线与 publication/restore 等计时。嵌套阶段会重叠，应分别报告；压缩流水线包含流 IO，native 阶段包含 worker 启停。纯压缩 CPU、独立流读写和设备 IO 时延保持 `unknown`。
 
-## 三、覆盖与故障
+## 三、公开表声明与文件布局
+
+`public.registry.table` 的注册键是完整文件路径：单文件 table（`shard.format:'none'`）用 `path` 加文件名拼出完整路径，分片 table 用目录路径。因此同一个目录可以放多张单文件 table，只要文件名不同。经济目录的推荐写法：
+
+```js
+const products = {
+  path: '/public/econ',
+  title: '经济产品',
+  description: '产品目录',
+  schema: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' } } },
+  key: ['id'], sort: [{ field: 'id' }],
+  // 单文件 table：file() 返回不含 .jsonl 的文件名。
+  shard: { by: '', format: 'none', file: () => 'products' }
+};
+const recipes = { ...products, title: '生产工艺', shard: { by: '', format: 'none', file: () => 'recipes' } };
+
+ctx.public.registry.table(products); // /public/econ/products.jsonl
+ctx.public.registry.table(recipes);  // /public/econ/recipes.jsonl
+// 写入时用完整文件路径；目录下只有一张表时也可用 path。
+await ctx.public.writer(tx).upsert('/public/econ/products.jsonl', rows);
+```
+
+`shard.format` 为 `day`、`month`、`year` 或 `value` 时是目录 table：`path` 是目录，一张表拥有该目录下的全部分片文件。目录 table 与它下面的文件 table 不能共存，注册时返回 `PUBLIC_TABLE_CONFLICT`；同一完整文件路径重复注册返回 `PUBLIC_TABLE_EXISTS`。同一目录下的多张文件 table 各自有独立的 schema、受众和 `notify` 设置，`ls`、`find`、`grep`、`read` 和 `changes` 都按文件路径分别工作；`README.md` 会列出该目录的所有可见文件，但目录下有多张表时不再生成有歧义的 `schema.json`。
+
+选择建议：
+
+| 内容 | 用法 | 原因 |
+|---|---|---|
+| 可按键增删改、需要 as-of 读取和行级受众的 JSONL 数据 | 文件 table 或目录 table | 规范行、排序键、变更计数和行级检索都由 public 维护 |
+| 多份互不相关的列表放在同一目录 | 多张文件 table，用 `shard.file` 区分文件名 | 注册键是完整文件路径，不按目录冲突 |
+| 按日期或取值天然分片的大表 | 目录 table | 一次声明覆盖多个分片文件，`upsert` 自动路由 |
+| 说明文档、配置、富文本或不需要行级查询的正文 | `PublicDocDecl`（`registry.doc`） | 按路径发布整份正文，没有 schema、行键和分片语义 |
+
+## 四、覆盖与故障
 
 `--patches <patch-array.json>` 接收 ProfileLoader 的 CLI 层 patch 数组。patch 的 `config` 替换该入口的整个配置对象；覆盖时保留所需必填字段。例如新 run 的规则标签覆盖：
 
@@ -59,11 +92,11 @@ profile 的生效配置和 `createHost` 的 boot 配置在 Schema validate 前�
 
 Codex 订阅使用独立 provider 与 pi runtime。真实账号登录需要额外授权；离线配置检查与真实订阅调用分别记录。该例子的订阅配置执行门返回 `CODEX_NOT_AUTHORIZED`，`--inspect` 核对配置；`--offline` 验证原生装配和根点消费，真实订阅门仍需单独验收。
 
-## 四、恢复
+## 五、恢复
 
 新建要求 world 与 lineage 目录尚未使用，创建命令重复运行会在挂载数据库之前失败。默认 authority 位于 world 同级的 `lineages/<world目录名>`，identity 为 `--run-id`；结果输出实际 `lineage` 引用。可通过 `--lineage-directory` 和 `--lineage` 指定外部 authority。分叉及其 reopen 保持源 lineage 的目录与 identity，源 world 删除后的证据保留以该独立 authority 为基础。`--reopen` 遇到缺失 authority 会报告 unavailable，保留 unknown；该路径不执行 initialize。
 
-## 五、模型调用方
+## 六、模型调用方
 
 两个模型 profile 可用 `--offline` 检查完整的原生装配和根点。Social 的真实请求由获授权调用方通过导出的 `runProfile` 接入内存凭据；默认命令行返回 `MODEL_NOT_AUTHORIZED`。凭据引用为 `authorized-local`，实际 provider ID 为 `local-gateway`；驱动选择注册名 `pi/v1`。每次 activation 的模型请求与工具调用预算读取 profile 中 `driver-llm` 的 `maxRequests`、`maxToolCalls`，并通过安装包 `Config` 和 `--inspect` 核对有效值；完成要求为实际 `social.publish` 回执。
 
@@ -85,7 +118,7 @@ export async function runAuthorizedSocial(options, gatewayKey) {
 
 该凭据 owner 归属宿主，例子在 run 关闭后释放宿主。候选证据分别报告离线装配、获授权 Social 请求和真实订阅验收；请求次数以实际 attempt 证据核对。
 
-## 六、分叉
+## 七、分叉
 
 [分支例子](../examples/run-profile-branch.mjs) 使用 RunBranch 的公开 plan/create/probe 协议，目标沿用源 SQL schema。复制一份目标 profile，在 `patches` 末尾追加例如 `{"id":"checkpoint-policy","config":{"every":2}}`，即可声明不同策略；目录、run identity、generation 与共享 lineage 由例子补入原生 patch。
 

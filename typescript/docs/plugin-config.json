@@ -865,6 +865,14 @@
               "mode": "boundary",
               "affectsResults": false,
               "secret": null
+            },
+            {
+              "name": "autoRecover",
+              "type": "object",
+              "default": {},
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": null
             }
           ]
         },
@@ -1805,6 +1813,14 @@
               "name": "maxRetries",
               "type": "number",
               "default": 2,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "retry",
+              "type": "object",
+              "default": {},
               "mode": "recreate",
               "affectsResults": true,
               "secret": false
