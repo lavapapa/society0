@@ -213,18 +213,19 @@ export function readCredentialsEnv(name: string, environment: NodeJS.ProcessEnv 
 }
 
 interface MigrationInfo { owner: string; after: readonly string[]; requiredBy: string }
+interface CollectedMigration extends MigrationInfo { value: MigrationValue }
 type MigrationValue = { owner?: unknown; after?: unknown };
 
 function flag(plan: CompositionPlan, name: string): boolean {
     return active(plan).some(entry => entry.name === name);
 }
 
-async function importMigration(problems: ProfileProblem[], provider: string, load: () => Promise<MigrationValue>): Promise<MigrationInfo | undefined> {
+async function importMigration(problems: ProfileProblem[], provider: string, load: () => Promise<MigrationValue>): Promise<CollectedMigration | undefined> {
     try {
         const value = await load();
         if (!value || typeof value.owner !== 'string' || !Array.isArray(value.after))
             throw Error('MIGRATION_SHAPE');
-        return { owner: value.owner, after: value.after.filter((item): item is string => typeof item === 'string'), requiredBy: provider };
+        return { owner: value.owner, after: value.after.filter((item): item is string => typeof item === 'string'), requiredBy: provider, value };
     }
     catch (error) {
         problems.push({ kind: 'migration', id: provider, requiredBy: provider, hint: `无法加载 ${provider} 的 migration：${error instanceof Error ? error.message : String(error)}`, detail: error instanceof Error ? error.message : String(error) });
@@ -232,8 +233,8 @@ async function importMigration(problems: ProfileProblem[], provider: string, loa
     }
 }
 
-async function collectMigrations(plan: CompositionPlan, problems: ProfileProblem[]): Promise<MigrationInfo[]> {
-    const result: MigrationInfo[] = [];
+async function collectMigrations(plan: CompositionPlan, problems: ProfileProblem[]): Promise<CollectedMigration[]> {
+    const result: CollectedMigration[] = [];
     const source = (entry: PlannedEntry) => entry.binding?.identity?.source ?? {};
     const isActive = (name: string) => flag(plan, name);
     const entryOf = (name: string) => active(plan).find(entry => entry.name === name);
@@ -731,25 +732,16 @@ export async function worker(options: StartOptions): Promise<number> {
         }
         const plan = prepared.plan;
         const entryOf = (id: string) => plan.flat.find(entry => entry.id === id);
-        const migrationValues: unknown[] = [];
-        const add = async (load: () => Promise<unknown>) => { migrationValues.push(await load()); };
-        await add(async () => (await import('@society0/core/artifacts-local')).artifactsMigration);
-        if (flag(plan, '@society0/core/actors')) await add(async () => (await import('@society0/core/actors')).actorsMigration);
-        const source = (id: string) => entryOf(id)?.binding?.identity?.source ?? {};
-        if (flag(plan, '@society0/core/results')) await add(async () => (await import('@society0/core/results')).resultsMigration(source('results')));
-        if (flag(plan, '@society0/core/thread')) await add(async () => (await import('@society0/core/thread')).threadMigration(source('thread')));
-        if (flag(plan, '@society0/core/actions')) await add(async () => (await import('@society0/core/actions')).actionsMigration(source('actions')));
-        if (flag(plan, '@society0/core/perception')) await add(async () => (await import('@society0/core/perception')).perceptionMigration(source('perception')));
-        if (flag(plan, '@society0/core/moment-views')) await add(async () => (await import('@society0/core/moment-views')).momentViewsMigration(source('moment-views')));
-        if (flag(plan, '@society0/core/public')) {
-            await add(async () => (await import('@society0/core/public')).publicMigration(source('public')));
-            await add(async () => (await import('@society0/core/public')).publicIndexMigration(source('public')));
-        }
-        if (flag(plan, '@society0/extras/workspace')) await add(async () => (await import('@society0/extras/workspace')).workspaceMigration(source('workspace')));
-        if (flag(plan, '@society0/core/driver-llm')) await add(async () => (await import('@society0/core/actor-tools')).actorToolsMigration(source('driver-llm')));
-        if (flag(plan, '@society0/core/runtime-events')) await add(async () => (await import('@society0/core/runtime-events')).eventsMigration);
-        if (flag(plan, '@society0/social/social-repository')) await add(async () => (await import('@society0/social/social-repository')).socialMigration);
-        if (flag(plan, '@society0/social/measurement-repository')) await add(async () => (await import('@society0/social/measurement-repository')).measurementMigration);
+        const migrationIssues: ProfileProblem[] = [];
+        const migrations = await collectMigrations(plan, migrationIssues);
+        migrationIssues.push(...migrationProblems(migrations));
+        if (migrationIssues.length)
+            throw new PlatformError(
+                'MIGRATION_INVALID',
+                `profile 的 migration 不可用：${migrationIssues.map(item => `${item.kind}:${item.id}`).join(', ')}`,
+                migrationIssues.map(item => item.hint).join('；')
+            );
+        const migrationValues = migrations.map(item => item.value);
         const databaseEntry = entryOf('sqlite');
         const historyEntry = entryOf('sqlite-history');
         const event = flag(plan, '@society0/core/runtime-events');
