@@ -10,6 +10,7 @@ export const api = hostApi('./profile-loader', ["profileLoader"], ["moduleResolv
 export * from './compiler.js';
 export type { Profile } from './profile-input.js';
 import { readLiteral, validateProfile, loadLayers, loadBindings, externalServices, type Profile } from './profile-input.js';
+import type { ProfileAnalysis, ProfileProblem } from './types.js';
 export { readLiteral } from './profile-input.js';
 export { mountPlan, createMountSession } from './mount-session.js';
 export type { MountedTree, MountSession } from './mount-session.js';
@@ -39,6 +40,37 @@ export class ProfileLoader extends Service {
         const bindings = await loadBindings(this.ctx, tree, lock, session);
         return compileLayers(layers, bindings, { resolve: value => this.ctx.configResolvers.resolve(value), externalServices: externalServices(this.ctx, tree, bindings) });
     }
+    /**
+     * Tolerant composition check used by the platform entry. Collects missing
+     * plugins/services/config problems instead of failing on the first fault.
+     * Never mounts plugins and never opens a run directory.
+     */
+    async analyze(profile: Profile, options: {
+        baseURL?: string;
+        cliPatches?: readonly EntryPatch[];
+    } = {}): Promise<ProfileAnalysis> {
+        const missing: ProfileProblem[] = [], warnings: string[] = [];
+        const empty: CompositionPlan = Object.freeze({ entries: Object.freeze([]), flat: Object.freeze([]), layers: Object.freeze([]) });
+        const base = options.baseURL ?? this.ctx.baseUrl;
+        if (!base)
+            return { plan: empty, missing: [{ kind: 'config', id: 'profile/baseURL', hint: '无法确定 profile 的基准 URL', detail: 'PROFILE_BASE_URL_REQUIRED' }], warnings };
+        try {
+            validateProfile(profile);
+            const lock = await readLiteral(new URL(profile.lockfile, base).href) as unknown as import('../module-resolver/index.js').ModuleLock;
+            const layers = await loadLayers(this.ctx, profile, base, lock, options.cliPatches);
+            const { tree } = composeLayers(layers);
+            const session = createPreflightSession();
+            const bindings = await loadBindings(this.ctx, tree, lock, session, missing);
+            const plan = await compileLayers(layers, bindings, { resolve: value => this.ctx.configResolvers.resolve(value), externalServices: externalServices(this.ctx, tree, bindings), problems: missing });
+            return { plan, missing, warnings };
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            missing.push({ kind: 'config', id: 'profile', hint: `profile 无法装配：${message}`, detail: message });
+            return { plan: empty, missing, warnings };
+        }
+    }
+
     async createMountSession(plan: CompositionPlan, ctx: Context): Promise<MountSession> {
         const session = await createSession(plan, ctx);
         const tree = session.tree;

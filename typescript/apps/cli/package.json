@@ -15,7 +15,10 @@
     "society0": "./dist/main.js"
   },
   "dependencies": {
-    "@society0/host": "0.1.0"
+    "@society0/host": "0.1.0",
+    "@society0/core": "0.1.0",
+    "@society0/extras": "0.1.0",
+    "@society0/social": "0.1.0"
   },
   "peerDependencies": {
     "@society0/cordis": "4.0.5-society0.1"

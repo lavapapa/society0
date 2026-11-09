@@ -86,3 +86,63 @@ export function checkGraph(flat: readonly PlannedEntry[], external: readonly str
     for (const id of graph.keys())
         walk.visit(id);
 }
+export interface GraphProblem {
+    readonly code: 'SERVICE_MISSING' | 'LIFETIME_INVERSION' | 'SERVICE_AMBIGUOUS' | 'SERVICE_PROTOCOL' | 'DEPENDENCY_CYCLE';
+    readonly entryId: string;
+    readonly service?: string;
+    readonly providerId?: string;
+    readonly detail?: string;
+}
+/** Collecting variant of checkGraph used by platform analysis; never throws for graph faults. */
+export function collectGraphProblems(flat: readonly PlannedEntry[], external: readonly string[]): GraphProblem[] {
+    const problems: GraphProblem[] = [], active = flat.filter(entry => !entry.disabled), providers = providerIndex(active);
+    const graph: Graph = new Map(active.map(entry => [entry.id, []]));
+    const collect = (entry: PlannedEntry, key: string) => {
+        const matches = providers.get(realm(entry, key)) ?? [];
+        if (matches.length > 1) {
+            problems.push({ code: 'SERVICE_AMBIGUOUS', entryId: entry.id, service: key, detail: matches.map(value => value.id).join(', ') });
+            return;
+        }
+        if (matches.length === 1) {
+            const provider = matches[0]!;
+            if (!allowed[entry.scope].includes(provider.scope))
+                problems.push({ code: 'LIFETIME_INVERSION', entryId: entry.id, service: key, providerId: provider.id });
+            const need = entry.binding?.api.requires.find(required => required.service.key === key)?.service;
+            const offered = provisions(provider).find(service => service.key === key);
+            if (need && offered && !compatible(need, offered))
+                problems.push({ code: 'SERVICE_PROTOCOL', entryId: entry.id, service: key, providerId: provider.id });
+            graph.get(provider.id)?.push({ id: entry.id, why: key });
+            return;
+        }
+        if (external.includes(key) && realm(entry, key) === `root:${key}`)
+            return;
+        const hidden = active.find(candidate => provisions(candidate).some(service => service.key === key));
+        if (hidden)
+            problems.push({ code: 'LIFETIME_INVERSION', entryId: entry.id, service: key, providerId: hidden.id });
+        else
+            problems.push({ code: 'SERVICE_MISSING', entryId: entry.id, service: key });
+    };
+    for (const entry of active) {
+        if (entry.parentId && graph.has(entry.parentId))
+            graph.get(entry.parentId)!.push({ id: entry.id, why: 'child' });
+        for (const key of entry.inject)
+            collect(entry, key);
+    }
+    const done = new Set<string>(), path: string[] = [];
+    const visit = (id: string): void => {
+        if (path.includes(id)) {
+            problems.push({ code: 'DEPENDENCY_CYCLE', entryId: id, detail: [...path.slice(path.indexOf(id)), id].join(' -> ') });
+            return;
+        }
+        if (done.has(id))
+            return;
+        path.push(id);
+        for (const edge of graph.get(id) ?? [])
+            visit(edge.id);
+        path.pop();
+        done.add(id);
+    };
+    for (const id of graph.keys())
+        visit(id);
+    return problems;
+}
