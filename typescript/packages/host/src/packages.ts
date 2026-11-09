@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve, relative } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import semver from 'semver';
 import { exports as resolveExports } from 'resolve.exports';
 
@@ -20,19 +20,46 @@ function packageName(specifier: string): string {
   }
   return specifier.startsWith('@') ? specifier.split('/').slice(0, 2).join('/') : specifier.split('/')[0]!;
 }
-function locate(name: string, baseURL: string): Package | undefined {
-  const req = createRequire(baseURL);
-  for (const path of req.resolve.paths(name) ?? []) {
-    const filename = join(path, name, 'package.json');
-    if (existsSync(filename)) return { directory: realpathSync(dirname(filename)), manifest: JSON.parse(readFileSync(filename, 'utf8')) };
+function anchorDirectory(baseURL: string): string {
+  return baseURL.startsWith('file:') ? dirname(fileURLToPath(baseURL)) : dirname(resolve(baseURL));
+}
+/** 一次包图检查内的文件系统事实；安装树在该检查期间不变。 */
+class LookupCache {
+  private readonly exists = new Map<string, boolean>();
+  private readonly realpaths = new Map<string, string>();
+  private readonly packages = new Map<string, Package | undefined>();
+  fileExists(filename: string): boolean {
+    let value = this.exists.get(filename);
+    if (value === undefined) {
+      value = existsSync(filename);
+      this.exists.set(filename, value);
+    }
+    return value;
+  }
+  realpath(filename: string): string {
+    let value = this.realpaths.get(filename);
+    if (value === undefined) {
+      value = realpathSync(filename);
+      this.realpaths.set(filename, value);
+    }
+    return value;
+  }
+  locate(name: string, baseURL: string): Package | undefined {
+    const key = anchorDirectory(baseURL) + '\0' + name;
+    if (this.packages.has(key)) return this.packages.get(key);
+    let found: Package | undefined;
+    for (const path of createRequire(baseURL).resolve.paths(name) ?? []) {
+      const filename = join(path, name, 'package.json');
+      if (this.fileExists(filename)) {
+        found = { directory: this.realpath(dirname(filename)), manifest: JSON.parse(readFileSync(filename, 'utf8')) };
+        break;
+      }
+    }
+    this.packages.set(key, found);
+    return found;
   }
 }
-function required(name: string, baseURL: string): Package {
-  const found = locate(name, baseURL);
-  if (!found) throw new Error(`PACKAGE_MISSING: ${name} resolved from ${baseURL}`);
-  return found;
-}
-function entry(pkg: Package, specifier: string): string {
+function entry(cache: LookupCache, pkg: Package, specifier: string): string {
   const subpath = specifier.slice(packageName(specifier).length);
   const key = subpath ? '.' + subpath : '.';
   let selected: string | undefined;
@@ -40,17 +67,10 @@ function entry(pkg: Package, specifier: string): string {
   catch (cause) { throw new Error(`PACKAGE_EXPORTS: ${specifier} export ${key} at ${pkg.directory}/package.json`, {cause}); }
   if (!selected?.startsWith('./')) throw new Error(`PACKAGE_EXPORTS: ${specifier} has no ESM export ${key} at ${pkg.directory}/package.json`);
   const filename = resolve(pkg.directory, selected);
-  if (relative(pkg.directory, filename).startsWith('..') || !existsSync(filename) || !statSync(filename).isFile()) {
+  if (relative(pkg.directory, filename).startsWith('..') || !cache.fileExists(filename) || !statSync(filename).isFile()) {
     throw new Error(`PACKAGE_EXPORTS: ${specifier} export ${key} targets missing/invalid ${filename}`);
   }
   return pathToFileURL(filename).href;
-}
-
-function peerPackage(pkg: Package, name: string, range: string, anchor: string): Package | undefined {
-  const peer = locate(name, anchor);
-  if (!peer && pkg.manifest.peerDependenciesMeta?.[name]?.optional) return;
-  assertPeerRange(pkg, peer, name, range, anchor);
-  return peer;
 }
 function assertPeerRange(pkg: Package, peer: Package | undefined, name: string, range: string, anchor: string): void {
   if (!peer || !semver.validRange(range) || !semver.satisfies(peer.manifest.version, range)) {
@@ -63,8 +83,20 @@ function assertHostPeer(pkg: Package): void {
   }
 }
 class PackageGraph {
-  private readonly canonical = new Map(['@society0/host', '@society0/cordis'].map(name => [name, required(name, import.meta.url)]));
+  readonly cache = new LookupCache();
+  private readonly canonical = new Map(['@society0/host', '@society0/cordis'].map(name => [name, this.required(name, import.meta.url)]));
   private readonly visited = new Set<string>();
+  required(name: string, baseURL: string): Package {
+    const found = this.cache.locate(name, baseURL);
+    if (!found) throw new Error(`PACKAGE_MISSING: ${name} resolved from ${baseURL}`);
+    return found;
+  }
+  private peerPackage(pkg: Package, name: string, range: string, anchor: string): Package | undefined {
+    const peer = this.cache.locate(name, anchor);
+    if (!peer && pkg.manifest.peerDependenciesMeta?.[name]?.optional) return;
+    assertPeerRange(pkg, peer, name, range, anchor);
+    return peer;
+  }
   private assertIdentity(pkg: Package, anchor: string): void {
     const {manifest, directory} = pkg;
     const expected = this.canonical.get(manifest.name);
@@ -75,7 +107,7 @@ class PackageGraph {
       throw new Error(`FRAMEWORK_DUPLICATE: host ${this.canonical.get('@society0/cordis')!.directory}; foreign framework ${directory}`);
     }
     for (const [name, canonical] of this.canonical) {
-      const resolved = locate(name, anchor);
+      const resolved = this.cache.locate(name, anchor);
       if (resolved && resolved.directory !== canonical.directory) {
         throw new Error(`FRAMEWORK_DUPLICATE: ${name} resolved from ${directory}; host ${canonical.directory}; plugin ${resolved.directory}`);
       }
@@ -83,7 +115,7 @@ class PackageGraph {
   }
   private inspectPeers(pkg: Package, anchor: string): void {
     for (const [name, range] of Object.entries(pkg.manifest.peerDependencies ?? {})) {
-      const peer = peerPackage(pkg, name, range, anchor);
+      const peer = this.peerPackage(pkg, name, range, anchor);
       if (peer) this.inspect(peer);
     }
   }
@@ -93,13 +125,13 @@ class PackageGraph {
     const anchor = pathToFileURL(join(pkg.directory, 'package.json')).href;
     this.assertIdentity(pkg, anchor);
     this.inspectPeers(pkg, anchor);
-    for (const name of Object.keys(pkg.manifest.dependencies ?? {})) this.inspect(required(name, anchor));
+    for (const name of Object.keys(pkg.manifest.dependencies ?? {})) this.inspect(this.required(name, anchor));
   }
 }
 function verifyBatch(graph: PackageGraph, specifiers: readonly string[], baseURL: string): string[] {
-  const packages = specifiers.map(specifier => required(packageName(specifier), baseURL));
+  const packages = specifiers.map(specifier => graph.required(packageName(specifier), baseURL));
   // Resolve every export before any import. Export-map semantics belong to resolve.exports.
-  const urls = packages.map((pkg, i) => entry(pkg, specifiers[i]!));
+  const urls = packages.map((pkg, i) => entry(graph.cache, pkg, specifiers[i]!));
   for (const pkg of packages) {
     assertHostPeer(pkg);
     graph.inspect(pkg);
@@ -108,16 +140,22 @@ function verifyBatch(graph: PackageGraph, specifiers: readonly string[], baseURL
 }
 
 /** 一次编译批次的验证图；批次内安装树保持不变，下一批次新建session。 */
+export interface PreflightCache {
+  fileExists(filename: string): boolean;
+  realpath(filename: string): string;
+}
 export interface PreflightSession {
+  readonly cache: PreflightCache;
   preflight(specifiers: readonly string[], baseURL: string): string[];
 }
 export function createPreflightSession(): PreflightSession {
   let graph: PackageGraph | undefined;
+  const current = () => graph ??= new PackageGraph();
   return {
+    get cache() { return current().cache; },
     preflight(specifiers, baseURL) {
       try {
-        graph ??= new PackageGraph();
-        return verifyBatch(graph, specifiers, baseURL);
+        return verifyBatch(current(), specifiers, baseURL);
       } catch (error) {
         graph = undefined;
         throw error;

@@ -34,11 +34,11 @@ export class ModuleResolver extends Service {
     resolve(specifier: string, lock: ModuleLock, session?: PreflightSession): ModuleIdentity {
         const baseURL = this.baseURL();
         const name = nameOf(specifier);
-        const directory = locate(name, baseURL);
+        const directory = locate(name, baseURL, session?.cache);
         const manifest = readManifest(directory);
         const selected = lockedModule(specifier, name, directory, manifest, lock);
         const exportPath = specifier === name ? '.' : '.' + specifier.slice(name.length);
-        const file = exported(manifest, exportPath, directory);
+        const file = exported(manifest, exportPath, directory, session?.cache);
         const [checked] = session ? session.preflight([specifier], baseURL) : preflight([specifier], baseURL);
         if (checked !== pathToFileURL(file).href)
             throw Error(`EXPORT_RESOLUTION_MISMATCH ${specifier}`);

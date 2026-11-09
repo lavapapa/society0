@@ -4,26 +4,27 @@ import { join, resolve, relative } from 'node:path';
 import { exports as resolveExports } from 'resolve.exports';
 import semver from 'semver';
 import { assertLiteral } from '../config-resolvers/types.js';
+import type { PreflightCache } from '../packages.js';
 import type { PackageManifest, ModuleIdentity, ModuleLock, MetadataSidecar, StaticInspection } from './types.js';
 export function nameOf(specifier: string) {
     if (specifier.startsWith('.') || specifier.startsWith('/') || specifier.includes(':'))
         throw Error(`PACKAGE_SPECIFIER ${specifier}`);
     return specifier.startsWith('@') ? specifier.split('/').slice(0, 2).join('/') : specifier.split('/')[0]!;
 }
-export function locate(name: string, baseURL: string) {
+export function locate(name: string, baseURL: string, cache?: PreflightCache) {
     for (const folder of createRequire(baseURL).resolve.paths(name) ?? []) {
         const dir = join(folder, name);
-        if (existsSync(join(dir, 'package.json')))
-            return realpathSync(dir);
+        if (cache ? cache.fileExists(join(dir, 'package.json')) : existsSync(join(dir, 'package.json')))
+            return cache ? cache.realpath(dir) : realpathSync(dir);
     }
     throw Error(`PACKAGE_MISSING ${name} from ${baseURL}`);
 }
-export function exported(manifest: PackageManifest, entry: string, directory: string) {
+export function exported(manifest: PackageManifest, entry: string, directory: string, cache?: PreflightCache) {
     const targets = resolveExports(manifest as Parameters<typeof resolveExports>[0], entry);
     if (!targets?.length)
         throw Error(`EXPORT_MISSING ${manifest.name}${entry}`);
     const target = resolve(directory, targets[0]!);
-    if (relative(directory, target).startsWith('..') || !existsSync(target))
+    if (relative(directory, target).startsWith('..') || !(cache ? cache.fileExists(target) : existsSync(target)))
         throw Error(`EXPORT_ARTIFACT ${manifest.name}${entry}: ${target}`);
     return target;
 }
