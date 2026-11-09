@@ -6,6 +6,8 @@ function codes(error:unknown,depth=0):string[]{if(!error||typeof error!=='object
 export class TransportObserver {
  phase:'idle'|'dispatching'|'headers'|'complete'='idle';httpStatus:number|null=null;calls=0;auxiliaryCalls=0;abortedBeforeDispatch=false;private error:unknown;
  constructor(private endpoint:string){}
+ /** 同一次selection内重试时，只清掉上一个物理attempt的相位与错误，保留辅助调用统计。 */
+ reset(){this.phase='idle';this.httpStatus=null;this.calls=0;this.abortedBeforeDispatch=false;this.error=undefined}
  private target(input:Parameters<typeof fetch>[0]){const url=input instanceof Request?input.url:String(input);return url.startsWith(this.endpoint)}
  private body(response:Response,maxBytes:number,code:string){if(!response.body){this.phase='complete';return response}let bytes=0;const body=response.body.pipeThrough(new TransformStream<Uint8Array,Uint8Array>({transform:(chunk,output)=>{bytes+=chunk.length;if(bytes>maxBytes)throw Object.assign(Error(code),{code});output.enqueue(chunk)},flush:()=>{this.phase='complete'}}));return new Response(body,{status:response.status,statusText:response.statusText,headers:response.headers})}
  fetch(base:typeof fetch,maxBytes:number,code:string):typeof fetch{return async(input,init)=>{if(!this.target(input)){this.auxiliaryCalls++;return base(input,init)}const signal=init?.signal??(input instanceof Request?input.signal:undefined);if(signal?.aborted){this.abortedBeforeDispatch=true;signal.throwIfAborted()}this.calls++;this.phase='dispatching';let response:Response;try{response=await base(input,{...init,redirect:'error'})}catch(error){this.error=error;throw error}this.phase='headers';this.httpStatus=response.status;return this.body(response,maxBytes,code)}}

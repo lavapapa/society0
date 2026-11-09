@@ -88,6 +88,7 @@
 | ./run-controller | maxTransactionMs | number | 15000 | new-run | false | null |
 | ./run-controller | maxPendingAcknowledgements | number | 1024 | new-run | true | null |
 | ./run-controller | pauseTimeoutMs | number | 30000 | boundary | false | null |
+| ./run-controller | autoRecover | object | {} | boundary | true | null |
 | ./random | algorithm | const | "philox4x32-10/v1" | new-run | true | null |
 | ./random | seed | string | "study-1" | new-run | true | null |
 | ./attempts | directory | string | null | new-run | true | null |
@@ -184,6 +185,7 @@
 | ./model-pi | models | array | [] | recreate | true | false |
 | ./model-pi | maxTokens | number | 256 | recreate | true | false |
 | ./model-pi | maxRetries | number | 2 | recreate | true | false |
+| ./model-pi | retry | object | {} | recreate | true | false |
 | ./model-pi | temperature | number | null | recreate | true | false |
 | ./model-pi | maxEventBytes | number | 1048576 | recreate | true | false |
 | ./model-pi | maxRawBytes | number | 16777216 | recreate | true | false |
