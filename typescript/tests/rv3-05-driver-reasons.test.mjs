@@ -557,7 +557,7 @@ test('RV3-05 unresolved orphan tool call stays thread_error/thread.history',{tim
 });
 
 test('RV3-05 unknown action is a recoverable rejection and required action stays unsatisfied',{timeout:900000},async()=>{
-  const script=[toolTurn('ghost','ghost_action',{}),finalTurn];
+  const script=[toolTurn('ghost','ghost_action',{}),finalTurn,finalTurn];
   await scenario({script},async env=>{
     const result=await activate(env,'rv305/unknown-action');
     assert.equal(result.status,'incomplete',JSON.stringify(result));

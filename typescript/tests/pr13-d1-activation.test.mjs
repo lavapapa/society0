@@ -89,7 +89,7 @@ row('D1 failed action receipt is tool_failed',async()=>{
 });
 
 row('D1 exploration error with unsatisfied required action is required_action_failed',async()=>{
-  const env=await fixture({script:[readMissing,finalTurn]});
+  const env=await fixture({script:[readMissing,finalTurn,finalTurn]});
   try{
     const result=await env.activate('d1/required');
     assert.equal(result.status,'incomplete',JSON.stringify(result));

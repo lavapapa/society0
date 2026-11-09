@@ -77,7 +77,9 @@ export class PerceptionSession implements PerceptionSelection {
         let used = 0;
         const maxItems = Math.max(1, Math.floor(bounds.maxItems / Math.max(1, this.entries.length)));
         for (const [index, entry] of this.entries.entries()) {
-            const read = await this.readSource(scope, entry, prepared[index], view, { maxItems, maxResponseBytes: bounds.maxResponseBytes - used });
+            // 剩余字节按尚未读取的来源数平均分配：前面的来源没用完的份额自动留给后面。
+            const share = Math.floor((bounds.maxResponseBytes - used) / (this.entries.length - index));
+            const read = await this.readSource(scope, entry, prepared[index], view, { maxItems, maxResponseBytes: share });
             if (read) {
                 reads.push(read);
                 used += bytes(read);
