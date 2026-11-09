@@ -3,7 +3,7 @@ import Schema from '@society0/schemastery';
 import type {PluginMetadata,ApiEntry} from '@society0/host/module-resolver';
 export const Config=Schema.object({});
 export const metadata:PluginMetadata={"title": "agent-runtime-pi", "summary": "agent-runtime-pi", "configVersion": 1, "configPolicy": [], "scope": "generation", "hostAbi": "society0/host/1"};
-export const api:ApiEntry={"exportPath": "./agent-runtime-pi", "provides": [{"key":"agentRuntime.pi","protocol":"agentRuntime.pi","major":1,"capabilities":[]}], "requires": [{"service": {"key": "agentRuntimes", "protocol": "agentRuntimes", "major": 1, "capabilities": []}, "optional": false, "phase": "module"}, {"service": {"key": "slots", "protocol": "slots", "major": 1, "capabilities": []}, "optional": false, "phase": "module"}, {"service": {"key": "resources", "protocol": "resources", "major": 1, "capabilities": []}, "optional": false, "phase": "module"}]};
+export const api:ApiEntry={"exportPath": "./agent-runtime-pi", "provides": [{"key":"agentRuntime.pi","protocol":"agentRuntime.pi","major":1,"capabilities":[]}], "slots": {"provides": ["core/agent-runtimes/pi/v1"]}, "requires": [{"service": {"key": "agentRuntimes", "protocol": "agentRuntimes", "major": 1, "capabilities": []}, "optional": false, "phase": "module"}, {"service": {"key": "slots", "protocol": "slots", "major": 1, "capabilities": []}, "optional": false, "phase": "module"}, {"service": {"key": "resources", "protocol": "resources", "major": 1, "capabilities": []}, "optional": false, "phase": "module"}]};
 import '../agent-runtimes/index.js';
 import '@society0/host/resources';
 import {PiRuntime} from './runtime.js';

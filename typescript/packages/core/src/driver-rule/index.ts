@@ -1,8 +1,8 @@
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
-export const Config = Schema.object({ handler: Schema.string().default('rule/passive/v1'), sources: Schema.array(Schema.string()).default(['actor/v1']) });
-export const metadata: PluginMetadata = { "title": "driver-rule", "summary": "最小规则驱动，使用同一actions/receipt路径。", "configVersion": 1, "configPolicy": [{ "path": "/handler", "mode": "boundary", "affectsResults": true, "secret": false }, { "path": "/sources", "mode": "boundary", "affectsResults": true, "secret": false }], "scope": "generation", "allowedScopes": ["generation"], "hostAbi": "society0/host/1" };
-export const api: ApiEntry = { "exportPath": "./driver-rule", "provides": [], "requires": [{ "service": { "key": "drivers", "protocol": "drivers", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "slots", "protocol": "slots", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "perceptions", "protocol": "perceptions", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "threads", "protocol": "threads", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "actorEligibility", "protocol": "actorEligibility", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }] };
+export const Config = Schema.object({ name: Schema.string().default('rule'), handler: Schema.string().default('rule/passive/v1'), sources: Schema.array(Schema.string()).default(['actor/v1']) });
+export const metadata: PluginMetadata = { "title": "driver-rule", "summary": "最小规则驱动，使用同一actions/receipt路径。", "configVersion": 1, "configPolicy": [{ "path": "/name", "mode": "recreate", "affectsResults": true, "secret": false }, { "path": "/handler", "mode": "boundary", "affectsResults": true, "secret": false }, { "path": "/sources", "mode": "boundary", "affectsResults": true, "secret": false }], "scope": "generation", "allowedScopes": ["generation"], "hostAbi": "society0/host/1" };
+export const api: ApiEntry = { "exportPath": "./driver-rule", "provides": [], "slots": { "provides": ["core/drivers/{name}"] }, "requires": [{ "service": { "key": "drivers", "protocol": "drivers", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "slots", "protocol": "slots", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "perceptions", "protocol": "perceptions", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "threads", "protocol": "threads", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "actorEligibility", "protocol": "actorEligibility", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }] };
 import type { Context } from '@society0/cordis';
 import { randomUUID } from 'node:crypto';
 import { slotKey } from '@society0/host/slots';
@@ -16,6 +16,7 @@ import '../thread/index.js';
 import { fail, equal } from '../information/page.js';
 export const ruleHandlerSlot = slotKey<RuleHandler>('society/rule-handler');
 export default { Config, inject: ['drivers', 'slots', 'perceptions', 'threads', 'actorEligibility'], apply(ctx: Context, config: {
+        name: string;
         handler: string;
         sources: string[];
     }) {
@@ -24,7 +25,7 @@ export default { Config, inject: ['drivers', 'slots', 'perceptions', 'threads', 
                     return fail('RULE_HANDLER_INVALID');
                 return value;
             } });
-        ctx.drivers.register('rule', { async activate(intent, context) {
+        ctx.drivers.register(config.name, { async activate(intent, context) {
                 const handler = await ctx.slots.acquire(ruleHandlerSlot, context), perceptions = await ctx.perceptions.acquire(config.sources, context);
                 try {
                     const rule = handler.items.find(item => item.id === config.handler);

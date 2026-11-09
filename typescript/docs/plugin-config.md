@@ -123,6 +123,7 @@
 | ./exploration | maxSearchBytes | number | 67108864 | boundary | true | false |
 | ./exploration | maxSearchOutputBytes | number | 4194304 | boundary | true | false |
 | ./exploration | maxSearchMs | number | 30000 | boundary | true | false |
+| ./driver-rule | name | string | "rule" | recreate | true | false |
 | ./driver-rule | handler | string | "rule/passive/v1" | boundary | true | false |
 | ./driver-rule | sources | array | ["actor/v1"] | boundary | true | false |
 | ./rule-passive | resultTag | string | "passive" | boundary | true | false |

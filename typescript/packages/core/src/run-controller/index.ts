@@ -135,12 +135,16 @@ export class RunController extends Service {
                 this.activationIndex.set(key, this.activationEntries.length - 1);
         }
     }
-    private activationSummary(entry: { activationId?: unknown; actorId?: unknown; status?: unknown; value?: unknown; evidence?: unknown }, logicalTime: Json) {
+    private activationSummary(entry: { activationId?: unknown; actorId?: unknown; momentId?: unknown; status?: unknown; value?: unknown; evidence?: unknown }, logicalTime: Json) {
         const value = entry.value && typeof entry.value === 'object' && !Array.isArray(entry.value) ? entry.value as Record<string, unknown> : {};
         const activationEvidence = entry.evidence && typeof entry.evidence === 'object' && !Array.isArray(entry.evidence) ? entry.evidence as Record<string, unknown> : {};
         const reason = typeof value.reason === 'string' ? value.reason : typeof activationEvidence.reason === 'string' ? activationEvidence.reason : String(entry.status ?? 'incomplete');
         const count = (name: string) => typeof value[name] === 'number' ? value[name] as number : typeof activationEvidence[name] === 'number' ? activationEvidence[name] as number : 0;
         const warnings = Array.isArray(value.warnings) ? value.warnings.filter(item => typeof item === 'string') : [];
+        const completed = entry.status === 'completed' || (value.requiredSatisfied === true && (reason === 'success' || reason === 'completed'));
+        const errorText = typeof activationEvidence.error === 'string' ? activationEvidence.error : '';
+        const code = /[A-Z][A-Z0-9_]+/.exec(errorText)?.[0] ?? (typeof activationEvidence.code === 'string' ? activationEvidence.code : undefined);
+        const stage = typeof activationEvidence.stage === 'string' ? activationEvidence.stage : undefined;
         return {
             actorId: typeof entry.actorId === 'string' ? entry.actorId : '',
             tick: this.tickText(logicalTime),
@@ -151,6 +155,9 @@ export class RunController extends Service {
             actRecoverable: count('actRecoverable'),
             actFailed: count('actFailed'),
             requiredSatisfied: typeof value.requiredSatisfied === 'boolean' ? value.requiredSatisfied : entry.status === 'completed',
+            ...(!completed && typeof entry.momentId === 'string' ? { momentId: entry.momentId } : {}),
+            ...(!completed && code ? { code } : {}),
+            ...(!completed && stage ? { stage } : {}),
             ...(warnings.length ? { warnings } : {})
         };
     }

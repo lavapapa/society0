@@ -1244,6 +1244,14 @@
           "title": "driver-rule",
           "fields": [
             {
+              "name": "name",
+              "type": "string",
+              "default": "rule",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
               "name": "handler",
               "type": "string",
               "default": "rule/passive/v1",

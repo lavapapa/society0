@@ -21,6 +21,11 @@ export interface ServiceDescriptor {
     readonly major: number;
     readonly capabilities: readonly string[];
 }
+/** Static slot dependencies declared by an entry. Strings may contain `{configKey}` placeholders. */
+export interface SlotDeclaration {
+    readonly provides?: readonly string[];
+    readonly requires?: readonly string[];
+}
 export interface ApiEntry {
     readonly exportPath: string;
     readonly provides: readonly ServiceDescriptor[];
@@ -29,7 +34,7 @@ export interface ApiEntry {
         optional: boolean;
         phase: 'module' | 'dynamic';
     }[];
-    readonly slots?: readonly Json[];
+    readonly slots?: SlotDeclaration;
 }
 export interface MetadataSidecar {
     readonly format: 'society-plugin-metadata/v1';
