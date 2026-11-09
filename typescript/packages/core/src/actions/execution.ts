@@ -7,9 +7,9 @@ import type { ActivationContext } from '../contracts/runtime.js';
 import type { Json } from '../contracts/common.js';
 import type { DiscoveryScope, StoredValue } from '../contracts/data.js';
 import type { SqliteReadView, SqliteTransaction, TransactionRequest } from '../sqlite/contracts.js';
-import { targetText } from '../contracts/affordance.js';
+import { targetText, canonicalJson } from '../contracts/affordance.js';
 import { fail, bytes } from '../information/page.js';
-import { prepareValue, attachValue } from '../results/payload.js';
+import { prepareValue, attachValue, readValue } from '../results/payload.js';
 import '../attempts/index.js';
 import '../artifacts-local/index.js';
 
@@ -118,9 +118,81 @@ export class ActionCall {
         if (await this.authority.state(reader) !== 'valid')
             return fail('ACTION_INELIGIBLE');
     }
+    private recoveryNamespaces(): readonly string[] {
+        const recovery = this.activation.recovery;
+        if (!recovery)
+            return [];
+        const names = [recovery.baseOperationId];
+        for (let attempt = 1; attempt < recovery.attempt; attempt++)
+            names.push(recovery.baseOperationId + '/r' + attempt);
+        return names;
+    }
+    private async originalReceipt(reader: Reader, row: Record<string, unknown>): Promise<ActionReceipt> {
+        const rows = await reader.query({
+            sql: 'SELECT payload FROM actor_tool_receipts WHERE actor_id=? AND moment_id=? AND action=?',
+            parameters: [this.activation.actorId, this.activation.momentId, this.entry.definition.name]
+        }, { maxRows: 64, maxBytes: 1048576 });
+        for (const entry of rows) {
+            try {
+                const stored = JSON.parse(String(entry.payload)) as { kind?: string; value?: ActionReceipt };
+                if (stored?.kind === 'inline' && stored.value?.operationId === String(row.operation_id))
+                    return stored.value;
+            }
+            catch {
+                continue;
+            }
+        }
+        const storedInput = JSON.parse(String(row.input)) as { kind?: string; value?: Json };
+        return {
+            operationId: String(row.operation_id),
+            status: 'completed',
+            value: JSON.parse(String(row.value)),
+            original: storedInput?.kind === 'inline' ? storedInput.value ?? null : null,
+            artifacts: [],
+            requiredOperations: [String(row.operation_id)]
+        };
+    }
+    /** 读出原回执记录里的输入，供本次输入比较；引用体按声明长度整读。 */
+    private async storedInput(row: Record<string, unknown>): Promise<Json | undefined> {
+        try {
+            const stored = JSON.parse(String(row.input)) as StoredValue;
+            if (stored.kind === 'inline')
+                return stored.value;
+            const size = Number(stored.ref.rawBytes);
+            if (!Number.isSafeInteger(size) || size < 0)
+                return undefined;
+            const chunks = [];
+            for await (const chunk of readValue(stored.ref, { offset: '0', length: size, maxBytes: size }, this.ctx.artifacts, this.activation.signal))
+                chunks.push(chunk);
+            return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        }
+        catch {
+            return undefined;
+        }
+    }
+    /** 自动恢复重跑：同一 actor、同一 moment、同一 action 已提交过回执时返回原回执，不再执行第二次。 */
+    private async replay(reader: Reader): Promise<ActionReceipt | undefined> {
+        const namespaces = this.recoveryNamespaces();
+        if (!namespaces.length)
+            return undefined;
+        const rows = await reader.query({
+            sql: 'SELECT operation_id,invocation_id,input,value FROM action_receipts WHERE actor_id=? AND moment_id=? AND action=? AND coalesce(target,\'\')=? ORDER BY rowid DESC',
+            parameters: [this.activation.actorId, this.activation.momentId, this.entry.definition.name, this.authority.target ? targetText(this.authority.target) : '']
+        }, { maxRows: 1000, maxBytes: 1048576 });
+        const row = rows.find(item => namespaces.some(namespace => String(item.invocation_id).startsWith(namespace + '/tool/')));
+        if (!row)
+            return undefined;
+        const receipt = await this.originalReceipt(reader, row as Record<string, unknown>);
+        const previous = await this.storedInput(row as Record<string, unknown>);
+        const mismatch = previous !== undefined && canonicalJson(previous) !== canonicalJson(this.input);
+        return { ...receipt, replayed: true, ...(mismatch ? { inputMismatch: true } : {}) };
+    }
     private async initial(): Promise<ActionReceipt | undefined> {
         const view = await this.activation.database.snapshot({ maxAgeMs: 30000 });
         try {
+            const replayed = await this.replay(view);
+            if (replayed)
+                return replayed;
             if (await this.authority.state(view) !== 'valid')
                 return await this.rejection(view);
             if (this.entry.definition.effect !== 'external')

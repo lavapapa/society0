@@ -392,14 +392,17 @@ WHERE t.actor_id=? AND t.moment_id IN (?,?) AND tm.role='assistant' ORDER BY tm.
         const intent = {
             ...item.intent, signals: item.signals, input: item.inputs.length === 1 ? item.inputs[0]! : item.inputs
         };
-        const operationId = JSON.stringify(['activation', b.context.operationId, intent.actorId, intent.momentId, intent.driver, intent.id]);
+        const baseOperationId = JSON.stringify(['activation', b.context.operationId, intent.actorId, intent.momentId, intent.driver, intent.id]);
+        const attempt = Math.max(0, Math.trunc(b.context.recoveryAttempt ?? 0));
+        const operationId = attempt > 0 ? `${baseOperationId}/r${attempt}` : baseOperationId;
+        const recovery = attempt > 0 ? { attempt, baseOperationId } : undefined;
         const task = this.tasks.run('activation:' + intent.id, async (taskSignal) => {
             const selection = await this.ctx.drivers.acquire(intent.driver, {
                 ...b.context, operationId, signal: taskSignal
             });
             try {
                 return await selection.value.activate(intent, {
-                    ...b.context, operationId, signal: taskSignal, writeLease: b.context.lease, actorId: intent.actorId, momentId: intent.momentId
+                    ...b.context, operationId, signal: taskSignal, writeLease: b.context.lease, actorId: intent.actorId, momentId: intent.momentId, ...(recovery ? { recovery } : {})
                 });
             }
             finally {

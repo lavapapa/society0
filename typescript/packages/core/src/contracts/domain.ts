@@ -78,6 +78,10 @@ export interface ActionReceipt {
     readonly value: Json;
     readonly original: Json;
     readonly artifacts: readonly ArtifactRef[];
+    /** 自动恢复重跑时返回原回执：本次没有再执行行动。 */
+    readonly replayed?: true;
+    /** 重放时本次输入与原回执不同，原回执仍然有效。 */
+    readonly inputMismatch?: true;
     /** 领域行动在写事务内声明的唤醒对象；由框架在提交后转交策略。 */
     readonly notify?: readonly ActionNotification[];
     /** 框架填写的送达回执；wake 由策略给出，默认 none。 */
