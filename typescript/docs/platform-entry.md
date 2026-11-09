@@ -14,12 +14,13 @@
 ### check
 
 ```
-society0 check --profile <p> [--lock <f>] [--patches <f>] [--base <d>] [--credentials-env <NAME>] --json
+society0 check --profile <p> [--lock <f>] [--patches <f>] [--world <f>] [--base <d>] [--credentials-env <NAME>] --json
 ```
 
 - `--profile`：`society-profile/v2` JSON 文件。相对路径按当前工作目录解析。
 - `--lock`：覆盖 profile 里的 `lockfile` 字段；不传时使用 profile 自带的相对/绝对地址。
 - `--patches`：额外的 `EntryPatch[]`，与 run 时传入的覆盖层同义。
+- `--world`：可选的 world 文件，与 `run start` 共用同一个读取与校验函数：必须是 JSON 对象，`actors` 段每条都要有 `id` 和 `source`。给了 world 时，profile 初始化插件引用到的主体 id 必须在 `actors` 段里；没给 world 但 profile 引用了主体时，`warnings` 里提示 run 必须提供 world，不影响 `ok`。给了 world 且前面的静态检查没有缺失时，还会在 `TMPDIR` 下建临时目录，执行一次与 `run start` 完全相同的根创建：迁移、`actors.seed`、各个 initializer（`social.seed` 等），跑完直接丢弃。`UNIQUE`、`FOREIGN KEY`、`CHECK`、`ACTOR_MISSING`、`ACTOR_SOURCE_MISSING` 等根创建错误会转成 `kind: "world"` 的 `missing` 项并附修复提示；不会写入目标 run 目录。
 - `--base`：插件解析目录；module-resolver 从这个目录的 `node_modules` 按包名查找插件（见“从实验目录加载本地插件”）。
 - `--credentials-env`：环境变量名。只检查这个变量存在且是 JSON 对象，并把 profile 里出现的凭据名视为已注册；不读取也不打印 key。
 - 不写 run 目录，不启动模型。
@@ -58,6 +59,7 @@ society0 check --profile <p> [--lock <f>] [--patches <f>] [--base <d>] [--creden
 | `credential` | 模型插件引用的凭据名没有在 `@society0/core/model-credentials` 的 `stores[].reference` 注册 | 只比较名称，不读取 key 或文件 |
 | `migration` | migration 的 `after` 依赖不在本次装配的 migration 集合里，或 migration 模块无法加载 | 复用 run 的同一条 migration 收集链 |
 | `actor` | 同时有多个插件会写 `s0_actors`，或领域 initializer 没有声明 `after: ["actors.seed"]`、或声明了但 profile 没开 `actors` 的 `seed` | 读 initializer 的静态依赖；只覆盖已登记的 Core/social 插件 |
+| `world` | 临时数据库执行 run start 的根创建时违反表约束，或 world 里的主体缺 `source` / 根创建引用的主体不存在 | 带 `--world` 时复用 run 的根创建代码实际跑一遍；错误信息翻成表名、列名和对应的 profile 条目 |
 
 `resolved.plugins` 是未禁用条目的插件名（排序去重），`resolved.slots` 是静态可识别的 driver 槽位到提供者条目 id 的映射。
 
@@ -65,7 +67,8 @@ society0 check --profile <p> [--lock <f>] [--patches <f>] [--base <d>] [--creden
 
 - 只覆盖 profile 能表达的内容。数据集、外部事件里临时出现的 driver 名无法从 profile 推断，仍会在运行时报 `SLOT_PENDING`。
 - `social-sqlite` / `social-codex-sqlite` 需要平台显式注册凭据名；profile 自带 `stores` 时 check 会认为完整。
-- world 文件只做 JSON 对象校验；actors 段的 `source` 必填在根创建时由 `actors.seed` 检查，`check` 不读 world 文件。
+- `check --world` 读取 world 文件并校验 JSON 对象、actors 段的 `id` 和 `source`；静态检查通过时还会实际执行根创建，因此能发现 `UNIQUE social_pair_members.actor` 这类只在写库时才出现的约束错误。不给 `--world` 时只根据 profile 静态引用给出提示，无法发现 world 中临时出现的其他主体。
+- `check --world` 的试跑只覆盖根创建（迁移、seed、initializer），不推进 tick、不启动模型；运行期才触发的约束仍要到 `run` 才能发现。临时目录在检查结束后删除。
 - `modelCredentials`、`slots` 这类宿主启动时注入的服务由 CLI 在检查时按 profile 是否含模型插件补齐，不会算作缺失。
 
 ### run start
@@ -82,7 +85,7 @@ society0 run start --profile <p> --dir <run> [--lineage <d>] [--ticks N] [--worl
 
 - `runId` 取 run 目录的 basename；后台日志写到同级 `<dir>.log`。
 - `--dir` 必须是新目录；`--lineage` 缺省为 `<dir 的父目录>/lineages/<dir 的 basename>`，必须不存在。
-- `--ticks N` 对所有 profile 生效：把 N 写进 run-controller 的 `maxTicks`。推进满 N 个 tick 后，在已发布的完整点停下，状态为 `completed`，`lastReason` 形如 `max ticks reached (N)`。不传时由 profile 自己的终止条件决定运行长度。
+- `--ticks N` 对所有 profile 生效：把 N 写进 run-controller 的 `maxTicks`，是**上限**，不保证一定跑满。推进满 N 个 tick 后，在已发布的完整点停下，状态为 `completed`，`lastReason` 形如 `max ticks reached (N)`。来源先耗尽时（例如 round-robin 的 `rounds` 不够 N 个 tick）run 会提前 `completed`，`lastReason` 记来源给出的原因，常见为 `round-robin exhausted`。不传时由 profile 自己的终止条件决定运行长度。
 - `--world <f>`：JSON 对象，作为本次 run 的 world 输入。`actors` 段形如 `[{"id","attributes","source"}]`，由 Core 的 `actors.seed` 在根创建事务里写入 `s0_actors`；`source` 必填，缺失时报 `ACTOR_SOURCE_MISSING`。路径记录在状态文件里。
 - `--base <d>`：同 check，指定插件查找目录。
 - `--credentials-env <NAME>`：从环境变量 `NAME` 读取凭据 JSON（结构同 model-credentials 文件存储：`{"<providerId>": {...}}`），只在当前进程内存里注册，不写 run 目录、不打印；状态文件只记录变量名。detach 时子进程继承父进程环境，命令行里只有变量名。
@@ -123,7 +126,7 @@ society0 run status --dir <run> --json
 
 - `running`：状态文件记为 running 且 pid 仍存活。
 - `paused`：进程主动暂停（收到 SIGTERM 在边界停下），或状态仍为 running 但 pid 已消失（`lastReason` 为 `process-exited-without-status`）。
-- `completed`：引擎返回 `completed`，`lastReason` 通常是 `sequence exhausted` 或 `max ticks reached (N)`。
+- `completed`：引擎返回 `completed`，`lastReason` 通常是 `sequence exhausted`、`round-robin exhausted` 或 `max ticks reached (N)`。终态写盘后，worker 的定时状态回调不会再把它改回 `running`。
 - `failed`：引擎返回 `failed` 或 worker 抛错，`lastReason` 是原始错误码/消息。
 
 `completedTicks` 来自完整点 frontier 的 `completedCount`，运行中由 worker 每 200ms 刷新一次，可能略落后于实际进度。

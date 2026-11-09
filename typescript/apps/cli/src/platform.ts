@@ -1,13 +1,14 @@
-import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { basename, dirname, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { createHost, type BootEntry } from '@society0/host';
 import { compareCodePoints } from '@society0/host/order';
 import type { CompositionPlan, EntryPatch, PlannedEntry, ProfileProblem } from '@society0/host/profile-loader';
 import type { Context } from '@society0/host';
-import type {} from '@society0/host/run-directory';
+import type { RunHandle } from '@society0/host/run-directory';
 import type {} from '@society0/core/run-controller';
 import type {} from '@society0/core/attempts';
 import type {} from '@society0/core/sqlite-history';
@@ -103,6 +104,32 @@ async function readJson<T>(path: string): Promise<T> {
 async function loadProfile(path: string): Promise<{ profile: ProfileDocument; url: URL }> {
     const url = pathToFileURL(resolve(path));
     return { profile: await readJson<ProfileDocument>(url.pathname), url };
+}
+
+export interface WorldDocument {
+    readonly actors?: readonly { readonly id: string; readonly attributes?: unknown; readonly source: unknown }[];
+    readonly [key: string]: unknown;
+}
+
+/** Read and validate a world file the same way for check and run start. */
+async function readWorld(path: string): Promise<WorldDocument> {
+    const value = await readJson<unknown>(resolve(path));
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        throw new PlatformError('WORLD_INVALID', '--world 必须是 JSON 对象', 'world 文件形如 {"actors":[{"id","attributes","source"}]}');
+    const world = value as Record<string, unknown>;
+    const actors = world.actors;
+    if (actors !== undefined) {
+        if (!Array.isArray(actors))
+            throw new PlatformError('WORLD_INVALID', '--world 的 actors 必须是数组', 'world 文件形如 {"actors":[{"id","attributes","source"}]}');
+        for (const [index, actor] of actors.entries()) {
+            if (!actor || typeof actor !== 'object' || Array.isArray(actor) || typeof (actor as { id?: unknown }).id !== 'string' || !(actor as { id: string }).id)
+                throw new PlatformError('WORLD_ACTOR_INVALID', `--world 的 actors[${index}] 缺少非空字符串 id`, 'world 的 actors 段每条都要有 id 和 source');
+            const source = (actor as { source?: unknown }).source;
+            if (source === undefined || source === null || source === '')
+                throw new PlatformError('WORLD_ACTOR_SOURCE_MISSING', `--world 的 actors[${index}].source 缺失（主体 ${(actor as { id: string }).id}）`, 'world 的 actors 段每条都要有 id 和 source');
+        }
+    }
+    return world as WorldDocument;
 }
 
 function active(plan: CompositionPlan): PlannedEntry[] {
@@ -315,8 +342,49 @@ function migrationProblems(migrations: readonly MigrationInfo[]): ProfileProblem
     return problems;
 }
 
-async function actorProblems(plan: CompositionPlan): Promise<ProfileProblem[]> {
-    const problems: ProfileProblem[] = [];
+function addActorIds(value: unknown, entry: PlannedEntry, references: Map<string, string[]>): void {
+    if (typeof value === 'string') {
+        if (!value)
+            return;
+        const owners = references.get(value) ?? [];
+        if (!owners.includes(entry.id))
+            owners.push(entry.id);
+        references.set(value, owners);
+        return;
+    }
+    if (Array.isArray(value)) {
+        for (const item of value)
+            addActorIds(item, entry, references);
+        return;
+    }
+    if (value && typeof value === 'object') {
+        const id = (value as { id?: unknown }).id;
+        if (typeof id === 'string')
+            addActorIds(id, entry, references);
+    }
+}
+
+/** Actor ids referenced by active plugin config, grouped by the entry ids that reference them. */
+function actorReferences(plan: CompositionPlan): Map<string, string[]> {
+    const references = new Map<string, string[]>();
+    for (const entry of active(plan)) {
+        const config = entry.config as Record<string, unknown> | undefined;
+        if (!config || typeof config !== 'object')
+            continue;
+        for (const key of ['actors', 'pairingGroups'])
+            if (key in config)
+                addActorIds(config[key], entry, references);
+    }
+    return references;
+}
+
+interface ActorAnalysis {
+    problems: ProfileProblem[];
+    warnings: string[];
+}
+
+async function actorProblems(plan: CompositionPlan, world?: WorldDocument): Promise<ActorAnalysis> {
+    const problems: ProfileProblem[] = [], warnings: string[] = [];
     const activeEntries = active(plan);
     const actors = activeEntries.find(entry => entry.name === '@society0/core/actors');
     const seed = actors && (actors.config as { seed?: unknown }).seed === true;
@@ -353,7 +421,138 @@ async function actorProblems(plan: CompositionPlan): Promise<ProfileProblem[]> {
                 hint: 'social.seed 依赖 actors.seed，但 profile 里的 @society0/core/actors 没有开启 seed；给 actors 配置 {"seed":true}'
             });
     }
-    return problems;
+    if (seed) {
+        const references = actorReferences(plan);
+        if (references.size) {
+            if (!world) {
+                warnings.push(`profile 引用了主体 ${[...references.keys()].join(', ')}，但 check 没有读取 world；run start 必须提供包含这些主体的 --world 文件`);
+            }
+            else {
+                const available = new Set((world.actors ?? []).map(actor => actor.id));
+                for (const [id, owners] of references)
+                    if (!available.has(id))
+                        problems.push({
+                            kind: 'actor', id, requiredBy: owners.join(','),
+                            hint: `world 的 actors 段缺少主体 ${id}（${owners.join(', ')} 引用）；world 的 actors 段每条要有 id 和 source`
+                        });
+            }
+        }
+    }
+    return { problems, warnings };
+}
+
+interface PairingOccurrence { count: number; owners: string[] }
+
+/** pairingGroups 里每个主体出现了几次，用于把 UNIQUE social_pair_members.actor 翻成可修复的提示。 */
+function pairingOccurrences(plan: CompositionPlan): Map<string, PairingOccurrence> {
+    const occurrences = new Map<string, PairingOccurrence>();
+    for (const entry of active(plan)) {
+        const groups = (entry.config as { pairingGroups?: unknown } | undefined)?.pairingGroups;
+        if (!Array.isArray(groups))
+            continue;
+        for (const group of groups) {
+            if (!Array.isArray(group))
+                continue;
+            for (const actor of group) {
+                if (typeof actor !== 'string' || !actor)
+                    continue;
+                const current = occurrences.get(actor) ?? { count: 0, owners: [] };
+                current.count++;
+                if (!current.owners.includes(entry.id))
+                    current.owners.push(entry.id);
+                occurrences.set(actor, current);
+            }
+        }
+    }
+    return occurrences;
+}
+
+function tableOwners(plan: CompositionPlan, table: string | undefined): string[] {
+    if (!table)
+        return [];
+    const match = (prefix: string) => active(plan).filter(entry => entry.name.startsWith(prefix)).map(entry => entry.id);
+    if (table === 's0_actors')
+        return active(plan).filter(entry => entry.name === '@society0/core/actors').map(entry => entry.id);
+    if (table.startsWith('social_'))
+        return match('@society0/social/');
+    if (table.startsWith('thread'))
+        return active(plan).filter(entry => entry.name === '@society0/core/thread').map(entry => entry.id);
+    if (table === 's0_runtime_events')
+        return active(plan).filter(entry => entry.name === '@society0/core/runtime-events').map(entry => entry.id);
+    return [];
+}
+
+function worldProblem(error: unknown, plan: CompositionPlan): ProfileProblem {
+    const message = error instanceof Error ? error.message : String(error);
+    const occurrences = pairingOccurrences(plan);
+    if (/UNIQUE constraint failed: social_pair_members\.actor/.test(message)) {
+        const duplicate = [...occurrences].find(([, value]) => value.count > 1);
+        if (duplicate) {
+            const [actor, value] = duplicate;
+            return {
+                kind: 'world', id: actor, requiredBy: value.owners.join(','),
+                hint: `主体 ${actor} 出现在多组配对中，每个主体只能属于一组；检查 ${value.owners.join(', ')} 的 pairingGroups（或 world 里生成配对的条目），把 ${actor} 只保留在一组里`,
+                detail: message
+            };
+        }
+        return {
+            kind: 'world', id: 'social_pair_members.actor',
+            hint: `同一主体被写进多组配对（social_pair_members.actor 唯一）；检查 social-init 的 pairingGroups 与 world 的 actors 段，每个主体只能属于一组`,
+            detail: message
+        };
+    }
+    const sourceMissing = /ACTOR_SOURCE_MISSING(?:\s+(.+))?/.exec(message);
+    if (sourceMissing) {
+        const actor = sourceMissing[1]?.trim();
+        return {
+            kind: 'world', id: actor || 'ACTOR_SOURCE_MISSING',
+            hint: actor
+                ? `world 的 actors 段中主体 ${actor} 缺少 source；每条 actor 都要有 id 和 source`
+                : 'world 的 actors 段缺少 source；每条 actor 都要有 id 和 source',
+            detail: message
+        };
+    }
+    const actorMissing = /ACTOR_MISSING(?:\s+(.+))?/.exec(message);
+    if (actorMissing) {
+        const actor = actorMissing[1]?.trim();
+        const references = actor ? new Map([...occurrences].filter(([id]) => id === actor)) : new Map();
+        const requiredBy = references.size
+            ? [...references.values()].flatMap(value => value.owners).join(',')
+            : active(plan).find(entry => entry.name === '@society0/core/actors')?.id;
+        return {
+            kind: 'world', id: actor || 'ACTOR_MISSING', requiredBy,
+            hint: actor
+                ? `主体 ${actor} 在根创建时不存在；在 world 的 actors 段加入该主体（每条要有 id 和 source），或改掉引用它的 profile 条目`
+                : '根创建时引用的主体不存在；在 world 的 actors 段补齐这些主体，或改掉引用它们的 profile 条目',
+            detail: message
+        };
+    }
+    const constraint = /(UNIQUE|NOT NULL|CHECK|FOREIGN KEY) constraint failed(?::?\s*([^\n]+))?/.exec(message);
+    if (constraint) {
+        const kind = constraint[1]!;
+        const detail = constraint[2]?.trim();
+        const tableMatch = detail ? /([A-Za-z_][\w]*)\.([A-Za-z_][\w]*)/.exec(detail) : null;
+        const table = tableMatch?.[1];
+        const column = tableMatch?.[2];
+        const owners = tableOwners(plan, table);
+        const where = table
+            ? `表 ${table}${column ? ` 的列 ${column}` : ''}`
+            : '根创建写入的数据';
+        const scope = owners.length
+            ? `profile 条目 ${owners.join(', ')}`
+            : 'world 的 actors 段与写入该表的 profile 条目';
+        return {
+            kind: 'world', id: table ? (column ? `${table}.${column}` : table) : 'root-creation',
+            requiredBy: owners.join(',') || undefined,
+            hint: `${where} 违反 ${kind} 约束${detail ? `（${detail}）` : ''}；检查 ${scope}，保证每个主体 / 每条记录只写一次`,
+            detail: message
+        };
+    }
+    return {
+        kind: 'world', id: 'root-creation',
+        hint: `在临时数据库执行 run start 的根创建步骤时失败：${message}；检查 world 的 actors 段与 profile 的 initializer 配置`,
+        detail: message
+    };
 }
 
 export interface LockReport {
@@ -430,6 +629,7 @@ export async function checkProfile(options: {
     profile: string;
     lock?: string;
     patches?: string;
+    world?: string;
     base?: string;
     credentialsEnv?: string;
 }): Promise<CheckReport> {
@@ -441,23 +641,29 @@ export async function checkProfile(options: {
         throw new PlatformError('PATCHES_ARRAY', '--patches 必须是 EntryPatch 数组', '传入 JSON 数组');
     if (options.credentialsEnv)
         readCredentialsEnv(options.credentialsEnv);
+    const world = options.world ? await readWorld(options.world) : undefined;
     const host = await platformHost(modelSeeds(profile), options.base);
     try {
         const analysis = await host.ctx.profileLoader.analyze(profile as never, { baseURL: url.href, cliPatches: patches });
         const missing: ProfileProblem[] = [...analysis.missing];
         missing.push(...slotProblems(analysis.plan), ...credentialProblems(analysis.plan, Boolean(options.credentialsEnv)));
-        missing.push(...await actorProblems(analysis.plan));
+        const actors = await actorProblems(analysis.plan, world);
+        missing.push(...actors.problems);
         const migrations = await collectMigrations(analysis.plan, missing);
         missing.push(...migrationProblems(migrations));
         const unique = new Map<string, ProfileProblem>();
         for (const item of missing)
             unique.set(`${item.kind}\u0000${item.id}\u0000${item.requiredBy ?? ''}`, item);
+        if (world && unique.size === 0) {
+            for (const item of await checkWorldRoot(options, analysis.plan))
+                unique.set(`${item.kind}\u0000${item.id}\u0000${item.requiredBy ?? ''}`, item);
+        }
         const plugins = [...new Set(active(analysis.plan).map(entry => entry.name))].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
         return {
             schema: CHECK_SCHEMA,
             ok: unique.size === 0,
             missing: [...unique.values()],
-            warnings: analysis.warnings,
+            warnings: [...analysis.warnings, ...actors.warnings],
             resolved: { plugins, slots: driverProviders(analysis.plan) }
         };
     }
@@ -529,9 +735,7 @@ export async function prepareRunPlan(options: StartOptions): Promise<PreparedPla
     const attempts = entryOf('attempts');
     if (attempts) overrides.push({ id: 'attempts', config: { ...(attempts.config as Record<string, unknown>), directory: lineage, lineage: basename(lineage) } });
     overrides.push(...tickOverride(analysis.plan, options.ticks));
-    const input = options.world && options.mode === 'start' ? await readJson<Record<string, unknown>>(resolve(options.world)) : {};
-    if (!input || typeof input !== 'object' || Array.isArray(input))
-        throw new PlatformError('WORLD_INVALID', '--world 必须是 JSON 对象', 'world 文件形如 {"actors":[{"id","attributes","source"}]}');
+    const input = options.world && options.mode === 'start' ? await readWorld(options.world) : {};
     const host2 = await platformHost(modelSeeds(profile), options.base);
     try {
         const plan = await host2.ctx.profileLoader.compile(profile as never, { baseURL: url.href, cliPatches: [...cliPatches, ...overrides] });
@@ -539,6 +743,126 @@ export async function prepareRunPlan(options: StartOptions): Promise<PreparedPla
     }
     finally {
         await host2.close();
+    }
+}
+
+interface RunRoot {
+    readonly host: Awaited<ReturnType<typeof createHost>>;
+    readonly handle: RunHandle;
+    readonly context: Context;
+}
+
+/** Boot the run host and publish the authoritative root: migrations, actors.seed and every initializer. */
+async function createRunRoot(prepared: PreparedPlan, options: StartOptions): Promise<RunRoot> {
+    const seed: BootEntry[] = HOST_BOOT.map(specifier => specifier === 'module-resolver' && options.base
+        ? { specifier: '@society0/host/module-resolver', config: { baseURL: baseURLOf(options.base) } }
+        : { specifier: '@society0/host/' + specifier });
+    const modelEnabled = prepared.plan.flat.some(entry => !entry.disabled && ['@society0/core/model-pi', '@society0/core/model-codex-subscription'].includes(entry.name));
+    if (modelEnabled || options.credentialsEnv)
+        seed.push({ specifier: '@society0/host/slots' }, { specifier: '@society0/core/model-credentials', config: { stores: [] } });
+    const host = await createHost({ baseURL: import.meta.url, boot: seed });
+    try {
+        if (options.credentialsEnv) {
+            const values = readCredentialsEnv(options.credentialsEnv);
+            const references = credentialReferences(prepared.profile);
+            const service = host.ctx.get('modelCredentials', false) as { register(reference: string, store: unknown): void } | undefined;
+            if (references.length && !service)
+                throw new PlatformError('CREDENTIALS_UNAVAILABLE', 'profile 需要凭据，但没有装配 @society0/core/model-credentials', '在 profile 里加入 model-credentials');
+            if (service && references.length) {
+                const { MemoryCredentialStore } = await import('@society0/core/model-credentials');
+                const store = new MemoryCredentialStore(values as never);
+                for (const reference of references)
+                    service.register(reference, store);
+            }
+        }
+        const plan = prepared.plan;
+        const runId = basename(prepared.dir);
+        const entryOf = (id: string) => plan.flat.find(entry => entry.id === id);
+        const migrationIssues: ProfileProblem[] = [];
+        const migrations = await collectMigrations(plan, migrationIssues);
+        migrationIssues.push(...migrationProblems(migrations));
+        if (migrationIssues.length)
+            throw new PlatformError(
+                'MIGRATION_INVALID',
+                `profile 的 migration 不可用：${migrationIssues.map(item => `${item.kind}:${item.id}`).join(', ')}`,
+                migrationIssues.map(item => item.hint).join('；')
+            );
+        const migrationValues = migrations.map(item => item.value);
+        const databaseEntry = entryOf('sqlite');
+        const historyEntry = entryOf('sqlite-history');
+        const event = flag(plan, '@society0/core/runtime-events');
+        let context: Context | undefined;
+        const handle = await host.ctx.runDirectory.create({
+            runId, generation: plan, mount: { runEntryId: 'run', bootstrapEntryId: 'bootstrap' },
+            prepare: async (bootstrapCtx, phase) => {
+                const consumer = await phase!.run.plugin({ name: 'platform.prepare', inject: ['attempts', 'sqliteBootstrap', 'history', 'database'], apply(value: Context) { context = value; } });
+                await consumer.await();
+                const ctx = context!;
+                if (options.mode === 'resume')
+                    await ctx.attempts.verifyAuthority();
+                else
+                    await ctx.attempts.initialize();
+                let root;
+                if (options.mode === 'resume')
+                    root = await ctx.history.activate();
+                else {
+                    const frontier = { codec: event ? 'events/1' : 'staged/1', value: '0', logicalTime: event ? { time: '0', offset: '0' } : '0', completedCount: '0', pendingAcknowledgements: [] };
+                    root = await ctx.sqliteBootstrap.create({
+                        operationId: 'create:' + runId, runId, directory: prepared.dir, input: prepared.input,
+                        migrations: migrationValues as never,
+                        initialFrontier: frontier,
+                        initialControl: { generation: (databaseEntry!.config as { generation: string }).generation, controlSequence: (historyEntry!.config as { controlSequence: string }).controlSequence, planId: prepared.profileUrl },
+                        requiredInitializerIds: [flag(plan, '@society0/social/social') ? 'social.seed' : 'plain.seed']
+                    });
+                }
+                const status = await ctx.history.status();
+                return { root, metadata: ctx.database.metadata, database: ctx.database, state: status.state };
+            }
+        });
+        return { host, handle, context: context! };
+    }
+    catch (error) {
+        try { await host.close(); }
+        catch { /* preserve original failure */ }
+        throw error;
+    }
+}
+
+/** Execute run start's root creation against a throwaway database under TMPDIR, then discard it. */
+async function checkWorldRoot(options: {
+    profile: string;
+    lock?: string;
+    patches?: string;
+    world?: string;
+    base?: string;
+    credentialsEnv?: string;
+}, plan: CompositionPlan): Promise<ProfileProblem[]> {
+    if (!options.world)
+        return [];
+    const base = await mkdtemp(join(tmpdir(), 'society0-check-'));
+    const directory = join(base, 'run');
+    const lineage = join(base, 'lineage');
+    try {
+        await mkdir(directory, { recursive: true });
+        await mkdir(lineage, { recursive: true });
+        const start: StartOptions = {
+            profile: options.profile, dir: directory, lineage,
+            lock: options.lock, patches: options.patches, base: options.base,
+            world: options.world, credentialsEnv: options.credentialsEnv,
+            detach: false, mode: 'start'
+        };
+        let prepared: PreparedPlan;
+        try { prepared = await prepareRunPlan(start); }
+        catch (error) { return [worldProblem(error, plan)]; }
+        let root: RunRoot;
+        try { root = await createRunRoot(prepared, start); }
+        catch (error) { return [worldProblem(error, prepared.plan)]; }
+        try { await root.handle.close(); }
+        finally { await root.host.close(); }
+        return [];
+    }
+    finally {
+        await rm(base, { recursive: true, force: true });
     }
 }
 
@@ -636,7 +960,7 @@ export async function startRun(main: string, options: StartOptions): Promise<Rec
     if (options.credentialsEnv)
         readCredentialsEnv(options.credentialsEnv);
     if (options.world && options.mode === 'start')
-        await readJson<Record<string, unknown>>(resolve(options.world));
+        await readWorld(options.world);
     await mkdir(dirname(options.dir), { recursive: true });
     if (options.mode === 'start')
         await requireFresh(resolve(options.dir), resolve(options.lineage ?? join(dirname(resolve(options.dir)), 'lineages', basename(resolve(options.dir)))));
@@ -693,7 +1017,13 @@ async function requireFresh(directory: string, lineage: string): Promise<void> {
 export async function worker(options: StartOptions): Promise<number> {
     const directory = resolve(options.dir), lineage = resolve(options.lineage ?? join(dirname(directory), 'lineages', basename(directory)));
     const runId = basename(directory);
+    const isTerminal = (state: RunStatus['state']) => state === 'completed' || state === 'failed' || state === 'paused';
+    let terminal = false;
     const writeStatus = async (state: RunStatus['state'], completedTicks: number, frontier: unknown, lastReason: string | null, pid?: number) => {
+        if (terminal && !isTerminal(state))
+            return;
+        if (isTerminal(state))
+            terminal = true;
         await writeJsonAtomic(statusPath(directory), {
             schema: STATUS_SCHEMA, runId, dir: directory, state, completedTicks, frontier, lastReason,
             ...(pid ? { pid } : {}), updatedAt: new Date().toISOString(), profile: options.profile, lock: options.lock, patches: options.patches, lineage, ticks: options.ticks,
@@ -708,71 +1038,14 @@ export async function worker(options: StartOptions): Promise<number> {
     await writeStatus('running', 0, null, null, process.pid);
     let host: Awaited<ReturnType<typeof createHost>> | undefined;
     let interval: ReturnType<typeof setInterval> | undefined;
+    let stopping = false;
+    const inflight = new Set<Promise<void>>();
     try {
         const prepared = await prepareRunPlan({ ...options, lineage });
-        const seed: BootEntry[] = HOST_BOOT.map(specifier => specifier === 'module-resolver' && options.base
-            ? { specifier: '@society0/host/module-resolver', config: { baseURL: baseURLOf(options.base) } }
-            : { specifier: '@society0/host/' + specifier });
-        const modelEnabled = prepared.plan.flat.some(entry => !entry.disabled && ['@society0/core/model-pi', '@society0/core/model-codex-subscription'].includes(entry.name));
-        if (modelEnabled || options.credentialsEnv)
-            seed.push({ specifier: '@society0/host/slots' }, { specifier: '@society0/core/model-credentials', config: { stores: [] } });
-        host = await createHost({ baseURL: import.meta.url, boot: seed });
-        if (options.credentialsEnv) {
-            const values = readCredentialsEnv(options.credentialsEnv);
-            const references = credentialReferences(prepared.profile);
-            const service = host.ctx.get('modelCredentials', false) as { register(reference: string, store: unknown): void } | undefined;
-            if (references.length && !service)
-                throw new PlatformError('CREDENTIALS_UNAVAILABLE', 'profile 需要凭据，但没有装配 @society0/core/model-credentials', '在 profile 里加入 model-credentials');
-            if (service && references.length) {
-                const { MemoryCredentialStore } = await import('@society0/core/model-credentials');
-                const store = new MemoryCredentialStore(values as never);
-                for (const reference of references)
-                    service.register(reference, store);
-            }
-        }
-        const plan = prepared.plan;
-        const entryOf = (id: string) => plan.flat.find(entry => entry.id === id);
-        const migrationIssues: ProfileProblem[] = [];
-        const migrations = await collectMigrations(plan, migrationIssues);
-        migrationIssues.push(...migrationProblems(migrations));
-        if (migrationIssues.length)
-            throw new PlatformError(
-                'MIGRATION_INVALID',
-                `profile 的 migration 不可用：${migrationIssues.map(item => `${item.kind}:${item.id}`).join(', ')}`,
-                migrationIssues.map(item => item.hint).join('；')
-            );
-        const migrationValues = migrations.map(item => item.value);
-        const databaseEntry = entryOf('sqlite');
-        const historyEntry = entryOf('sqlite-history');
-        const event = flag(plan, '@society0/core/runtime-events');
-        let context: Context | undefined;
-        const handle = await host.ctx.runDirectory.create({
-            runId, generation: plan, mount: { runEntryId: 'run', bootstrapEntryId: 'bootstrap' },
-            prepare: async (bootstrapCtx, phase) => {
-                const consumer = await phase!.run.plugin({ name: 'platform.prepare', inject: ['attempts', 'sqliteBootstrap', 'history', 'database'], apply(value: Context) { context = value; } });
-                await consumer.await();
-                const ctx = context!;
-                if (options.mode === 'resume')
-                    await ctx.attempts.verifyAuthority();
-                else
-                    await ctx.attempts.initialize();
-                let root;
-                if (options.mode === 'resume')
-                    root = await ctx.history.activate();
-                else {
-                    const frontier = { codec: event ? 'events/1' : 'staged/1', value: '0', logicalTime: event ? { time: '0', offset: '0' } : '0', completedCount: '0', pendingAcknowledgements: [] };
-                    root = await ctx.sqliteBootstrap.create({
-                        operationId: 'create:' + runId, runId, directory, input: prepared.input,
-                        migrations: migrationValues as never,
-                        initialFrontier: frontier,
-                        initialControl: { generation: (databaseEntry!.config as { generation: string }).generation, controlSequence: (historyEntry!.config as { controlSequence: string }).controlSequence, planId: prepared.profileUrl },
-                        requiredInitializerIds: [flag(plan, '@society0/social/social') ? 'social.seed' : 'plain.seed']
-                    });
-                }
-                const status = await ctx.history.status();
-                return { root, metadata: ctx.database.metadata, database: ctx.database, state: status.state };
-            }
-        });
+        const root = await createRunRoot(prepared, { ...options, lineage });
+        host = root.host;
+        const { handle } = root;
+        let context: Context = root.context;
         const lease = host.ctx.runDirectory.acquire(runId, 'write');
         let consumer;
         try {
@@ -783,17 +1056,24 @@ export async function worker(options: StartOptions): Promise<number> {
             await lease.release();
             throw error;
         }
-        const ctx = context!;
+        const ctx = context;
         interval = setInterval(() => {
-            void (async () => {
+            if (stopping)
+                return;
+            let task: Promise<void> | undefined;
+            task = (async () => {
                 try {
                     const status = await ctx.history.status();
+                    if (stopping)
+                        return;
                     const frontier = status.completePoint?.frontier;
                     if (frontier)
                         await writeStatus('running', Number(frontier.completedCount), frontier, null, process.pid);
                 }
                 catch { /* status is best-effort while running */ }
+                finally { if (task) inflight.delete(task); }
             })();
+            inflight.add(task);
         }, 200);
         interval.unref();
         const controller = new AbortController();
@@ -808,8 +1088,10 @@ export async function worker(options: StartOptions): Promise<number> {
             process.off('SIGTERM', stop);
             process.off('SIGINT', stop);
         }
+        stopping = true;
         if (interval)
             clearInterval(interval);
+        await Promise.all([...inflight]);
         const frontier = result.cut?.frontier ?? null;
         const completed = frontier ? Number(frontier.completedCount) : 0;
         await writeStatus(result.status, completed, frontier, result.reason ?? null, process.pid);
@@ -825,8 +1107,10 @@ export async function worker(options: StartOptions): Promise<number> {
         return result.status === 'completed' ? 0 : 1;
     }
     catch (error) {
+        stopping = true;
         if (interval)
             clearInterval(interval);
+        await Promise.all([...inflight]);
         const message = error instanceof Error ? error.message : String(error);
         try { await writeStatus('failed', 0, null, message); }
         catch { /* directory may not be writable */ }
