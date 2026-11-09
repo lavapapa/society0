@@ -105,6 +105,32 @@ async function loadProfile(path: string): Promise<{ profile: ProfileDocument; ur
     return { profile: await readJson<ProfileDocument>(url.pathname), url };
 }
 
+export interface WorldDocument {
+    readonly actors?: readonly { readonly id: string; readonly attributes?: unknown; readonly source: unknown }[];
+    readonly [key: string]: unknown;
+}
+
+/** Read and validate a world file the same way for check and run start. */
+async function readWorld(path: string): Promise<WorldDocument> {
+    const value = await readJson<unknown>(resolve(path));
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        throw new PlatformError('WORLD_INVALID', '--world 必须是 JSON 对象', 'world 文件形如 {"actors":[{"id","attributes","source"}]}');
+    const world = value as Record<string, unknown>;
+    const actors = world.actors;
+    if (actors !== undefined) {
+        if (!Array.isArray(actors))
+            throw new PlatformError('WORLD_INVALID', '--world 的 actors 必须是数组', 'world 文件形如 {"actors":[{"id","attributes","source"}]}');
+        for (const [index, actor] of actors.entries()) {
+            if (!actor || typeof actor !== 'object' || Array.isArray(actor) || typeof (actor as { id?: unknown }).id !== 'string' || !(actor as { id: string }).id)
+                throw new PlatformError('WORLD_ACTOR_INVALID', `--world 的 actors[${index}] 缺少非空字符串 id`, 'world 的 actors 段每条都要有 id 和 source');
+            const source = (actor as { source?: unknown }).source;
+            if (source === undefined || source === null || source === '')
+                throw new PlatformError('WORLD_ACTOR_SOURCE_MISSING', `--world 的 actors[${index}].source 缺失（主体 ${(actor as { id: string }).id}）`, 'world 的 actors 段每条都要有 id 和 source');
+        }
+    }
+    return world as WorldDocument;
+}
+
 function active(plan: CompositionPlan): PlannedEntry[] {
     return plan.flat.filter(entry => !entry.disabled && !entry.group);
 }
@@ -315,8 +341,49 @@ function migrationProblems(migrations: readonly MigrationInfo[]): ProfileProblem
     return problems;
 }
 
-async function actorProblems(plan: CompositionPlan): Promise<ProfileProblem[]> {
-    const problems: ProfileProblem[] = [];
+function addActorIds(value: unknown, entry: PlannedEntry, references: Map<string, string[]>): void {
+    if (typeof value === 'string') {
+        if (!value)
+            return;
+        const owners = references.get(value) ?? [];
+        if (!owners.includes(entry.id))
+            owners.push(entry.id);
+        references.set(value, owners);
+        return;
+    }
+    if (Array.isArray(value)) {
+        for (const item of value)
+            addActorIds(item, entry, references);
+        return;
+    }
+    if (value && typeof value === 'object') {
+        const id = (value as { id?: unknown }).id;
+        if (typeof id === 'string')
+            addActorIds(id, entry, references);
+    }
+}
+
+/** Actor ids referenced by active plugin config, grouped by the entry ids that reference them. */
+function actorReferences(plan: CompositionPlan): Map<string, string[]> {
+    const references = new Map<string, string[]>();
+    for (const entry of active(plan)) {
+        const config = entry.config as Record<string, unknown> | undefined;
+        if (!config || typeof config !== 'object')
+            continue;
+        for (const key of ['actors', 'pairingGroups'])
+            if (key in config)
+                addActorIds(config[key], entry, references);
+    }
+    return references;
+}
+
+interface ActorAnalysis {
+    problems: ProfileProblem[];
+    warnings: string[];
+}
+
+async function actorProblems(plan: CompositionPlan, world?: WorldDocument): Promise<ActorAnalysis> {
+    const problems: ProfileProblem[] = [], warnings: string[] = [];
     const activeEntries = active(plan);
     const actors = activeEntries.find(entry => entry.name === '@society0/core/actors');
     const seed = actors && (actors.config as { seed?: unknown }).seed === true;
@@ -353,7 +420,24 @@ async function actorProblems(plan: CompositionPlan): Promise<ProfileProblem[]> {
                 hint: 'social.seed 依赖 actors.seed，但 profile 里的 @society0/core/actors 没有开启 seed；给 actors 配置 {"seed":true}'
             });
     }
-    return problems;
+    if (seed) {
+        const references = actorReferences(plan);
+        if (references.size) {
+            if (!world) {
+                warnings.push(`profile 引用了主体 ${[...references.keys()].join(', ')}，但 check 没有读取 world；run start 必须提供包含这些主体的 --world 文件`);
+            }
+            else {
+                const available = new Set((world.actors ?? []).map(actor => actor.id));
+                for (const [id, owners] of references)
+                    if (!available.has(id))
+                        problems.push({
+                            kind: 'actor', id, requiredBy: owners.join(','),
+                            hint: `world 的 actors 段缺少主体 ${id}（${owners.join(', ')} 引用）；world 的 actors 段每条要有 id 和 source`
+                        });
+            }
+        }
+    }
+    return { problems, warnings };
 }
 
 export interface LockReport {
@@ -430,6 +514,7 @@ export async function checkProfile(options: {
     profile: string;
     lock?: string;
     patches?: string;
+    world?: string;
     base?: string;
     credentialsEnv?: string;
 }): Promise<CheckReport> {
@@ -441,12 +526,14 @@ export async function checkProfile(options: {
         throw new PlatformError('PATCHES_ARRAY', '--patches 必须是 EntryPatch 数组', '传入 JSON 数组');
     if (options.credentialsEnv)
         readCredentialsEnv(options.credentialsEnv);
+    const world = options.world ? await readWorld(options.world) : undefined;
     const host = await platformHost(modelSeeds(profile), options.base);
     try {
         const analysis = await host.ctx.profileLoader.analyze(profile as never, { baseURL: url.href, cliPatches: patches });
         const missing: ProfileProblem[] = [...analysis.missing];
         missing.push(...slotProblems(analysis.plan), ...credentialProblems(analysis.plan, Boolean(options.credentialsEnv)));
-        missing.push(...await actorProblems(analysis.plan));
+        const actors = await actorProblems(analysis.plan, world);
+        missing.push(...actors.problems);
         const migrations = await collectMigrations(analysis.plan, missing);
         missing.push(...migrationProblems(migrations));
         const unique = new Map<string, ProfileProblem>();
@@ -457,7 +544,7 @@ export async function checkProfile(options: {
             schema: CHECK_SCHEMA,
             ok: unique.size === 0,
             missing: [...unique.values()],
-            warnings: analysis.warnings,
+            warnings: [...analysis.warnings, ...actors.warnings],
             resolved: { plugins, slots: driverProviders(analysis.plan) }
         };
     }
@@ -529,9 +616,7 @@ export async function prepareRunPlan(options: StartOptions): Promise<PreparedPla
     const attempts = entryOf('attempts');
     if (attempts) overrides.push({ id: 'attempts', config: { ...(attempts.config as Record<string, unknown>), directory: lineage, lineage: basename(lineage) } });
     overrides.push(...tickOverride(analysis.plan, options.ticks));
-    const input = options.world && options.mode === 'start' ? await readJson<Record<string, unknown>>(resolve(options.world)) : {};
-    if (!input || typeof input !== 'object' || Array.isArray(input))
-        throw new PlatformError('WORLD_INVALID', '--world 必须是 JSON 对象', 'world 文件形如 {"actors":[{"id","attributes","source"}]}');
+    const input = options.world && options.mode === 'start' ? await readWorld(options.world) : {};
     const host2 = await platformHost(modelSeeds(profile), options.base);
     try {
         const plan = await host2.ctx.profileLoader.compile(profile as never, { baseURL: url.href, cliPatches: [...cliPatches, ...overrides] });
@@ -636,7 +721,7 @@ export async function startRun(main: string, options: StartOptions): Promise<Rec
     if (options.credentialsEnv)
         readCredentialsEnv(options.credentialsEnv);
     if (options.world && options.mode === 'start')
-        await readJson<Record<string, unknown>>(resolve(options.world));
+        await readWorld(options.world);
     await mkdir(dirname(options.dir), { recursive: true });
     if (options.mode === 'start')
         await requireFresh(resolve(options.dir), resolve(options.lineage ?? join(dirname(resolve(options.dir)), 'lineages', basename(resolve(options.dir)))));

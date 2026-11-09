@@ -9,7 +9,7 @@ import { checkProfile, generateLock, PlatformError, runResult, runStatus, startR
 
 interface Invocation { boot: string; command?: string; input: unknown }
 type PlatformInvocation =
-    | { kind: 'check'; profile: string; lock?: string; patches?: string; base?: string; credentialsEnv?: string }
+    | { kind: 'check'; profile: string; lock?: string; patches?: string; world?: string; base?: string; credentialsEnv?: string }
     | { kind: 'lock'; base: string; out: string; packages: string[] }
     | { kind: 'start'; options: StartOptions }
     | { kind: 'resume'; options: StartOptions }
@@ -22,7 +22,7 @@ const PLATFORM_USAGE = [
     'Usage: society0 <command> [options]',
     '',
     'Commands:',
-    '  check --profile <p> [--lock <f>] [--patches <f>] [--base <d>] [--credentials-env <NAME>] --json',
+    '  check --profile <p> [--lock <f>] [--patches <f>] [--world <f>] [--base <d>] [--credentials-env <NAME>] --json',
     '  lock --base <d> --out <lock.json> <package>... --json',
     '  run start --profile <p> --dir <run> [--lineage <d>] [--ticks N] [--world <f>] [--base <d>] [--credentials-env <NAME>] --detach --json',
     '  run resume --dir <run> [--credentials-env <NAME>] --detach --json',
@@ -82,12 +82,12 @@ function parsePlatform(argv: string[]): PlatformInvocation | number {
     if (command === 'check') {
         let values;
         try {
-            ({ values } = parseArgs({ args: argv.slice(1), options: { profile: { type: 'string' }, lock: { type: 'string' }, patches: { type: 'string' }, base: { type: 'string' }, 'credentials-env': { type: 'string' }, json: { type: 'boolean' }, help: { type: 'boolean', short: 'h' } } }));
+            ({ values } = parseArgs({ args: argv.slice(1), options: { profile: { type: 'string' }, lock: { type: 'string' }, patches: { type: 'string' }, world: { type: 'string' }, base: { type: 'string' }, 'credentials-env': { type: 'string' }, json: { type: 'boolean' }, help: { type: 'boolean', short: 'h' } } }));
         }
         catch { return usage(); }
         if (values.help) { console.log(PLATFORM_USAGE); return 0; }
         if (!values.profile) return usage();
-        return { kind: 'check', profile: resolve(values.profile), lock: absolute(values.lock), patches: absolute(values.patches), base: values.base ? resolve(values.base) : undefined, credentialsEnv: values['credentials-env'] };
+        return { kind: 'check', profile: resolve(values.profile), lock: absolute(values.lock), patches: absolute(values.patches), world: absolute(values.world), base: values.base ? resolve(values.base) : undefined, credentialsEnv: values['credentials-env'] };
     }
     if (command === 'lock') {
         let values, positionals;

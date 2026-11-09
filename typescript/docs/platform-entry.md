@@ -14,12 +14,13 @@
 ### check
 
 ```
-society0 check --profile <p> [--lock <f>] [--patches <f>] [--base <d>] [--credentials-env <NAME>] --json
+society0 check --profile <p> [--lock <f>] [--patches <f>] [--world <f>] [--base <d>] [--credentials-env <NAME>] --json
 ```
 
 - `--profile`：`society-profile/v2` JSON 文件。相对路径按当前工作目录解析。
 - `--lock`：覆盖 profile 里的 `lockfile` 字段；不传时使用 profile 自带的相对/绝对地址。
 - `--patches`：额外的 `EntryPatch[]`，与 run 时传入的覆盖层同义。
+- `--world`：可选的 world 文件，与 `run start` 共用同一个读取与校验函数：必须是 JSON 对象，`actors` 段每条都要有 `id` 和 `source`。给了 world 时，profile 初始化插件引用到的主体 id 必须在 `actors` 段里；没给 world 但 profile 引用了主体时，`warnings` 里提示 run 必须提供 world，不影响 `ok`。
 - `--base`：插件解析目录；module-resolver 从这个目录的 `node_modules` 按包名查找插件（见“从实验目录加载本地插件”）。
 - `--credentials-env`：环境变量名。只检查这个变量存在且是 JSON 对象，并把 profile 里出现的凭据名视为已注册；不读取也不打印 key。
 - 不写 run 目录，不启动模型。
@@ -65,7 +66,7 @@ society0 check --profile <p> [--lock <f>] [--patches <f>] [--base <d>] [--creden
 
 - 只覆盖 profile 能表达的内容。数据集、外部事件里临时出现的 driver 名无法从 profile 推断，仍会在运行时报 `SLOT_PENDING`。
 - `social-sqlite` / `social-codex-sqlite` 需要平台显式注册凭据名；profile 自带 `stores` 时 check 会认为完整。
-- world 文件只做 JSON 对象校验；actors 段的 `source` 必填在根创建时由 `actors.seed` 检查，`check` 不读 world 文件。
+- `check --world` 读取 world 文件并校验 JSON 对象、actors 段的 `id` 和 `source`；不给 `--world` 时只根据 profile 静态引用给出提示，无法发现 world 中临时出现的其他主体。
 - `modelCredentials`、`slots` 这类宿主启动时注入的服务由 CLI 在检查时按 profile 是否含模型插件补齐，不会算作缺失。
 
 ### run start
