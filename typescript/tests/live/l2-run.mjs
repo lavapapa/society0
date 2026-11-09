@@ -8,10 +8,10 @@
  * 续跑（从镜像恢复）：
  *   ... --restore-from <W>/runs/l2-20261107 --hot-root /var/tmp/society0-next-l2-20261107-resume
  *
- * 只调用 127.0.0.1:4000；key 只进 0600 临时文件，不进日志/证据。
+ * 只调用 127.0.0.1:4000；key 只存在进程内存，不进日志/证据，也不落盘。
  */
 import assert from 'node:assert/strict';
-import {appendFile, chmod, cp, lstat, mkdir, readFile, rename, rm, statfs, symlink, unlink, writeFile} from 'node:fs/promises';
+import {appendFile, cp, lstat, mkdir, readFile, rename, rm, statfs, symlink, unlink, writeFile} from 'node:fs/promises';
 import {appendFileSync, existsSync} from 'node:fs';
 import {join, dirname, resolve} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
@@ -20,8 +20,17 @@ import {performance} from 'node:perf_hooks';
 import {DatabaseSync} from 'node:sqlite';
 import {estimateSlots} from './support.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const W = join(here, '..', '..', '..', '..', '..');
+const here = dirname(fileURLToPath(import.meta.url));const W = join(here, '..', '..', '..', '..', '..');
+/** 网关 key 只留在进程内存；驱动被 kill -9 时不会留下凭据文件。 */
+class MemoryCredentialStore {
+  #values = new Map();
+  constructor(reference, key) { this.#values.set(reference, {type: 'api_key', key}); }
+  async read(reference) { const value = this.#values.get(reference); return value === undefined ? undefined : structuredClone(value); }
+  async list() { return [...this.#values].map(([providerId, value]) => ({providerId, type: value.type})); }
+  async modify(reference, change) { const current = await this.read(reference), next = await change(current); if (next !== undefined) this.#values.set(reference, structuredClone(next)); return this.read(reference); }
+  async delete(reference) { this.#values.delete(reference); }
+  async close() {}
+}
 const gatewayEnv = process.env.L2_GATEWAY_ENV || join(W, '..', '..', 'services', 'litellm', '.env');
 const modelId = 'Qwen3.6-35B-A3B-FP8';
 const ticks = 5;
@@ -107,7 +116,6 @@ const instructionFor = (role, actor, tick) => role === 'publish'
 
 const requests = (values['restore-from'] || values['reuse-hot']) && existsSync(requestsPath) ? JSON.parse(await readFile(requestsPath, 'utf8')) : [];
 let secret;
-let credentialsPath;
 let lockPath;
 let createdExamplesLink = false;
 let originalFetch;
@@ -315,9 +323,6 @@ try {
   secret = line.slice('LITELLM_MASTER_KEY='.length).trim();
   assert.ok(secret.length > 0, 'LITELLM_MASTER_KEY empty');
   assert.ok(process.env.TMPDIR, 'TMPDIR required (run through tools/run.py)');
-  credentialsPath = join(process.env.TMPDIR, `l2-gateway-credentials-${process.pid}.json`);
-  await writeFile(credentialsPath, JSON.stringify({'local-gateway': {type: 'api_key', key: secret}}), {mode: 0o600});
-  await chmod(credentialsPath, 0o600);
 
   let startTick = Number(values['start-tick'] ?? 1);
   if (values['restore-from']) {
@@ -395,7 +400,7 @@ try {
   }
   await writeFile(lockPath, JSON.stringify({lockfile: pathToFileURL(lockPath).href, packages}));
   const {runProfile} = await import(pathToFileURL(join(here, '..', '..', 'examples', 'run-profile.mjs')).href);
-  const {FileCredentialStore} = await import(pathToFileURL(join(here, '..', '..', '.build', 'core', 'dist', 'model-credentials', 'store.js')).href);
+  const credentials = new MemoryCredentialStore('local-gateway', secret);
 
   originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
@@ -503,7 +508,7 @@ try {
           lock: lockPath,
           allowModelRequests: true,
           reopen: tick > 1 || values['reuse-hot'],
-          configureHost: async ctx => { await ctx.modelCredentials.register('authorized-local', new FileCredentialStore(credentialsPath)); },
+          configureHost: async ctx => { await ctx.modelCredentials.register('authorized-local', credentials); },
         });
         lastError = null;
         await rm(patchesPath, {force: true}).catch(() => {});
@@ -583,7 +588,6 @@ try {
 } finally {
   clearInterval(watchdogTimer);
   if (originalFetch) globalThis.fetch = originalFetch;
-  if (credentialsPath) await rm(credentialsPath, {force: true}).catch(() => {});
   if (lockPath) await rm(lockPath, {force: true}).catch(() => {});
   if (createdExamplesLink) await unlink(join(here, '..', '..', 'examples', 'node_modules')).catch(() => {});
 }

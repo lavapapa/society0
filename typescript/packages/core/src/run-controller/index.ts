@@ -10,7 +10,13 @@ import type { RuntimeFrontier } from '../sqlite/contracts.js';
 import '../generation-views/index.js';
 import '../sqlite-history/index.js';
 export const Config = Schema.object({
-    maxTransactionMs: Schema.natural().min(1).default(15000), maxPendingAcknowledgements: Schema.natural().min(1).default(1024), pauseTimeoutMs: Schema.natural().min(1).default(30000)
+    maxTransactionMs: Schema.natural().min(1).default(15000), maxPendingAcknowledgements: Schema.natural().min(1).default(1024), pauseTimeoutMs: Schema.natural().min(1).default(30000),
+    autoRecover: Schema.object({
+        enabled: Schema.boolean().default(false),
+        maxAttempts: Schema.natural().min(0).default(3),
+        backoffMs: Schema.natural().min(0).default(1000),
+        retryable: Schema.array(Schema.string()).default(['MODEL_UPSTREAM_ERROR', 'MODEL_RATE_LIMITED', 'MODEL_TIMEOUT'])
+    }).default({})
 });
 export const metadata: PluginMetadata = {
     title: 'run-controller', summary: '固定代视图、真实排空与SQL完整点推进', configVersion: 1, configPolicy: [{
@@ -19,6 +25,8 @@ export const metadata: PluginMetadata = {
             path: '/maxPendingAcknowledgements', mode: 'new-run', affectsResults: true
         }, {
             path: '/pauseTimeoutMs', mode: 'boundary', affectsResults: false
+        }, {
+            path: '/autoRecover', mode: 'boundary', affectsResults: true
         }], scope: 'run', hostAbi: 'society0/host/1'
 };
 export const api: ApiEntry = {
@@ -62,6 +70,7 @@ export class RunController extends Service {
     private latestCut?: CompletePoint;
     private complete = true;
     private pending: Proposal[] = [];
+    private recovery?: { proposalId: string; attempts: number; completed: Set<string>; operations: Set<string> };
     constructor(ctx: Context, input = {}) {
         super(ctx, 'runs');
         this.config = Config(input);
@@ -221,9 +230,18 @@ export class RunController extends Service {
                 continue;
             }
             session.proposal = source.proposal;
+            const proposal = source.proposal;
             const advance = await this.executeProposal(session, view, signal);
-            if (advance.kind === 'paused' || advance.kind === 'failed')
+            if (advance.kind === 'failed') {
+                this.recovery = undefined;
                 return advance.result;
+            }
+            if (advance.kind === 'paused') {
+                if (await this.recover(session, proposal, advance)) continue;
+                this.recovery = undefined;
+                return advance.result;
+            }
+            this.recovery = undefined;
             const boundary = await this.advanceBoundary(session, view, advance.result, signal);
             if (boundary)
                 return boundary;
@@ -249,9 +267,63 @@ export class RunController extends Service {
             status: decision.action === 'stop' ? 'completed' : 'paused', cut: session.cut, reason: decision.reason
         };
     }
+    private completedActivations(result: AdvanceResult): string[] {
+        const activations = (result.evidence as { activations?: readonly { id?: unknown; status?: unknown }[] })?.activations;
+        if (!Array.isArray(activations)) return [];
+        return activations.filter(item => item?.status === 'completed' && typeof item.id === 'string').map(item => String(item.id));
+    }
+    private completedOperations(result: AdvanceResult): string[] {
+        const activations = (result.evidence as { activations?: readonly { status?: unknown; requiredOperations?: readonly unknown[] }[] })?.activations;
+        if (!Array.isArray(activations)) return [];
+        return activations.filter(item => item?.status === 'completed').flatMap(item => (item.requiredOperations ?? []).map(String));
+    }
+    private filterRecovered(proposal: Proposal): Proposal {
+        const recovery = this.recovery;
+        if (!recovery || recovery.proposalId !== proposal.id || !recovery.completed.size) return proposal;
+        const payload = proposal.payload as { phases?: readonly { activations?: readonly { id?: unknown }[] }[] };
+        if (!Array.isArray(payload?.phases)) return proposal;
+        const phases = payload.phases.map(phase => ({ ...phase, activations: (phase.activations ?? []).filter((activation: { id?: unknown }) => typeof activation?.id !== 'string' || !recovery.completed.has(activation.id)) })).filter(phase => phase.activations.length);
+        return { ...proposal, payload: { ...(proposal.payload as object), phases } as Json };
+    }
+    /** 只把已经确定结算的上游错误当作可恢复原因；unknown/未结算一律不重试。 */
+    private recoverable(result: AdvanceResult): boolean {
+        const activations = (result.evidence as { activations?: readonly Record<string, unknown>[] })?.activations;
+        if (!Array.isArray(activations) || !this.config.autoRecover.enabled) return false;
+        const retryable = new Set(this.config.autoRecover.retryable);
+        for (const item of activations) {
+            if (item?.status === 'completed') continue;
+            const value = item?.value as { reason?: unknown } | undefined;
+            if (value?.reason !== 'provider_error') continue;
+            const evidence = item?.evidence as { modelAttempts?: readonly { cause?: unknown }[]; activation?: { modelAttempts?: readonly { cause?: unknown }[] } } | undefined;
+            const attempts = evidence?.modelAttempts ?? evidence?.activation?.modelAttempts ?? [];
+            if (attempts.some(attempt => retryable.has(String(attempt?.cause)))) return true;
+        }
+        return false;
+    }
+    private reportRecovery(attempt: number, reason: string, frontier: Json) {
+        try {
+            const diagnostics = this.ctx.get('diagnostics', false) as { report(record: { code: string; message: string; phase: 'task' }): void } | undefined;
+            diagnostics?.report({ code: 'RUN_AUTO_RECOVER', message: JSON.stringify({ attempt, reason, frontier }), phase: 'task' });
+        } catch {
+        }
+    }
+    private async recover(session: RunSession, proposal: Proposal, advance: { advance: AdvanceResult; completed: string[] }): Promise<boolean> {
+        if (!this.recoverable(advance.advance)) return false;
+        if (this.recovery?.proposalId !== proposal.id) this.recovery = { proposalId: proposal.id, attempts: 0, completed: new Set(), operations: new Set() };
+        for (const id of advance.completed) this.recovery.completed.add(id);
+        for (const operation of this.completedOperations(advance.advance)) this.recovery.operations.add(operation);
+        if (this.recovery.attempts >= this.config.autoRecover.maxAttempts) return false;
+        this.recovery.attempts++;
+        const attempt = this.recovery.attempts, delay = this.config.autoRecover.backoffMs * attempt;
+        this.reportRecovery(attempt, 'provider_error', session.frontier.value as Json);
+        if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+        return true;
+    }
     private async executeProposal(session: RunSession, view: GenerationView, signal: AbortSignal): Promise<{
         kind: 'paused';
         result: RunResult;
+        advance: AdvanceResult;
+        completed: string[];
     } | {
         kind: 'advanced';
         result: AdvanceResult;
@@ -261,18 +333,23 @@ export class RunController extends Service {
     }> {
         const proposal = session.proposal!;
         this.deferred()?.begin();
-        if (!view.runtime.planKinds.includes(proposal.planKind))
+        const filtered = this.filterRecovered(proposal);
+        if (!view.runtime.planKinds.includes(filtered.planKind))
             throw Error('RUN_PLAN_KIND');
-        if (proposal.reservation && this.pending.length >= this.config.maxPendingAcknowledgements)
+        if (filtered.reservation && this.pending.length >= this.config.maxPendingAcknowledgements)
             session.cut = await this.publish(session.cut, [...session.required], view, signal);
-        const reservation = await this.busy(signal => this.ctx.executionFence.reserve(proposal, signal), signal);
+        const reservation = await this.busy(signal => this.ctx.executionFence.reserve(filtered, signal), signal);
         this.complete = false;
         try {
-            const trigger = (proposal.payload as {
+            const trigger = (filtered.payload as {
                 trigger?: Json;
             })?.trigger ?? null;
             const logicalTime = view.clock.advance(session.frontier.logicalTime as Json, trigger);
-            const result = await this.executeRuntime(proposal, view, reservation, logicalTime, signal);
+            const raw = await this.executeRuntime(filtered, view, reservation, logicalTime, signal);
+            const completed = this.recovery?.proposalId === filtered.id ? this.completedOperations(raw) : [];
+            for (const operation of completed) this.recovery!.operations.add(operation);
+            const merged = this.recovery?.proposalId === filtered.id && this.recovery.operations.size ? { ...raw, requiredOperations: [...new Set([...raw.requiredOperations, ...this.recovery.operations])] } : raw;
+            const result = merged;
             const completion = view.completion.evaluate(result);
             if (result.status !== 'settled' || !completion.complete) {
                 const effective = result.status === 'incomplete' || !completion.complete ? { ...result, status: 'incomplete' as const } : result;
@@ -283,7 +360,7 @@ export class RunController extends Service {
                     this.ctx.executionFence.halt(termination.reason);
                     return { kind: 'failed', result: { ...paused, status: 'failed', reason: termination.reason } };
                 }
-                return { kind: 'paused', result: paused };
+                return { kind: 'paused', result: paused, advance: result, completed: this.completedActivations(result) };
             }
             await this.verifyRequired(result.requiredOperations, session.required);
             await this.completeProposal(session, proposal, reservation, logicalTime, result);

@@ -28,6 +28,9 @@ export interface ModelAttemptSettlement {
   readonly status: PhysicalStatus;
   readonly httpStatus: number | null;
   readonly cause: string | null;
+  /** 重试得到的attempt记录其来源物理请求和等待间隔；首次attempt省略。 */
+  readonly retryOf?: string;
+  readonly retryDelayMs?: number;
 }
 export interface ModelSelectionRequest {
   readonly provider: string;
