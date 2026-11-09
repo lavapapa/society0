@@ -51,7 +51,7 @@ export async function fixture(options = {}) {
             await c.attempts.verifyAuthority();
         else
             await c.attempts.initialize();
-        await c.plugin(Actors.default);
+        await c.plugin(Actors.default, { seed: options.seedActors ?? true });
         await c.plugin(Eligibility.default);
         await c.plugin(Results.default);
         await c.plugin(Threads.default);
@@ -77,7 +77,19 @@ export async function fixture(options = {}) {
                 }]
         });
         const root = options.restore ? await c.history.activate() : await c.sqliteBootstrap.create({
-            operationId: 'create', runId, directory, input: {}, migrations: [Artifacts.artifactsMigration, Actors.actorsMigration, Repo.socialMigration, Actions.actionsMigration(source), Results.resultsMigration(source), Threads.threadMigration(source), ...(options.migrations ?? [])], initialFrontier: {
+            operationId: 'create', runId, directory, input: { actors: options.worldActors ?? (options.actors ?? [{
+                    id: 'a', attributes: {
+                        name: '甲', interests: ['science']
+                    }
+                }, {
+                    id: 'b', attributes: {
+                        name: '乙'
+                    }
+                }, {
+                    id: 'c', attributes: {
+                        name: '丙'
+                    }
+                }]).map(actor => ({ id: actor.id, attributes: actor.attributes, source: actor.source ?? { kind: 'test', ref: actor.id } })) }, migrations: [Artifacts.artifactsMigration, Actors.actorsMigration, Repo.socialMigration, Actions.actionsMigration(source), Results.resultsMigration(source), Threads.threadMigration(source), ...(options.migrations ?? [])], initialFrontier: {
                 codec: options.event ? 'events/1' : 'staged/1', value: '0', logicalTime: options.event ? {
                     time: '0', offset: '0'
                 } : '0', completedCount: '0', pendingAcknowledgements: []

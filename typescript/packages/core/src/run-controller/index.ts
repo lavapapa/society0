@@ -11,6 +11,7 @@ import '../generation-views/index.js';
 import '../sqlite-history/index.js';
 export const Config = Schema.object({
     maxTransactionMs: Schema.natural().min(1).default(15000), maxPendingAcknowledgements: Schema.natural().min(1).default(1024), pauseTimeoutMs: Schema.natural().min(1).default(30000),
+    maxTicks: Schema.natural().min(1),
     autoRecover: Schema.object({
         enabled: Schema.boolean().default(false),
         maxAttempts: Schema.natural().min(0).default(3),
@@ -25,6 +26,8 @@ export const metadata: PluginMetadata = {
             path: '/maxPendingAcknowledgements', mode: 'new-run', affectsResults: true
         }, {
             path: '/pauseTimeoutMs', mode: 'boundary', affectsResults: false
+        }, {
+            path: '/maxTicks', mode: 'new-run', affectsResults: true
         }, {
             path: '/autoRecover', mode: 'boundary', affectsResults: true
         }], scope: 'run', hostAbi: 'society0/host/1'
@@ -220,6 +223,9 @@ export class RunController extends Service {
             const view = await this.acquireView(session);
             if (this.interrupted(signal))
                 return this.pauseSession(session, view, signal);
+            const capped = await this.maxTicksBoundary(session, view, signal);
+            if (capped)
+                return capped;
             const source = await this.waitSource(session, view, signal);
             if (!source)
                 return this.pauseSession(session, view, signal);
@@ -248,6 +254,13 @@ export class RunController extends Service {
             await session.held!.release();
             session.held = undefined;
         }
+    }
+    private async maxTicksBoundary(session: RunSession, view: GenerationView, signal: AbortSignal): Promise<RunResult | undefined> {
+        const maxTicks = this.config.maxTicks;
+        if (maxTicks === undefined || BigInt(session.frontier.completedCount) < BigInt(maxTicks))
+            return;
+        session.cut = await this.publish(session.cut, [...session.required], view, signal);
+        return { status: 'completed', cut: session.cut, reason: `max ticks reached (${maxTicks})` };
     }
     private async sourceBoundary(session: RunSession, view: GenerationView, source: Exclude<ProposalResult, {
         kind: 'proposal';

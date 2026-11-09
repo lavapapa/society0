@@ -5,11 +5,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { createHost, type BootEntry } from '@society0/host';
 import type {} from '@society0/host/commands';
-import { checkProfile, PlatformError, runResult, runStatus, startRun, worker, ERROR_SCHEMA, type CheckReport, type StartOptions } from './platform.js';
+import { checkProfile, generateLock, PlatformError, runResult, runStatus, startRun, worker, ERROR_SCHEMA, type CheckReport, type StartOptions } from './platform.js';
 
 interface Invocation { boot: string; command?: string; input: unknown }
 type PlatformInvocation =
-    | { kind: 'check'; profile: string; lock?: string; patches?: string }
+    | { kind: 'check'; profile: string; lock?: string; patches?: string; base?: string; credentialsEnv?: string }
+    | { kind: 'lock'; base: string; out: string; packages: string[] }
     | { kind: 'start'; options: StartOptions }
     | { kind: 'resume'; options: StartOptions }
     | { kind: 'status'; dir: string }
@@ -21,9 +22,10 @@ const PLATFORM_USAGE = [
     'Usage: society0 <command> [options]',
     '',
     'Commands:',
-    '  check --profile <p> [--lock <f>] [--patches <f>] --json',
-    '  run start --profile <p> --dir <run> [--lineage <d>] [--ticks N] --detach --json',
-    '  run resume --dir <run> --detach --json',
+    '  check --profile <p> [--lock <f>] [--patches <f>] [--base <d>] [--credentials-env <NAME>] --json',
+    '  lock --base <d> --out <lock.json> <package>... --json',
+    '  run start --profile <p> --dir <run> [--lineage <d>] [--ticks N] [--world <f>] [--base <d>] [--credentials-env <NAME>] --detach --json',
+    '  run resume --dir <run> [--credentials-env <NAME>] --detach --json',
     '  run status --dir <run> --json',
     '  run result --dir <run> --json',
     '',
@@ -66,6 +68,9 @@ function startOptions(values: Record<string, string | boolean | undefined>, mode
         lineage: values.lineage as string | undefined,
         lock: values.lock as string | undefined,
         patches: values.patches as string | undefined,
+        base: values.base as string | undefined,
+        world: values.world as string | undefined,
+        credentialsEnv: values['credentials-env'] as string | undefined,
         ticks,
         detach: values.detach === true,
         mode
@@ -77,17 +82,27 @@ function parsePlatform(argv: string[]): PlatformInvocation | number {
     if (command === 'check') {
         let values;
         try {
-            ({ values } = parseArgs({ args: argv.slice(1), options: { profile: { type: 'string' }, lock: { type: 'string' }, patches: { type: 'string' }, json: { type: 'boolean' }, help: { type: 'boolean', short: 'h' } } }));
+            ({ values } = parseArgs({ args: argv.slice(1), options: { profile: { type: 'string' }, lock: { type: 'string' }, patches: { type: 'string' }, base: { type: 'string' }, 'credentials-env': { type: 'string' }, json: { type: 'boolean' }, help: { type: 'boolean', short: 'h' } } }));
         }
         catch { return usage(); }
         if (values.help) { console.log(PLATFORM_USAGE); return 0; }
         if (!values.profile) return usage();
-        return { kind: 'check', profile: resolve(values.profile), lock: absolute(values.lock), patches: absolute(values.patches) };
+        return { kind: 'check', profile: resolve(values.profile), lock: absolute(values.lock), patches: absolute(values.patches), base: values.base ? resolve(values.base) : undefined, credentialsEnv: values['credentials-env'] };
+    }
+    if (command === 'lock') {
+        let values, positionals;
+        try {
+            ({ values, positionals } = parseArgs({ args: argv.slice(1), allowPositionals: true, options: { base: { type: 'string' }, out: { type: 'string' }, json: { type: 'boolean' }, help: { type: 'boolean', short: 'h' } } }));
+        }
+        catch { return usage(); }
+        if (values.help) { console.log(PLATFORM_USAGE); return 0; }
+        if (!values.base || !values.out || !positionals.length) return usage();
+        return { kind: 'lock', base: resolve(values.base), out: resolve(values.out), packages: positionals };
     }
     if (command === '__worker') {
         let values;
         try {
-            ({ values } = parseArgs({ args: argv.slice(1), options: { mode: { type: 'string' }, profile: { type: 'string' }, dir: { type: 'string' }, lineage: { type: 'string' }, lock: { type: 'string' }, patches: { type: 'string' }, ticks: { type: 'string' } } }));
+            ({ values } = parseArgs({ args: argv.slice(1), options: { mode: { type: 'string' }, profile: { type: 'string' }, dir: { type: 'string' }, lineage: { type: 'string' }, lock: { type: 'string' }, patches: { type: 'string' }, base: { type: 'string' }, world: { type: 'string' }, 'credentials-env': { type: 'string' }, ticks: { type: 'string' } } }));
         }
         catch { return usage(); }
         if (!values.profile || !values.dir || (values.mode !== 'start' && values.mode !== 'resume')) return usage();
@@ -96,7 +111,7 @@ function parsePlatform(argv: string[]): PlatformInvocation | number {
     if (command === 'run' && subcommand) {
         let values;
         try {
-            ({ values } = parseArgs({ args: argv.slice(2), options: { profile: { type: 'string' }, dir: { type: 'string' }, lineage: { type: 'string' }, lock: { type: 'string' }, patches: { type: 'string' }, ticks: { type: 'string' }, detach: { type: 'boolean' }, json: { type: 'boolean' }, help: { type: 'boolean', short: 'h' } } }));
+            ({ values } = parseArgs({ args: argv.slice(2), options: { profile: { type: 'string' }, dir: { type: 'string' }, lineage: { type: 'string' }, lock: { type: 'string' }, patches: { type: 'string' }, base: { type: 'string' }, world: { type: 'string' }, 'credentials-env': { type: 'string' }, ticks: { type: 'string' }, detach: { type: 'boolean' }, json: { type: 'boolean' }, help: { type: 'boolean', short: 'h' } } }));
         }
         catch { return usage(); }
         if (values.help) { console.log(PLATFORM_USAGE); return 0; }
@@ -132,6 +147,10 @@ async function runPlatform(invocation: PlatformInvocation): Promise<number> {
         case 'check': {
             const report: CheckReport = await checkProfile(invocation);
             printJson(report);
+            return report.ok ? 0 : 2;
+        }
+        case 'lock': {
+            printJson(await generateLock(invocation));
             return 0;
         }
         case 'status': {

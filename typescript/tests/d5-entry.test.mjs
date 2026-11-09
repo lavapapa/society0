@@ -42,6 +42,23 @@ function nested(entries, name) {
         else if (entry.name === name) return entry;
     }
 }
+function repeatProposals(profile, count) {
+    const sequence = nested(profile.patches[0].insert, '@society0/core/proposal-sequence');
+    const template = sequence.config.proposals[0];
+    sequence.config.proposals = Array.from({ length: count }, (_, index) => {
+        const proposal = structuredClone(template);
+        proposal.id = 'p' + (index + 1);
+        proposal.payload.nextCursor = String(index + 1);
+        for (const [phaseIndex, phase] of (proposal.payload.phases ?? []).entries()) {
+            phase.id = 'act-' + (index + 1) + '-' + (phaseIndex + 1);
+            for (const [activationIndex, activation] of phase.activations.entries()) {
+                activation.id = 'p' + (index + 1) + '-' + (activationIndex + 1);
+                activation.momentId = 'm' + (index + 1);
+            }
+        }
+        return proposal;
+    });
+}
 function call(args, options = {}) {
     return spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', timeout: 120_000, ...options });
 }
@@ -50,9 +67,9 @@ function json(result) {
     assert.equal(result.stderr, '', result.stderr);
     return JSON.parse(result.stdout);
 }
-function check(profile, extra = []) {
+function check(profile, extra = [], status = 0) {
     const result = call(['check', '--profile', profile, ...extra, '--json']);
-    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.status, status, result.stderr);
     return { result, report: JSON.parse(result.stdout) };
 }
 
@@ -73,7 +90,7 @@ test('D5 check reports slot, service, migration, plugin, config and credential p
         const proposal = nested(profile.patches[0].insert, '@society0/core/proposal-sequence').config.proposals[0];
         proposal.payload.phases[0].activations[0].driver = 'llm/v1';
     });
-    const report = check(broken.profile).report;
+    const report = check(broken.profile, [], 2).report;
     assert.equal(report.ok, false);
     for (const [kind, id] of [['plugin', '@society0/ghost'], ['service', 'threads'], ['config', 'proposal-sequence/bogus'], ['slot', 'core/drivers/llm/v1'], ['migration', 'artifacts-local']]) {
         const item = report.missing.find(entry => entry.kind === kind && entry.id === id);
@@ -83,7 +100,7 @@ test('D5 check reports slot, service, migration, plugin, config and credential p
     }
 
     const credential = await fixture('social-sqlite');
-    const social = check(credential.profile).report;
+    const social = check(credential.profile, [], 2).report;
     assert.equal(social.ok, false);
     const missing = social.missing.find(entry => entry.kind === 'credential' && entry.id === 'authorized-local');
     assert.ok(missing, JSON.stringify(social.missing));
@@ -97,7 +114,7 @@ test('D5 check output snapshot is stable', { skip, timeout: 120_000 }, async () 
 });
 
 test('D5 run start/status/result completes two ticks through versioned JSON', { skip, timeout: 180_000 }, async () => {
-    const { directory, profile } = await fixture('rule-sqlite');
+    const { directory, profile } = await fixture('rule-sqlite', value => repeatProposals(value, 2));
     const runDir = join(directory, 'run2');
     const started = json(call(['run', 'start', '--profile', profile, '--dir', runDir, '--ticks', '2', '--detach', '--json']));
     assert.equal(started.schema, 'society0.run/1');
@@ -115,7 +132,7 @@ test('D5 run start/status/result completes two ticks through versioned JSON', { 
 });
 
 test('D5 run kill leaves paused status and resume finishes from the frontier', { skip, timeout: 300_000 }, async () => {
-    const { directory, profile } = await fixture('rule-sqlite');
+    const { directory, profile } = await fixture('rule-sqlite', value => repeatProposals(value, 200));
     const runDir = join(directory, 'run3');
     const started = json(call(['run', 'start', '--profile', profile, '--dir', runDir, '--ticks', '200', '--detach', '--json']));
     const points = join(runDir, 'history', 'points');

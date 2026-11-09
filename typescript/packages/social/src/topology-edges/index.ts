@@ -66,12 +66,16 @@ export default {
             id: 'provided-edges/v1',
             value: {
                 id: 'provided-edges/v1',
-                async build(_input, context) {
-                    if (config.actors.length > config.maxActors || config.edges.length > config.maxEdges)
+                async build(input, context) {
+                    const world = input as { actors?: readonly { id: string; attributes?: unknown }[] } | undefined;
+                    const actors = Array.isArray(world?.actors) && world.actors.length
+                        ? world.actors.map(actor => ({ id: actor.id, attributes: (actor.attributes ?? {}) as never }))
+                        : config.actors;
+                    if (actors.length > config.maxActors || config.edges.length > config.maxEdges)
                         throw Error('SOCIAL_TOPOLOGY_BUDGET');
                     if (config.algorithm === 'provided')
                         return structuredClone({
-                            actors: config.actors, edges: config.edges
+                            actors, edges: config.edges
                         }) as GraphSeed;
                     let index = 0n;
                     const draw = () => {
@@ -82,10 +86,10 @@ export default {
                             run: context.runId, actor: 'topology', operation: context.operationId, stream: config.algorithm, index: String(index++)
                         }).uniform;
                     };
-                    const edges = await generate(config.actors.length, config, draw, context.signal);
+                    const edges = await generate(actors.length, config, draw, context.signal);
                     return {
-                        actors: structuredClone(config.actors), edges: edges.map(([a, b]) => ({
-                            from: config.actors[a]!.id, to: config.actors[b]!.id
+                        actors: structuredClone(actors), edges: edges.map(([a, b]) => ({
+                            from: actors[a]!.id, to: actors[b]!.id
                         }))
                     };
                 }

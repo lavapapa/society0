@@ -64,7 +64,7 @@ export interface CompositionPlan {
 }
 /** Stable platform-facing diagnostic item produced by ProfileLoader.analyze. */
 export interface ProfileProblem {
-    readonly kind: 'slot' | 'service' | 'migration' | 'plugin' | 'config' | 'credential';
+    readonly kind: 'slot' | 'service' | 'migration' | 'plugin' | 'config' | 'credential' | 'actor';
     readonly id: string;
     readonly requiredBy?: string;
     readonly hint: string;

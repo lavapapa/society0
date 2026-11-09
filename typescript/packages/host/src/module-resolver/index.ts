@@ -7,6 +7,7 @@ export const Config = Schema.object({ baseURL: Schema.string() });
 export const metadata = hostMetadata('module-resolver', 'Resolve pinned package exports and verify source identity', [{ path: '/baseURL', mode: 'recreate', affectsResults: false }]);
 export const api = hostApi('./module-resolver', ["moduleResolver"], ["diagnostics"]);
 export * from './types.js';
+export { locate, readManifest } from './package-files.js';
 import type { ModuleLock, ModuleIdentity, StaticInspection, VerifiedModule } from './types.js';
 import { nameOf, locate, exported, readManifest, lockedModule, lockedBundle, inspectSidecars } from './package-files.js';
 function normalize(namespace: Record<string, unknown>, specifier: string): Plugin {

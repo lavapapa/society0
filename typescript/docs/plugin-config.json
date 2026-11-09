@@ -570,7 +570,16 @@
         {
           "exportPath": "./actors",
           "title": "actors",
-          "fields": []
+          "fields": [
+            {
+              "name": "seed",
+              "type": "boolean",
+              "default": false,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
         },
         {
           "exportPath": "./drivers",
@@ -864,6 +873,14 @@
               "default": 30000,
               "mode": "boundary",
               "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "maxTicks",
+              "type": "number",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
               "secret": null
             },
             {
