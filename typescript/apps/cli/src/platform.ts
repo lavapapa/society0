@@ -368,6 +368,30 @@ function gitOutput(directory: string, args: string[]): string {
     return result.stdout.trim();
 }
 
+function sourceIdentity(directory: string): { gitCommit: string; dirty: boolean } | undefined {
+    let identity: unknown;
+    try { identity = JSON.parse(readFileSync(join(directory, 'SOURCE.json'), 'utf8')); }
+    catch { return undefined; }
+    const implementation = (identity as { implementation?: unknown } | null)?.implementation as { gitCommit?: unknown; dirty?: unknown } | undefined;
+    if (!implementation || typeof implementation.gitCommit !== 'string' || typeof implementation.dirty !== 'boolean')
+        return undefined;
+    return { gitCommit: implementation.gitCommit, dirty: implementation.dirty };
+}
+
+function lockIdentity(directory: string): { gitCommit: string; dirty: boolean } {
+    try {
+        return { gitCommit: gitOutput(directory, ['rev-parse', 'HEAD']), dirty: gitOutput(directory, ['status', '--porcelain', '--untracked-files=normal']).length > 0 };
+    }
+    catch (error) {
+        if (!(error instanceof PlatformError) || error.code !== 'LOCK_GIT')
+            throw error;
+        const recorded = sourceIdentity(directory);
+        if (!recorded)
+            throw error;
+        return recorded;
+    }
+}
+
 function sidecarPatches(directory: string, manifest: { society?: { plugin?: { metadata?: string } } }): readonly string[] {
     const path = manifest.society?.plugin?.metadata;
     if (!path)
@@ -392,8 +416,7 @@ export async function generateLock(options: { base: string; out: string; package
     for (const name of new Set(options.packages)) {
         const directory = locate(name, baseURL);
         const manifest = readManifest(directory);
-        const gitCommit = gitOutput(directory, ['rev-parse', 'HEAD']);
-        const dirty = gitOutput(directory, ['status', '--porcelain', '--untracked-files=normal']).length > 0;
+        const { gitCommit, dirty } = lockIdentity(directory);
         packages[name] = { version: manifest.version, gitCommit, dirty, patches: sidecarPatches(directory, manifest), hostAbi: 'society0/host/1' };
     }
     const value = { lockfile: pathToFileURL(out).href, packages };
@@ -508,7 +531,7 @@ export async function prepareRunPlan(options: StartOptions): Promise<PreparedPla
     const input = options.world && options.mode === 'start' ? await readJson<Record<string, unknown>>(resolve(options.world)) : {};
     if (!input || typeof input !== 'object' || Array.isArray(input))
         throw new PlatformError('WORLD_INVALID', '--world 必须是 JSON 对象', 'world 文件形如 {"actors":[{"id","attributes","source"}]}');
-    const host2 = await platformHost([], options.base);
+    const host2 = await platformHost(modelSeeds(profile), options.base);
     try {
         const plan = await host2.ctx.profileLoader.compile(profile as never, { baseURL: url.href, cliPatches: [...cliPatches, ...overrides] });
         return { plan, profileUrl: url.href, profile, ticks: options.ticks, dir: directory, lineage, input };
