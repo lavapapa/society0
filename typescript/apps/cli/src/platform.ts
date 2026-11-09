@@ -503,6 +503,20 @@ function actorReferences(plan: CompositionPlan): Map<string, string[]> {
     return references;
 }
 
+/** Initializer ids the profile needs at root creation; derived from the plugins that own actor creation and domain seeding. */
+function requiredInitializers(plan: CompositionPlan): string[] {
+    const entries = active(plan);
+    const actors = entries.find(entry => entry.name === '@society0/core/actors');
+    const ids: string[] = [];
+    if (actors && (actors.config as { seed?: unknown }).seed === true)
+        ids.push('actors.seed');
+    if (entries.some(entry => entry.name === '@society0/core/plain-init'))
+        ids.push('plain.seed');
+    if (flag(plan, '@society0/social/social'))
+        ids.push('social.seed');
+    return ids;
+}
+
 interface ActorAnalysis {
     problems: ProfileProblem[];
     warnings: string[];
@@ -938,7 +952,7 @@ async function createRunRoot(prepared: PreparedPlan, options: StartOptions): Pro
                         migrations: migrationValues as never,
                         initialFrontier: frontier,
                         initialControl: { generation: (databaseEntry!.config as { generation: string }).generation, controlSequence: (historyEntry!.config as { controlSequence: string }).controlSequence, planId: prepared.profileUrl },
-                        requiredInitializerIds: [flag(plan, '@society0/social/social') ? 'social.seed' : 'plain.seed']
+                        requiredInitializerIds: requiredInitializers(plan)
                     });
                 }
                 const status = await ctx.history.status();

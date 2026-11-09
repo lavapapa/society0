@@ -215,6 +215,16 @@ platform 会和内置的 core/social migration 一起收集并交给 sqlite-boot
 
 旧的 `plain-init` 仍可用 `initialActors` 自建 actor，但同一个 profile 里不要同时开启 `actors.seed` 与 `plain-init`，否则 `check` 会报 `kind: "actor"`。经济侧（私有包）的迁移不在本单范围内。
 
+### 必需 initializer 的推导
+
+根创建时传给 `sqlite-bootstrap` 的 `requiredInitializerIds` 从装配后的 plan 推导，不再按 profile 写死某一种 seed：
+
+- `@society0/core/actors` 的 `config.seed` 为 `true` 时，要求 `actors.seed`；
+- 启用 `@society0/core/plain-init` 时，要求 `plain.seed`；
+- 启用 `@society0/social/social` 时，再要求 `social.seed`。
+
+`run start` 和 `check --world` 的试跑走同一个根创建入口，因此用的是同一份推导结果。列表按上面的顺序生成；某个插件登记的 initializer 只有在实际加载后才会进入 initializer 集合，缺少必需项时 `sqlite-bootstrap` 仍会报 `INITIALIZER_MISSING`。profile 没有任何 actor 创建者时，推导结果为空，`check` 保持原来的行为，只提示 actor 相关缺失，不额外报 `INITIALIZER_MISSING`。
+
 ## 退出码
 
 | 退出码 | 场景 |
