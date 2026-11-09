@@ -556,17 +556,16 @@ test('RV3-05 unresolved orphan tool call stays thread_error/thread.history',{tim
   });
 });
 
-test('RV3-05 unknown action failure receipt keeps empty operations',{timeout:900000},async()=>{
+test('RV3-05 unknown action is a recoverable rejection and required action stays unsatisfied',{timeout:900000},async()=>{
   const script=[toolTurn('ghost','ghost_action',{}),finalTurn];
   await scenario({script},async env=>{
     const result=await activate(env,'rv305/unknown-action');
     assert.equal(result.status,'incomplete',JSON.stringify(result));
-    assert.equal(result.value.reason,'tool_failed',JSON.stringify(result));
-    assert.equal(result.evidence.reason,'tool_failed');
+    assert.equal(result.value.reason,'required_action_failed',JSON.stringify(result));
+    assert.equal(result.value.actRecoverable,1,JSON.stringify(result.value));
     const receipt=result.evidence.actionReceipts[0].receipt;
+    assert.equal(receipt.status,'rejected');
     assert.equal(receipt.value.code,'ACTION_UNAVAILABLE');
-    assert.equal(receipt.value.persistenceUnknown,false);
-    assert.equal(receipt.value.externalUnknown,false);
     for(const id of receipt.requiredOperations)assert.equal((await env.ctx.database.probe(id)).status,'committed');
   });
 });

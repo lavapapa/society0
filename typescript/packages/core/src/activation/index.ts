@@ -380,11 +380,11 @@ WHERE t.actor_id=? AND t.moment_id IN (?,?) AND tm.role='assistant' ORDER BY tm.
         const decision = await this.eligible(b, item.intent);
         if (!decision.allowed) {
             b.results.push({
-                order: item.order, result: {
+                order: item.order, result: this.decorate({
                     status: 'incomplete', value: null, evidence: {
                         kind: 'eligibility-rejected', decision: decision as unknown as Json
                     }
-                }
+                }, item.intent)
             });
             return;
         }
@@ -411,12 +411,15 @@ WHERE t.actor_id=? AND t.moment_id IN (?,?) AND tm.role='assistant' ORDER BY tm.
         try {
             const result = await task;
             b.results.push({
-                order: item.order, result
+                order: item.order, result: this.decorate(result, item.intent)
             });
         }
         finally {
             await task.settled;
         }
+    }
+    private decorate(result: ActivationResult, intent: ActivationIntent): ActivationResult {
+        return { ...result, activationId: intent.id, actorId: intent.actorId, momentId: intent.momentId };
     }
     private async settle(b: Batch) {
         while (true) {
@@ -432,11 +435,11 @@ WHERE t.actor_id=? AND t.moment_id IN (?,?) AND tm.role='assistant' ORDER BY tm.
         if (b.queue.length) {
             for (const item of b.queue)
                 b.results.push({
-                    order: item.order, result: {
+                    order: item.order, result: this.decorate({
                         status: 'incomplete', value: item.inputs, evidence: {
                             reason: 'cancelled-before-dispatch'
                         }
-                    }
+                    }, item.intent)
                 });
             b.queue = [];
             b.bytes = 0;

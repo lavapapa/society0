@@ -160,6 +160,7 @@
 | ./driver-llm | budget | object | {} | recreate | true | false |
 | ./driver-llm | toolChoice | union | "auto" | recreate | true | false |
 | ./driver-llm | textualToolCallRetries | number | 1 | recreate | true | false |
+| ./driver-llm | failOnToolError | union | "actions" | recreate | true | false |
 | ./driver-llm | persistDeltas | union | "none" | recreate | true | false |
 | ./driver-llm | deltaSampleEvery | number | 32 | recreate | true | false |
 | ./driver-llm | maxTransactionMs | number | 15000 | recreate | true | false |

@@ -53,6 +53,10 @@ export interface ActivationResult {
     readonly status: 'completed' | 'waiting' | 'incomplete';
     readonly value: Json;
     readonly evidence: Json;
+    /** 激活身份；由 ActivationService 补齐，用于批次证据和 RunResult 摘要。 */
+    readonly activationId?: string;
+    readonly actorId?: string;
+    readonly momentId?: string;
 }
 export interface Driver {
     activate(intent: ActivationIntent, context: ActivationContext): Promise<ActivationResult>;
@@ -202,12 +206,30 @@ export interface GenerationViews {
         readonly controlSequence: string;
     };
 }
+/** RunResult 的逐条激活摘要；只含计数与原因，不含提示词或工具正文。 */
+export interface RunActivationSummary {
+    readonly actorId: string;
+    readonly tick: string;
+    readonly reason: string;
+    readonly requests: number;
+    readonly toolCalls: number;
+    readonly explorationErrors: number;
+    readonly actRecoverable: number;
+    readonly actFailed: number;
+    readonly requiredSatisfied: boolean;
+}
+export interface RunActivationSummaries {
+    readonly entries: readonly RunActivationSummary[];
+    readonly truncated: boolean;
+}
 export interface RunResult {
     readonly status: 'completed' | 'paused' | 'failed';
     readonly cut?: CompletePoint;
     readonly reason?: string;
     readonly liveRevision?: string;
     readonly recoveryRequired?: boolean;
+    /** 本次 run 内逐条激活摘要；有上限，超过时截断并置 truncated。 */
+    readonly activations?: RunActivationSummaries;
 }
 export interface RunController {
     run(signal: AbortSignal): Promise<RunResult>;
