@@ -163,6 +163,14 @@ export function shardFileForValue(decl: PublicTableDecl, value: string): string 
         throw fault('PUBLIC_SHARD_NAME', name);
     return `${decl.path}/${name}.jsonl`;
 }
+/** 单文件 table 没有分片维度，注册键就是它唯一的完整文件路径。 */
+export function isFileTable(decl: PublicTableDecl): boolean {
+    return decl.shard.format === 'none';
+}
+/** 注册键：单文件 table 用完整文件路径，分片 table 用目录路径。 */
+export function tableKey(decl: PublicTableDecl): string {
+    return isFileTable(decl) ? shardFileForValue(decl, '') : decl.path;
+}
 export function validateTableDecl(decl: PublicTableDecl): PublicTableDecl {
     if (typeof decl.path !== 'string' || !decl.path.startsWith('/') || decl.path.endsWith('/') || posix.normalize(decl.path) !== decl.path)
         throw fault('PUBLIC_TABLE_PATH', String(decl.path));
