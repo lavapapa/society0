@@ -44,12 +44,13 @@ interface PreparedContext {
  readonly history:readonly AgentMessage[];
 }
 
+export interface FoldState { history:number; percepts:number; trim:number }
 export class LlmActivation {
  private operations=new Set<string>();private held:{release():Promise<void>}[]=[];private thread!:ThreadView;private controller=new AbortController();private context:ActivationContext;
  private pendingFrames:{frame:SequencedInferenceEvent;role:string;content:Json;attemptIds:readonly string[]}[]=[];private pendingEventBytes=0;private flushSequence=0;private deltaCount=0;private deliveryRecords:Json[]=[];
  private requestStarted?:number;
  private readonly offerLimits:OfferLimits;
- constructor(private ctx:Context,private config:LlmOptions,private intent:ActivationIntent,context:ActivationContext){this.context={...context,signal:AbortSignal.any([context.signal,this.controller.signal])};this.offerLimits={maxOffers:64,maxOfferBytes:contextBudget(this.config.budget).bytes('actions'),maxSchemaBytes:4096}}
+ constructor(private ctx:Context,private config:LlmOptions,private intent:ActivationIntent,context:ActivationContext,private folds:Map<string,FoldState>=new Map()){this.context={...context,signal:AbortSignal.any([context.signal,this.controller.signal])};this.offerLimits={maxOffers:64,maxOfferBytes:contextBudget(this.config.budget).bytes('actions'),maxSchemaBytes:4096}}
  private scope(){return {actorId:this.context.actorId,momentId:this.context.momentId,logicalTime:this.context.logicalTime,query:null}}
  private async step<T>(reason:LlmActivationReason,stage:string,body:()=>T|Promise<T>):Promise<T>{try{return await body()}catch(error){throw classified(reason,stage,error)}}
  private async withView<T>(body:(view:SqliteSnapshot)=>Promise<T>):Promise<T>{
@@ -77,6 +78,102 @@ export class LlmActivation {
  }
  private async decodeMessage(payload:StoredValue){const message=await this.readValue(payload) as Message,content=message.content as any;const native:AgentMessage=content&&typeof content==='object'&&['user','system','assistant','toolResult'].includes(content.role)?content:{role:'user',content:JSON.stringify(message),timestamp:0};const record={...native,originalProviderFields:(message.originalProviderFields??null) as Json} as unknown as Json;return {native,record,bytes:Buffer.byteLength(JSON.stringify(native)),origin:(message.originalProviderFields as {activationId?:string}|undefined)?.activationId}}
  private historyBudget(bytes:number,count:number){if(bytes>this.config.maxHistoryBytes||count>=this.config.maxHistoryMessages)throw contextLimit()}
+ private messageBytes(message:AgentMessage){return Buffer.byteLength(JSON.stringify(message))}
+ private isPerceptMessage(message:AgentMessage){return message.role==='user'&&typeof message.content==='string'&&message.content.trimStart().startsWith('{"source"')}
+ private historyFoldText(count:number){return `历史已折叠：前 ${count} 轮对话（仅计数，原始消息仍在线程中）。`}
+ private perceptHint(count:number,detail=false){return JSON.stringify({source:'percepts',truncated:count,continuation:detail?'感知超出预算，已截断较早条目；续读请查看运行记录中的完整材料。':'较早感知超出预算，已折叠；续读请查看运行记录中的完整材料。'})}
+ private trimPercept(message:AgentMessage,remove:number):AgentMessage{
+  let parsed:Record<string,unknown>;
+  try{parsed=JSON.parse(message.content as string) as Record<string,unknown>}catch{return message}
+  if(!parsed||!Array.isArray(parsed.percepts))return message;
+  const percepts=[...(parsed.percepts as unknown[])],paths=Array.isArray(parsed.paths)?[...(parsed.paths as unknown[])]:[];
+  const removed=Math.min(Math.max(0,remove),percepts.length);
+  percepts.splice(0,removed);
+  const keptPaths=paths.length>percepts.length?paths.slice(paths.length-percepts.length):paths;
+  const content={...parsed,percepts,paths:keptPaths,...(removed?{truncated:(Number(parsed.truncated)||0)+removed,continuation:'感知超出预算，已截断较早条目；续读请查看运行记录中的完整材料。'}:{})};
+  return {...message,content:JSON.stringify(content)} as AgentMessage;
+ }
+ private fitPercept(message:AgentMessage,maxBytes:number):{message:AgentMessage;removed:number}{
+  let total=0;
+  try{const parsed=JSON.parse(message.content as string) as Record<string,unknown>;total=Array.isArray(parsed.percepts)?parsed.percepts.length:0}catch{return {message,removed:0}}
+  for(let remove=0;remove<=total;remove++){const trimmed=this.trimPercept(message,remove);if(remove===total||this.messageBytes(trimmed)<=maxBytes)return {message:trimmed,removed:remove}}
+  return {message,removed:0};
+ }
+ private perceptHintText(count:number){return {role:'user',content:this.perceptHint(count),timestamp:0} as unknown as AgentMessage}
+ private buildPercepts(messages:AgentMessage[],percepts:readonly AgentMessage[],drop:number,trim:number):AgentMessage[]{
+  if(!drop&&!trim)return messages;
+  const hint=drop?this.perceptHintText(drop):undefined,boundary=trim&&percepts[drop]?this.trimPercept(percepts[drop]!,trim):undefined;
+  const result:AgentMessage[]=[];let inserted=false,replaced=false;
+  for(const message of messages){
+   if(this.isPerceptMessage(message)){
+    const ordinal=percepts.indexOf(message);
+    if(ordinal<drop){if(!inserted&&hint){result.push(hint);inserted=true}continue}
+    if(ordinal===drop&&boundary&&!replaced){result.push(boundary);replaced=true;continue}
+   }
+   result.push(message);
+  }
+  return result;
+ }
+ /** percepts 槽按分页结果截断：先折整条最旧感知消息，边界消息再按条目截断；均保留续读提示。 */
+ private foldPercepts(messages:AgentMessage[]):AgentMessage[]{
+  const budget=contextBudget(this.config.budget),limit=budget.bytes('percepts'),target=Math.max(1,Math.floor(limit*0.6));
+  const percepts=messages.filter(message=>this.isPerceptMessage(message));
+  if(!percepts.length)return messages;
+  const state=this.folds.get(this.thread.id);
+  let drop=state?.percepts??0,trim=state?.trim??0;
+  if(drop<0||drop>=percepts.length){drop=0;trim=0}
+  const size=(list:readonly AgentMessage[])=>list.reduce((sum,message)=>sum+this.messageBytes(message),0);
+  let used=size(percepts.slice(drop))+(drop?this.messageBytes(this.perceptHintText(drop)):0);
+  if(trim&&percepts[drop])used+=this.messageBytes(this.trimPercept(percepts[drop]!,trim))-this.messageBytes(percepts[drop]!);
+  if(drop&&used<=limit)return this.buildPercepts(messages,percepts,drop,trim);
+  if(!drop&&!trim&&used<=limit)return messages;
+  drop=0;trim=0;let remaining=size(percepts);
+  while(drop<percepts.length-1&&remaining+this.messageBytes(this.perceptHintText(drop+1))>target){remaining-=this.messageBytes(percepts[drop]!);drop++}
+  if(remaining+this.messageBytes(this.perceptHintText(drop))>target&&percepts[drop]){
+   const fit=this.fitPercept(percepts[drop]!,Math.max(0,target-this.messageBytes(this.perceptHintText(drop))));
+   trim=fit.removed;
+  }
+  this.folds.set(this.thread.id,{...(state??{history:0,percepts:0,trim:0}),percepts:drop,trim});
+  return this.buildPercepts(messages,percepts,drop,trim);
+ }
+ private buildHistory(tokens:readonly ({kind:'message';message:AgentMessage}|{kind:'unit';messages:AgentMessage[]})[],units:readonly {kind:'unit';messages:AgentMessage[]}[],drop:number):AgentMessage[]{
+  const dropped=new Set(units.slice(0,drop)),placeholder={role:'user',content:this.historyFoldText(drop),timestamp:0} as unknown as AgentMessage;
+  const result:AgentMessage[]=[];let inserted=false;
+  for(const token of tokens){
+   if(token.kind==='unit'&&dropped.has(token)){if(!inserted){result.push(placeholder);inserted=true}continue}
+   if(token.kind==='unit')result.push(...token.messages);else result.push(token.message);
+  }
+  return result;
+ }
+ /** history 槽超预算时只从最旧的整轮开始折，一次折到目标的约 60%；折叠点记在驱动内，两次折叠之间前缀不变。 */
+ private foldHistory(messages:AgentMessage[],current:AgentMessage|undefined):AgentMessage[]{
+  type Token={kind:'message';message:AgentMessage}|{kind:'unit';messages:AgentMessage[]};
+  const budget=contextBudget(this.config.budget),limit=budget.bytes('history'),target=Math.max(1,Math.floor(limit*0.6));
+  const tokens:Token[]=[];let unit:AgentMessage[]|undefined;
+  const flush=()=>{if(unit?.length){tokens.push({kind:'unit',messages:unit});unit=undefined}};
+  for(const message of messages){
+   if(message===current||message.role==='system'||this.isPerceptMessage(message)){flush();tokens.push({kind:'message',message});continue}
+   if(message.role==='user'){flush();unit=[message];continue}
+   if(unit)unit.push(message);else unit=[message];
+  }
+  flush();
+  const units=tokens.filter((token):token is {kind:'unit';messages:AgentMessage[]}=>token.kind==='unit');
+  const bytes=(list:readonly AgentMessage[])=>list.reduce((sum,message)=>sum+this.messageBytes(message),0);
+  const currentBytes=current?this.messageBytes(current):0;
+  const state=this.folds.get(this.thread.id);
+  let drop=state?.history??0;
+  if(drop<0||drop>=units.length)drop=0;
+  const placeholder=(count:number)=>this.messageBytes({role:'user',content:this.historyFoldText(count),timestamp:0} as unknown as AgentMessage);
+  let remaining=bytes(units.slice(drop).flatMap(item=>item.messages));
+  let used=remaining+currentBytes+(drop?placeholder(drop):0);
+  if(drop&&used<=limit)return this.buildHistory(tokens,units,drop);
+  if(!drop&&used<=limit)return messages;
+  while(drop<units.length-1&&remaining+currentBytes+placeholder(drop+1)>target){remaining-=bytes(units[drop]!.messages);drop++}
+  if(!drop)return messages;
+  this.folds.set(this.thread.id,{...(state??{history:0,percepts:0,trim:0}),history:drop});
+  return this.buildHistory(tokens,units,drop);
+ }
+ private enforceBudget(messages:AgentMessage[],current:AgentMessage|undefined):AgentMessage[]{return this.foldHistory(this.foldPercepts(messages),current)}
  private returnedAfter(messages:AgentMessage[],index:number){const returned=new Set<string>();for(let next=index+1;next<messages.length&&messages[next]!.role!=='assistant';next++){const message=messages[next]!;if(message.role==='toolResult')returned.add(message.toolCallId)}return returned}
  private async recoverCall(message:AssistantMessage,call:ToolCall,origins:ReadonlyMap<AgentMessage,string>):Promise<AgentMessage>{
   const activation=origins.get(message);
@@ -246,7 +343,9 @@ export class LlmActivation {
   if(delivery.record)extras.offers=delivery.record;
   const deliveryText=[state.text,delivery.text].filter(text=>text.length>0).join('\n');
   const appended=await this.input(!prompts.value.systemSections||fresh?sections:[],paths,contexts,deliveryText,extras);
-  const runtimeHistory=appended.native?[...history,appended.native]:history;
+  const combined=appended.native?[...history,appended.native]:history;
+  const current=appended.native??[...combined].reverse().find(message=>message.role==='user'&&!this.isPerceptMessage(message));
+  const runtimeHistory=this.enforceBudget(combined,current);
   const binding=await this.step('setup_error','actor-tools',()=>this.ctx.actorTools.bind({...this.context,deliveredOffers:deliveredKeys(delivery.fold)},delivery.fold,this.offerLimits));
   this.held.push(binding);
   const selected=await this.step('provider_error','model.prepare',async()=>{const started=performance.now();try{return await this.ctx.modelProviders.prepare({...this.config,sessionId:this.thread.id,metadata:{session_id:this.thread.id}},this.context)}finally{metricsOf(this.ctx)?.observe('llm.queueWaitMs',performance.now()-started)}});
