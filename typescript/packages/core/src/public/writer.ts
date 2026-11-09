@@ -4,7 +4,7 @@ import type { SqliteTransaction } from '../sqlite/contracts.js';
 import type { Json } from '../contracts/common.js';
 import type { ArtifactRef } from '../artifacts-local/store.js';
 import type { Audience, PublicDocDecl, PublicNode, PublicRowWriteOptions, PublicTableDecl, PublicWriter } from '../contracts/public.js';
-import { audienceOf, canonicalJson, canonicalRow, rowKey, shardFile, shardFileForValue, sortKey } from './canonical.js';
+import { audienceOf, canonicalJson, canonicalRow, isFileTable, rowKey, shardFile, shardFileForValue, sortKey, tableKey } from './canonical.js';
 import { AS_OF, parentOf } from './store.js';
 
 interface Entry {
@@ -49,10 +49,15 @@ export class PublicWriterImpl implements PublicWriter {
         states.set(tx, this.state);
     }
     private declaration(table: string): PublicTableDecl {
-        const decl = this.tables.get(table);
-        if (!decl)
+        const direct = this.tables.get(table);
+        if (direct)
+            return direct;
+        const matches = [...this.tables.values()].filter(decl => decl.path === table);
+        if (matches.length > 1)
+            throw fault('PUBLIC_TABLE_AMBIGUOUS', `${table} matches ${matches.length} tables`);
+        if (!matches.length)
             throw fault('PUBLIC_TABLE_UNKNOWN', table);
-        return decl;
+        return matches[0]!;
     }
     private async liveRows(file: string): Promise<Map<string, Live>> {
         const live = new Map<string, Live>();
@@ -129,7 +134,7 @@ export class PublicWriterImpl implements PublicWriter {
         await this.tx.execute({ sql: "INSERT INTO public_search_state(rowid,state) VALUES(?,'ok')", parameters: [this.state.rev] });
     }
     private async aggregate(file: string, decl: PublicTableDecl): Promise<number> {
-        const at = this.state.rev;
+        const at = this.state.rev, key = tableKey(decl);
         const [agg] = await this.tx.query({ sql: `SELECT count(*) AS n,coalesce(sum(length(line)+1),0) AS bytes FROM public_rows WHERE file=? AND ${AS_OF}`, parameters: [file, at, at] }, { maxRows: 1, maxBytes: 4096 });
         const rows = Number(agg?.n ?? 0), bytes = Number(agg?.bytes ?? 0);
         const audienceRows = await this.tx.query({ sql: `SELECT DISTINCT audience FROM public_rows WHERE file=? AND ${AS_OF} ORDER BY audience`, parameters: [file, at, at] }, { maxRows: 4096, maxBytes: 262144 });
@@ -149,10 +154,10 @@ export class PublicWriterImpl implements PublicWriter {
         else {
             if (current)
                 await this.tx.execute({ sql: 'UPDATE public_files SET rev_to=? WHERE rowid=?', parameters: [at, current.id as bigint] });
-            await this.tx.execute({ sql: 'INSERT INTO public_files(file,parent,rev_from,rev_to,table_path,rows,bytes,audiences,basename,extension) VALUES(?,?,?,NULL,?,?,?,?,?,?)', parameters: [file, decl.path, at, decl.path, rows, bytes, audiences, basenameOf(file), extensionOf(file)] });
+            await this.tx.execute({ sql: 'INSERT INTO public_files(file,parent,rev_from,rev_to,table_path,rows,bytes,audiences,basename,extension) VALUES(?,?,?,NULL,?,?,?,?,?,?)', parameters: [file, decl.path, at, key, rows, bytes, audiences, basenameOf(file), extensionOf(file)] });
         }
         await this.ensureDir(decl);
-        await this.versionNode(file, { kind: 'table', parent: decl.path, provider: 'public', nodeId: decl.path, media: 'application/jsonl', meta: canonicalJson({ table: decl.path, rows, bytes }), audience: 'all', bytes });
+        await this.versionNode(file, { kind: 'table', parent: decl.path, provider: 'public', nodeId: key, media: 'application/jsonl', meta: canonicalJson({ table: key, rows, bytes }), audience: 'all', bytes });
         return 0;
     }
     private async ensureDir(decl: PublicTableDecl): Promise<void> {
@@ -214,10 +219,13 @@ export class PublicWriterImpl implements PublicWriter {
     }
     async retract(table: string, keys: Iterable<Json>): Promise<{ retracted: number }> {
         const decl = this.declaration(table);
+        const scope = isFileTable(decl)
+            ? { sql: 'file=?', parameters: [tableKey(decl)] }
+            : { sql: 'file LIKE ?', parameters: [decl.path + '/%'] };
         let retracted = 0;
         for (const row of keys) {
             const key = rowKey(decl, row);
-            const found = await this.tx.query({ sql: 'SELECT DISTINCT file FROM public_rows WHERE file LIKE ? AND row_key=? AND rev_to IS NULL', parameters: [decl.path + '/%', key] }, { maxRows: 64, maxBytes: 65536 });
+            const found = await this.tx.query({ sql: `SELECT DISTINCT file FROM public_rows WHERE ${scope.sql} AND row_key=? AND rev_to IS NULL`, parameters: [...scope.parameters, key] }, { maxRows: 64, maxBytes: 65536 });
             for (const foundRow of found) {
                 const file = String(foundRow.file);
                 await this.tx.execute({ sql: 'UPDATE public_rows SET rev_to=? WHERE file=? AND row_key=? AND rev_to IS NULL', parameters: [this.state.rev, file, key] });

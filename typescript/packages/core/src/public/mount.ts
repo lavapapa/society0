@@ -23,6 +23,8 @@ export interface PublicMountHost {
     readonly cache: RenderCache;
     readonly audiences: AudienceResolver;
     readonly tables: ReadonlyMap<string, PublicTableDecl>;
+    /** 目录路径对应的唯一声明；同一目录下有多张文件表时为空。 */
+    readonly tableForDirectory: (path: string) => PublicTableDecl | undefined;
     readonly docs: ReadonlyMap<string, PublicDocDecl>;
     readonly momentViews?: () => MomentRevisionReader | undefined;
     readonly searchIndex: 'trigram' | 'none';
@@ -83,7 +85,7 @@ export class PublicMount implements ExplorationMount {
         const dir = parentOf(path);
         if (posix.basename(path) === 'README.md' && this.directories().has(dir))
             return { kind: 'readme', dir };
-        if (posix.basename(path) === 'schema.json' && this.host.tables.has(dir))
+        if (posix.basename(path) === 'schema.json' && this.host.tableForDirectory(dir))
             return { kind: 'schema', dir };
         return undefined;
     }
@@ -124,7 +126,7 @@ export class PublicMount implements ExplorationMount {
         return fail('EXPLORATION_NOT_FOUND');
     }
     private directoryNode(path: string, revision: string): ExplorationNode {
-        const table = this.host.tables.get(path);
+        const table = this.host.tableForDirectory(path);
         return {
             path, objectId: 'public:dir:' + path, kind: 'directory',
             versions: [{ owner: 'public', version: revision }, { owner: 'moment', version: revision }],
@@ -166,12 +168,12 @@ export class PublicMount implements ExplorationMount {
     private async virtualBytes(virtual: Virtual, scope: DiscoveryScope, view: SqliteReadView, revision: string, agent: readonly Audience[]): Promise<Uint8Array> {
         const dir = virtual.dir;
         if (virtual.kind === 'schema') {
-            const decl = this.host.tables.get(dir)!;
+            const decl = this.host.tableForDirectory(dir)!;
             return Buffer.from(JSON.stringify({ path: decl.path, title: decl.title, description: decl.description, schema: decl.schema, key: decl.key, sort: decl.sort, shard: decl.shard, ...(decl.decimals ? { decimals: decl.decimals } : {}), ...(decl.notify ? { notify: decl.notify } : {}) }, null, 2) + '\n');
         }
         const files = (await readFiles(view, dir, revision, { maxRows: 10000, maxBytes: 4 * 1024 * 1024 })).filter(file => intersects(file.audiences, agent));
         const children = (await readChildren(view, dir, revision, { maxRows: 10000, maxBytes: 4 * 1024 * 1024 })).filter(node => audienceOk(node.audience, agent));
-        const table = this.host.tables.get(dir);
+        const table = this.host.tableForDirectory(dir);
         const lines = ['# ' + (table?.title ?? (posix.basename(dir) || dir)), ''];
         if (table?.description)
             lines.push(table.description, '');
@@ -199,7 +201,7 @@ export class PublicMount implements ExplorationMount {
         };
     }
     private readmeBytes(dir: string, files: readonly PublicFile[], children: readonly PublicNode[]): Uint8Array {
-        const table = this.host.tables.get(dir);
+        const table = this.host.tableForDirectory(dir);
         const lines = ['# ' + (table?.title ?? (posix.basename(dir) || dir)), ''];
         if (table?.description)
             lines.push(table.description, '');
@@ -244,7 +246,7 @@ export class PublicMount implements ExplorationMount {
         for (const entry of files)
             items.set(entry.file, await this.fileStat(entry, scope, view, revision, agent));
         items.set(path + '/README.md', this.virtualNodeFrom('readme', path, this.readmeBytes(path, files, children), revision, agent));
-        const table = this.host.tables.get(path);
+        const table = this.host.tableForDirectory(path);
         if (table) {
             const bytes = Buffer.from(JSON.stringify({ path: table.path, title: table.title, description: table.description, schema: table.schema, key: table.key, sort: table.sort, shard: table.shard, ...(table.decimals ? { decimals: table.decimals } : {}), ...(table.notify ? { notify: table.notify } : {}) }, null, 2) + '\n');
             items.set(path + '/schema.json', this.virtualNodeFrom('schema', path, bytes, revision, agent));

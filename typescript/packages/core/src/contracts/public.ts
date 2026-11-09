@@ -10,10 +10,11 @@ export type PublicNotify = 'none' | 'digest' | 'percept';
 export interface PublicShard {
     readonly by: string;
     readonly format: 'day' | 'month' | 'year' | 'value' | 'none';
-    /** 覆盖默认文件名；返回值不含 .jsonl。 */
+    /** 覆盖默认文件名；返回值不含 .jsonl。单文件 table（format 为 none）用它区分同一目录下的多张表。 */
     readonly file?: (value: string) => string;
 }
 export interface PublicTableDecl {
+    /** 目录路径；单文件 table 的文件名为 shard.file 或目录 basename，完整文件路径是注册键。 */
     readonly path: string;
     readonly title: string;
     readonly description: string;
