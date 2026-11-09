@@ -47,7 +47,7 @@ interface PreparedContext {
 export interface FoldState { history:number; percepts:number; trim:number }
 export class LlmActivation {
  private operations=new Set<string>();private held:{release():Promise<void>}[]=[];private thread!:ThreadView;private controller=new AbortController();private context:ActivationContext;
- private pendingFrames:{frame:SequencedInferenceEvent;role:string;content:Json;attemptIds:readonly string[]}[]=[];private pendingEventBytes=0;private flushSequence=0;private deltaCount=0;private deliveryRecords:Json[]=[];private eventBase=0;
+ private pendingFrames:{frame:SequencedInferenceEvent;role:string;content:Json;attemptIds:readonly string[]}[]=[];private pendingEventBytes=0;private flushSequence=0;private deltaCount=0;private deliveryRecords:Json[]=[];
  private requestStarted?:number;
  private readonly offerLimits:OfferLimits;
  constructor(private ctx:Context,private config:LlmOptions,private intent:ActivationIntent,context:ActivationContext,private folds:Map<string,FoldState>=new Map()){this.context={...context,signal:AbortSignal.any([context.signal,this.controller.signal])};this.offerLimits={maxOffers:64,maxOfferBytes:contextBudget(this.config.budget).bytes('actions'),maxSchemaBytes:4096}}
@@ -65,13 +65,17 @@ export class LlmActivation {
   try{
    const result=await this.context.database.transaction(this.context.writeLease,{operationId,maxDurationMs:this.config.maxTransactionMs,maxStatements:this.config.maxStatements,maxInputBytes:this.config.maxInputBytes,maxChangedRows:this.config.maxStatements*2,maxCapturedBytes:this.config.maxInputBytes*4},body);
    this.operations.add(result.receipt.operationId);
-  }catch(error){
-   // 同一activation重跑时，append-only的线程写入已提交即视为完成；业务写仍由各插件自己的幂等边界判定。
-   if(codeOf(error)==='OPERATION_EXISTS'){const probe=await this.ctx.database.probe(operationId);if(probe.status==='committed'){this.operations.add(operationId);return}}
-   throw classified(storage(error),'transaction:'+label,error)
-  }
+  }catch(error){throw classified(storage(error),'transaction:'+label,error)}
  }
  private async prepareMessage(id:string,role:string,content:Json,original:Json=null):Promise<PreparedMessage>{return this.ctx.threads.prepare({id,interactionId:this.thread.interactionId,role,content,originalProviderFields:original},this.context.signal)}
+ /** 自动恢复重跑：在失败那次已落盘的帧之后标记中断，不删除原帧；新内容随后按新的 operationId 命名空间追加。 */
+ private async recoveryMarker(){
+  const recovery=this.context.recovery;if(!recovery)return;
+  const text=`上一次尝试因上游错误中断（operationId: ${recovery.baseOperationId}，第 ${recovery.attempt} 次自动恢复）。中断前的帧保留在线程中，本次重跑的内容完整追加在后面。`;
+  const native={role:'system',content:text,timestamp:Date.now()} as unknown as Json;
+  const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/interrupt','system',native,{activationId:this.context.operationId,recovery:{attempt:recovery.attempt,baseOperationId:recovery.baseOperationId}}));
+  await this.transaction('interrupt',tx=>this.step('thread_error','thread.append',()=>this.ctx.threads.append(tx,this.thread.id,message)));
+ }
  private async readValue(value:StoredValue){
   if(value.kind==='inline')return value.value;
   const size=Number(value.ref.rawBytes);
@@ -256,7 +260,7 @@ export class LlmActivation {
   const frames=this.pendingFrames;
   this.pendingFrames=[];this.pendingEventBytes=0;
   const first=frames[0]!.frame.sequence,last=frames.at(-1)!.frame.sequence;
-  const prepared=await Promise.all(frames.map(item=>this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/event/'+(this.eventBase+item.frame.sequence),item.role,item.content,{activationId:this.context.operationId,sequence:item.frame.sequence,attemptIds:[...item.attemptIds]}))));
+  const prepared=await Promise.all(frames.map(item=>this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/event/'+item.frame.sequence,item.role,item.content,{activationId:this.context.operationId,sequence:item.frame.sequence,attemptIds:[...item.attemptIds]}))));
   await this.transaction('events/'+(++this.flushSequence)+'/'+first+'-'+last,tx=>this.step('thread_error','thread.append',async()=>{for(const message of prepared)await this.ctx.threads.append(tx,this.thread.id,message)}));
  }
  private boundary(event:{type:string}){return event.type==='turn_end'||event.type==='tool_execution_start'}
@@ -290,7 +294,7 @@ export class LlmActivation {
   });
  }
  private threadMoment(){return this.config.threadLifetime==='actor'?'thread/actor/'+this.context.actorId:this.context.momentId}
- private async open(){this.thread=await this.withView(view=>this.step('thread_error','thread.open',()=>this.ctx.threads.open(this.context.actorId,this.threadMoment(),view)));this.eventBase=Number(this.thread.headSeq)}
+ private async open(){this.thread=await this.withView(view=>this.step('thread_error','thread.open',()=>this.ctx.threads.open(this.context.actorId,this.threadMoment(),view)))}
  private async prompts(){try{return await this.ctx.prompts.acquire(this.context)}catch(error){if(codeOf(error)==='INFERENCE_CONTEXT_LIMIT')throw new LlmActivationError('context_limit','INFERENCE_CONTEXT_LIMIT','prompts',{cause:error});throw classified('setup_error','prompts',error)}}
  private async state():Promise<{text:string;record:Json|undefined}>{
   const lease=await this.ctx.slots.acquire(STATE_SOURCE,this.context);
@@ -335,6 +339,7 @@ export class LlmActivation {
    const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/system','system',native as unknown as Json,{activationId:this.context.operationId}));
    await this.transaction('system',tx=>this.step('thread_error','thread.append',()=>this.ctx.threads.append(tx,this.thread.id,message)));
   }
+  await this.recoveryMarker();
   await this.percepts(contexts,paths);
   const sections=prompts.value.systemSections?(prompts.value.baseline as string[]):([...prompts.value.header,...prompts.value.baseline] as string[]);
   let historyResult;

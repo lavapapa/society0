@@ -47,6 +47,8 @@ export interface ActivationContext extends Invocation {
     readonly database: SqliteDatabase;
     /** 本线程已送达的 offer key；由绑定 fold 后传入，用于区分 ACTION_EXPIRED 与 ACTION_NOT_OFFERED。 */
     readonly deliveredOffers?: ReadonlySet<string>;
+    /** 自动恢复重跑时标记这是第几次恢复，以及被重跑的原始激活命名空间。 */
+    readonly recovery?: { readonly attempt: number; readonly baseOperationId: string };
 }
 export interface ActivationResult {
     readonly requiredOperations?: readonly string[];
@@ -66,6 +68,8 @@ export interface ExecutionContext extends Invocation {
     readonly database: SqliteDatabase;
     readonly lease: WriteLease;
     readonly logicalTime: Json;
+    /** 自动恢复重跑序号；0 或省略表示首次执行。 */
+    readonly recoveryAttempt?: number;
     readonly selections: readonly {
         release(): Promise<void>;
     }[];

@@ -277,6 +277,15 @@ export class RunController extends Service {
         if (!Array.isArray(activations)) return [];
         return activations.filter(item => item?.status === 'completed').flatMap(item => (item.requiredOperations ?? []).map(String));
     }
+    /** 恢复时要保留上一轮已提交的全部写入，包括失败激活在线程里已经落盘的事务。 */
+    private async settledOperations(result: AdvanceResult): Promise<string[]> {
+        const settled: string[] = [];
+        for (const operation of new Set((result.requiredOperations ?? []).map(String))) {
+            const receipt = await this.ctx.database.probe(operation);
+            if (receipt.status === 'committed') settled.push(operation);
+        }
+        return settled;
+    }
     private filterRecovered(proposal: Proposal): Proposal {
         const recovery = this.recovery;
         if (!recovery || recovery.proposalId !== proposal.id || !recovery.completed.size) return proposal;
@@ -312,6 +321,7 @@ export class RunController extends Service {
         if (this.recovery?.proposalId !== proposal.id) this.recovery = { proposalId: proposal.id, attempts: 0, completed: new Set(), operations: new Set() };
         for (const id of advance.completed) this.recovery.completed.add(id);
         for (const operation of this.completedOperations(advance.advance)) this.recovery.operations.add(operation);
+        for (const operation of await this.settledOperations(advance.advance)) this.recovery.operations.add(operation);
         if (this.recovery.attempts >= this.config.autoRecover.maxAttempts) return false;
         this.recovery.attempts++;
         const attempt = this.recovery.attempts, delay = this.config.autoRecover.backoffMs * attempt;
@@ -379,8 +389,9 @@ export class RunController extends Service {
         }
     }
     private async executeRuntime(proposal: Proposal, view: GenerationView, reservation: ExecutionReservation, logicalTime: Json, signal: AbortSignal) {
+        const recoveryAttempt = this.recovery?.proposalId === proposal.id ? this.recovery.attempts : 0;
         const context: ExecutionContext = {
-            ctx: this.ctx, runId: reservation.lease.runId, generation: view.generation, operationId: proposal.id, signal: AbortSignal.any([signal, reservation.signal]), lease: reservation.lease, database: this.ctx.database, logicalTime, selections: []
+            ctx: this.ctx, runId: reservation.lease.runId, generation: view.generation, operationId: proposal.id, signal: AbortSignal.any([signal, reservation.signal]), lease: reservation.lease, database: this.ctx.database, logicalTime, selections: [], ...(recoveryAttempt ? { recoveryAttempt } : {})
         };
         const abort = () => reservation.cancel(String(signal.reason ?? 'run cancelled'));
         signal.addEventListener('abort', abort, {
