@@ -138,23 +138,45 @@ function active(plan: CompositionPlan): PlannedEntry[] {
     return plan.flat.filter(entry => !entry.disabled && !entry.group);
 }
 
-function driverProviders(plan: CompositionPlan): Record<string, string[]> {
-    const result: Record<string, string[]> = {};
-    for (const entry of active(plan)) {
-        if (!entry.name.startsWith('@society0/core/driver-'))
-            continue;
-        const configured = (entry.config as { name?: unknown }).name;
-        const name = typeof configured === 'string' && configured
-            ? configured
-            : entry.name === '@society0/core/driver-rule' ? 'rule'
-            : entry.name === '@society0/core/driver-llm' ? 'llm/v1'
-            : undefined;
-        if (!name)
-            continue;
-        const slot = 'core/drivers/' + name;
-        (result[slot] ??= []).push(entry.id);
+export interface SlotGraph {
+    readonly provides: Readonly<Record<string, readonly string[]>>;
+    readonly requires: readonly { readonly slot: string; readonly requiredBy: string }[];
+}
+
+function configValue(config: unknown, path: string): unknown {
+    let value = config;
+    for (const part of path.split('.')) {
+        if (!value || typeof value !== 'object' || Array.isArray(value))
+            return undefined;
+        value = (value as Record<string, unknown>)[part];
     }
-    return result;
+    return value;
+}
+
+/** Replace `{configKey}` placeholders with the entry's merged config value. */
+function expandSlot(pattern: string, config: unknown): string {
+    return pattern.replace(/\{([^{}]+)\}/g, (_, key: string) => {
+        const value = configValue(config, key.trim());
+        return value === undefined || value === null ? `{${key}}` : String(value);
+    });
+}
+
+/** Static slot graph derived from each active entry's declared slots and merged config. */
+export function slotGraph(plan: CompositionPlan): SlotGraph {
+    const provides: Record<string, string[]> = {};
+    const requires: { slot: string; requiredBy: string }[] = [];
+    for (const entry of active(plan)) {
+        const slots = entry.binding?.api.slots;
+        if (!slots)
+            continue;
+        for (const pattern of slots.provides ?? []) {
+            const slot = expandSlot(pattern, entry.config);
+            (provides[slot] ??= []).push(entry.id);
+        }
+        for (const pattern of slots.requires ?? [])
+            requires.push({ slot: expandSlot(pattern, entry.config), requiredBy: entry.id });
+    }
+    return { provides, requires };
 }
 
 function walkStrings(value: unknown, key: string, visit: (text: string) => void): void {
@@ -173,22 +195,68 @@ function walkStrings(value: unknown, key: string, visit: (text: string) => void)
     }
 }
 
-function slotProblems(plan: CompositionPlan): ProfileProblem[] {
-    const provided = driverProviders(plan), problems: ProfileProblem[] = [];
-    const known = new Set(Object.keys(provided));
-    for (const entry of active(plan)) {
-        if (entry.name.startsWith('@society0/core/driver-'))
+function slotProblems(plan: CompositionPlan, installed: ReadonlyMap<string, readonly string[]> = new Map()): ProfileProblem[] {
+    const graph = slotGraph(plan), provided = new Set(Object.keys(graph.provides)), problems: ProfileProblem[] = [];
+    const hint = (slot: string, requiredBy: string) => {
+        const packages = installed.get(slot);
+        return packages?.length
+            ? `槽位 ${slot} 没有任何活动条目提供；已安装的 ${packages.join(', ')} 声明提供该槽位，把对应条目加入 profile（${requiredBy} 需要它）`
+            : `补上提供 ${slot} 的插件，或改掉 ${requiredBy} 里的引用`;
+    };
+    const requested = new Map<string, Set<string>>();
+    for (const item of graph.requires) {
+        if (provided.has(item.slot))
             continue;
-        const requested: string[] = [];
-        walkStrings(entry.config, 'driver', value => requested.push('core/drivers/' + value));
-        for (const slot of new Set(requested))
-            if (!known.has(slot))
-                problems.push({
-                    kind: 'slot', id: slot, requiredBy: entry.id,
-                    hint: `补上提供 ${slot} 的 driver 插件（例如 @society0/core/driver-llm 或 @society0/core/driver-rule），或改掉 ${entry.id} 里的 driver`
-                });
+        (requested.get(item.slot) ?? requested.set(item.slot, new Set()).get(item.slot)!).add(item.requiredBy);
     }
+    for (const entry of active(plan))
+        walkStrings(entry.config, 'driver', value => {
+            const slot = 'core/drivers/' + value;
+            if (!provided.has(slot))
+                (requested.get(slot) ?? requested.set(slot, new Set()).get(slot)!).add(entry.id);
+        });
+    for (const [slot, owners] of requested)
+        for (const requiredBy of owners)
+            problems.push({ kind: 'slot', code: 'SLOT_PROVIDER_MISSING', id: slot, requiredBy, hint: hint(slot, requiredBy) });
     return problems;
+}
+
+/** Best-effort package discovery for `slot` hints: read installed sidecars without importing plugins. */
+async function installedSlotProviders(profile: ProfileDocument, profileUrl: URL, base: string | undefined, slots: ReadonlySet<string>): Promise<Map<string, string[]>> {
+    const result = new Map<string, string[]>();
+    if (!slots.size || typeof profile.lockfile !== 'string')
+        return result;
+    let lock: { packages?: Record<string, unknown> };
+    try { lock = JSON.parse(await readFile(new URL(profile.lockfile, profileUrl), 'utf8')) as typeof lock; }
+    catch { return result; }
+    const { locate, readManifest } = await import('@society0/host/module-resolver');
+    const baseURL = base ? baseURLOf(base) : import.meta.url;
+    for (const name of Object.keys(lock.packages ?? {})) {
+        try {
+            const directory = locate(name, baseURL);
+            const manifest = readManifest(directory);
+            const apiPath = manifest.society?.plugin?.api;
+            if (!apiPath)
+                continue;
+            const target = typeof manifest.exports === 'object' && manifest.exports ? (manifest.exports as Record<string, unknown>)[apiPath] : undefined;
+            const file = typeof target === 'string' ? target : target && typeof target === 'object' ? (target as { default?: unknown }).default : undefined;
+            const apiFile = typeof file === 'string' ? file : apiPath;
+            const api = JSON.parse(await readFile(join(directory, apiFile), 'utf8')) as { entries?: readonly { exportPath?: string; slots?: { provides?: readonly string[] } }[] };
+            for (const entry of api.entries ?? []) {
+                for (const pattern of entry.slots?.provides ?? []) {
+                    if (pattern.includes('{') || !slots.has(pattern))
+                        continue;
+                    const specifier = name + (entry.exportPath && entry.exportPath !== '.' ? entry.exportPath.slice(1) : '');
+                    const owners = result.get(pattern) ?? [];
+                    if (!owners.includes(specifier))
+                        owners.push(specifier);
+                    result.set(pattern, owners);
+                }
+            }
+        }
+        catch { /* package may be lock-only; a missing hint is allowed */ }
+    }
+    return result;
 }
 
 function credentialProblems(plan: CompositionPlan, provided = false): ProfileProblem[] {
@@ -689,7 +757,9 @@ export async function checkProfile(options: {
     try {
         const analysis = await host.ctx.profileLoader.analyze(profile as never, { baseURL: url.href, cliPatches: patches });
         const missing: ProfileProblem[] = [...analysis.missing];
-        missing.push(...slotProblems(analysis.plan), ...credentialProblems(analysis.plan, Boolean(options.credentialsEnv)));
+        const missingSlots = new Set(slotProblems(analysis.plan).map(item => item.id));
+        const installedSlots = await installedSlotProviders(profile, url, options.base, missingSlots);
+        missing.push(...slotProblems(analysis.plan, installedSlots), ...credentialProblems(analysis.plan, Boolean(options.credentialsEnv)));
         const actors = await actorProblems(analysis.plan, world);
         missing.push(...actors.problems);
         const migrations = await collectMigrations(analysis.plan, missing);
@@ -707,7 +777,7 @@ export async function checkProfile(options: {
             ok: unique.size === 0,
             missing: [...unique.values()],
             warnings: [...analysis.warnings, ...actors.warnings],
-            resolved: { plugins, slots: driverProviders(analysis.plan) },
+            resolved: { plugins, slots: slotGraph(analysis.plan).provides },
             migrations: [...new Set(migrations.map(item => item.owner))].sort(compareCodePoints)
         };
     }
@@ -764,8 +834,9 @@ export async function prepareRunPlan(options: StartOptions): Promise<PreparedPla
     finally {
         await host.close();
     }
-    if (analysis.missing.length)
-        throw new PlatformError('CHECK_FAILED', `profile 未通过装配检查：${analysis.missing.map(item => `${item.kind}:${item.id}`).join(', ')}`, '先运行 society0 check --profile <p> --json 查看缺失项');
+    const missing = [...analysis.missing, ...slotProblems(analysis.plan)];
+    if (missing.length)
+        throw new PlatformError('CHECK_FAILED', `profile 未通过装配检查：${missing.map(item => `${item.kind}:${item.id}`).join(', ')}`, '先运行 society0 check --profile <p> --json 查看缺失项');
     const entryOf = (name: string) => active(analysis.plan).find(entry => entry.name === name);
     const directory = resolve(options.dir);
     const lineage = resolve(options.lineage ?? join(dirname(directory), 'lineages', basename(directory)));
@@ -959,6 +1030,53 @@ export async function runStatus(dir: string): Promise<Record<string, unknown>> {
     };
 }
 
+interface ActivationReport {
+    readonly total: number;
+    readonly completed: number;
+    readonly failed: number;
+    readonly byReason: Readonly<Record<string, number>>;
+    readonly failures: readonly {
+        readonly actorId: string;
+        readonly momentId?: string;
+        readonly reason: string;
+        readonly code?: string;
+        readonly stage?: string;
+    }[];
+}
+
+const MAX_ACTIVATION_FAILURES = 20;
+
+/** Turn the run-controller activation summaries into the platform result summary. */
+function activationReport(result: Record<string, unknown>): ActivationReport {
+    const summary = result.activations && typeof result.activations === 'object' && !Array.isArray(result.activations)
+        ? result.activations as { entries?: unknown }
+        : undefined;
+    const entries = Array.isArray(summary?.entries)
+        ? summary.entries.filter(item => item && typeof item === 'object' && !Array.isArray(item)) as Record<string, unknown>[]
+        : [];
+    const byReason: Record<string, number> = {};
+    const failures: ActivationReport['failures'][number][] = [];
+    let completed = 0;
+    for (const entry of entries) {
+        const reason = typeof entry.reason === 'string' ? entry.reason : 'unknown';
+        byReason[reason] = (byReason[reason] ?? 0) + 1;
+        if (entry.requiredSatisfied === true) {
+            completed++;
+            continue;
+        }
+        if (failures.length >= MAX_ACTIVATION_FAILURES)
+            continue;
+        failures.push({
+            actorId: typeof entry.actorId === 'string' ? entry.actorId : '',
+            ...(typeof entry.momentId === 'string' ? { momentId: entry.momentId } : {}),
+            reason,
+            ...(typeof entry.code === 'string' ? { code: entry.code } : {}),
+            ...(typeof entry.stage === 'string' ? { stage: entry.stage } : {})
+        });
+    }
+    return { total: entries.length, completed, failed: entries.length - completed, byReason, failures };
+}
+
 export async function runResult(dir: string): Promise<Record<string, unknown>> {
     try {
         const result = await readJson<Record<string, unknown>>(resultPath(dir));
@@ -1145,8 +1263,7 @@ export async function worker(options: StartOptions): Promise<number> {
         await writeStatus(result.status, completed, frontier, result.reason ?? null, process.pid);
         await writeJsonAtomic(resultPath(directory), {
             schema: RESULT_SCHEMA, runId, dir: directory, state: result.status,
-            result, activations: null,
-            activationsNote: 'D1 尚未合入；activations 摘要字段保留为空'
+            result, activations: activationReport(result as unknown as Record<string, unknown>)
         });
         await consumer.dispose();
         await lease.release();

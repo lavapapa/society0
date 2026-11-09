@@ -35,9 +35,10 @@ society0 check --profile <p> [--lock <f>] [--patches <f>] [--world <f>] [--base 
   "missing": [
     {
       "kind": "slot",
-      "id": "core/drivers/llm/v1",
-      "requiredBy": "proposal-sequence",
-      "hint": "补上提供 core/drivers/llm/v1 的 driver 插件（例如 @society0/core/driver-llm 或 @society0/core/driver-rule），或改掉 proposal-sequence 里的 driver"
+      "code": "SLOT_PROVIDER_MISSING",
+      "id": "core/agent-runtimes/pi/v1",
+      "requiredBy": "driver-llm",
+      "hint": "槽位 core/agent-runtimes/pi/v1 没有任何活动条目提供；已安装的 @society0/core/agent-runtime-pi 声明提供该槽位，把对应条目加入 profile（driver-llm 需要它）"
     }
   ],
   "warnings": [],
@@ -55,13 +56,33 @@ society0 check --profile <p> [--lock <f>] [--patches <f>] [--world <f>] [--base 
 | `plugin` | 条目找不到模块绑定，或绑定的宿主 ABI/作用域不合法 | 解析 lockfile 中的包、侧车元数据与导入 |
 | `service` | 条目 inject 的服务没有提供者、提供者作用域倒置、协议不兼容或存在重复提供者 | 与挂载前的依赖图检查同一套规则 |
 | `config` | 配置 schema 不合法或出现未知字段 | 逐条目执行有效配置校验；`id` 形如 `<entryId><jsonPointer>` |
-| `slot` | 配置里请求的 driver 槽位没有对应插件提供 | 扫描未禁用的 `@society0/core/driver-*` 的 `name`（缺省为 `rule` / `llm/v1`）与配置中的 `driver` 值 |
+| `slot` | 某个激活条目的 `requires` 槽位，或配置里请求的 driver 槽位，没有活动条目提供 | 对活动条目展开 `api.slots`（用合并后的 config 替换占位符），再扫描配置里所有 `driver` 值；缺失时报 `SLOT_PROVIDER_MISSING` |
 | `credential` | 模型插件引用的凭据名没有在 `@society0/core/model-credentials` 的 `stores[].reference` 注册 | 只比较名称，不读取 key 或文件 |
 | `migration` | migration 的 `after` 依赖不在本次装配的 migration 集合里，或 migration 模块无法加载 | 复用 run 的同一条 migration 收集链 |
 | `actor` | 同时有多个插件会写 `s0_actors`，或领域 initializer 没有声明 `after: ["actors.seed"]`、或声明了但 profile 没开 `actors` 的 `seed` | 读 initializer 的静态依赖；只覆盖已登记的 Core/social 插件 |
 | `world` | 临时数据库执行 run start 的根创建时违反表约束，或 world 里的主体缺 `source` / 根创建引用的主体不存在 | 带 `--world` 时复用 run 的根创建代码实际跑一遍；错误信息翻成表名、列名和对应的 profile 条目 |
 
-`resolved.plugins` 是未禁用条目的插件名（排序去重），`resolved.slots` 是静态可识别的 driver 槽位到提供者条目 id 的映射。
+`resolved.plugins` 是未禁用条目的插件名（排序去重），`resolved.slots` 是静态可识别的槽位到提供者条目 id 的映射。`check` 和 `run start` 前的装配检查使用同一个 `slotGraph(plan)`。
+
+### 槽位依赖声明（`slots`）
+
+插件入口可以导出可选的 `api.slots`，声明自己提供和需要哪些运行期槽位：
+
+```json
+{
+  "exportPath": "./driver-llm",
+  "provides": [{"key": "driver.llm", "protocol": "driver.llm", "major": 1, "capabilities": []}],
+  "requires": [],
+  "slots": {
+    "provides": ["core/drivers/{name}"],
+    "requires": ["core/agent-runtimes/{runtime}"]
+  }
+}
+```
+
+`provides` 和 `requires` 都是字符串数组。字符串里的 `{配置键}` 会用该条目合并默认值后的有效 `config` 替换；点号表示嵌套键。例如 `driver-llm` 的 `name` 默认 `llm/v1`、`runtime` 默认 `pi/v1`，展开后是 `core/drivers/llm/v1` 和 `core/agent-runtimes/pi/v1`。`driver-rule` 的 `name` 默认 `rule`；`agent-runtime-pi` 静态提供 `core/agent-runtimes/pi/v1`；`measurements` 静态提供 `core/drivers/measurements`。第三方插件用同样的字段声明即可，不要求包名或模块路径符合 `@society0/core/driver-*`。
+
+`slots` 是静态 JSON，会原样进入侧车的 `plugin.api.json`，因此 `check` 和 `s0 compose` 不需要导入插件就能读取。`requires` 的槽位如果没有任何活动条目 `provides`，`check` 报 `kind:"slot"`、`code:"SLOT_PROVIDER_MISSING"`，并带上槽位 id 和 `requiredBy`；如果 lockfile 里已安装的包在其侧车里静态声明了该槽位，提示会写出包名和入口（例如 `@society0/core/agent-runtime-pi`）。带占位符的第三方声明无法在不读取配置 schema 默认值时推断，提示只给槽位 id。
 
 静态检查的边界：
 
@@ -146,12 +167,32 @@ society0 run result --dir <run> --json
   "dir": "/abs/run",
   "state": "completed",
   "result": {"status":"completed","cut":{"frontier":{"completedCount":"2"}}},
-  "activations": null,
-  "activationsNote": "D1 尚未合入；activations 摘要字段保留为空"
+  "activations": {
+    "total": 2,
+    "completed": 1,
+    "failed": 1,
+    "byReason": {"success": 1, "setup_error": 1},
+    "failures": [
+      {
+        "actorId": "alice",
+        "momentId": "m1",
+        "reason": "setup_error",
+        "code": "SLOT_PENDING",
+        "stage": "runtime.acquire"
+      }
+    ]
+  }
 }
 ```
 
-`result` 是 run-controller 的 `RunResult` 原样结果。D1（judge）尚未合入主线，因此预留 `activations` 字段并保持为 `null`；合入后在这里追加摘要，不改变既有字段。未完成时返回 `RUN_NOT_COMPLETED`，已完成但文件丢失时返回 `RESULT_MISSING`。
+`result` 是 run-controller 的 `RunResult` 原样结果。`activations` 是从 `RunResult.activations.entries` 汇总出的平台摘要：
+
+- `total` 是本次 run 记录的激活条数；`completed` 是 `requiredSatisfied=true` 的条数；`failed` 是其余条数。
+- `byReason` 按每条激活的 `reason` 计数，包含成功和失败。
+- `failures` 只列未完成的激活，最多 20 条；每条带 `actorId`、可选的 `momentId`、`reason`、可选的 `code` 和 `stage`。
+- `code` 取自失败错误消息里的首个大写错误码（例如 `SLOT_PENDING`）；`stage` 取 driver 记录的执行阶段（例如 `runtime.acquire`）。
+
+未完成时返回 `RUN_NOT_COMPLETED`，已完成但文件丢失时返回 `RESULT_MISSING`。
 
 ## lock
 

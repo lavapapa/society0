@@ -15,7 +15,7 @@ export const metadata: PluginMetadata = {
 export const api: ApiEntry = {
     "exportPath": "./measurements", "provides": [{
             "key": "measurements", "protocol": "measurements", "major": 1, "capabilities": []
-        }], "requires": [{
+        }], "slots": { "provides": ["core/drivers/measurements"] }, "requires": [{
             "service": {
                 "key": "measurementRepository", "protocol": "measurementRepository", "major": 1, "capabilities": []
             }, "optional": false, "phase": "module"

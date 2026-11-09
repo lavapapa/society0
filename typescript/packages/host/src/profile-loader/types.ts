@@ -67,6 +67,7 @@ export interface ProfileProblem {
     readonly kind: 'slot' | 'service' | 'migration' | 'plugin' | 'config' | 'credential' | 'actor' | 'world';
     readonly id: string;
     readonly requiredBy?: string;
+    readonly code?: string;
     readonly hint: string;
     readonly detail?: string;
 }
