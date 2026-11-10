@@ -29,7 +29,9 @@ test('D27 目标与 offer 拒绝回执带说明和候选，候选最多 5 个', 
             assert.equal(receipt.value.code, 'ACTION_TARGET_INVALID');
             assert.match(receipt.value.message, /不接受 target/);
             assert.deepEqual(receipt.value.details.actions, ['test.free']);
-            assert.match(receipt.value.message, /test\.free/);
+            const text = formatToolResult('act', receipt);
+            assert.match(text, /不接受 target/);
+            assert.match(text, /test\.free/);
         });
 
         await t.test('缺少必填 target', async () => {
@@ -40,7 +42,10 @@ test('D27 目标与 offer 拒绝回执带说明和候选，候选最多 5 个', 
             assert.match(receipt.value.message, /target\.kind 应为 test\/item/);
             assert.deepEqual(receipt.value.details.targets, targets.slice(0, 5).map((target) => target.kind + ':' + target.id));
             assert.equal(receipt.value.details.omitted, 2);
-            assert.match(receipt.value.message, /另有 2 个/);
+            const text = formatToolResult('act', receipt);
+            assert.match(text, /需要 target/);
+            assert.match(text, /test\/item:u0/);
+            assert.match(text, /另有 2 个/);
         });
 
         await t.test('target.kind 不符', async () => {
@@ -52,6 +57,11 @@ test('D27 目标与 offer 拒绝回执带说明和候选，候选最多 5 个', 
             assert.equal(receipt.value.details.targets[0], 'test/item:u0');
             assert.equal(receipt.value.details.targets.length, 5);
             assert.equal(receipt.value.details.omitted, 2);
+            const text = formatToolResult('act', receipt);
+            assert.match(text, /target\.kind 应为 test\/item/);
+            assert.match(text, /收到 other\/kind/);
+            assert.match(text, /test\/item:u0/);
+            assert.match(text, /另有 2 个/);
         });
 
         await t.test('行动不在当前 offers', async () => {
@@ -62,17 +72,26 @@ test('D27 目标与 offer 拒绝回执带说明和候选，候选最多 5 个', 
             assert.equal(receipt.value.details.targets[0], 'test/item:u0');
             assert.equal(receipt.value.details.targets.length, 5);
             assert.equal(receipt.value.details.omitted, 2);
-            assert.match(receipt.value.message, /另有 2 个/);
             assert.equal(receipt.value.alternatives.length, 5);
             const text = formatToolResult('act', receipt);
             assert.match(text, /ACTION_NOT_OFFERED/);
-            assert.match(text, /当前可选 target/);
+            assert.match(text, /不在可选行动里/);
+            assert.match(text, /test\/item:u0/);
+            assert.match(text, /另有 2 个/);
         });
     }
     finally {
         await dispose();
         await env.close();
     }
+});
+
+test('D27 formatToolResult 在 message 未带出候选时渲染 details', () => {
+    const text = formatToolResult('act', { status: 'rejected', value: { code: 'ACTION_TARGET_INVALID', message: '原因说明', details: { targets: ['test/item:a', 'test/item:b'], omitted: 7 } } });
+    assert.match(text, /原因说明/);
+    assert.match(text, /test\/item:a/);
+    assert.match(text, /test\/item:b/);
+    assert.match(text, /另有 7 个/);
 });
 
 test('D27 非法 target 文本也给出原因和当前候选', async (t) => {
