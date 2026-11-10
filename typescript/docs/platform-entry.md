@@ -182,6 +182,7 @@ society0 run result --dir <run> --json
     "completed": 1,
     "failed": 1,
     "byReason": {"success": 1, "setup_error": 1},
+    "limits": {},
     "failures": [
       {
         "actorId": "alice",
@@ -199,8 +200,11 @@ society0 run result --dir <run> --json
 
 - `total` 是本次 run 记录的激活条数；`completed` 是 `requiredSatisfied=true` 的条数；`failed` 是其余条数。
 - `byReason` 按每条激活的 `reason` 计数，包含成功和失败。
-- `failures` 只列未完成的激活，最多 20 条；每条带 `actorId`、可选的 `momentId`、`reason`、可选的 `code` 和 `stage`。
+- `limits` 按本次 run 内预算先耗尽的额度计数，键为 `requests`、`toolCalls` 或 `turns`；没有预算耗尽时为空对象。`RunResult.activations.entries` 的每条激活摘要带同名字段 `limit`。
+- `failures` 只列未完成的激活，最多 20 条；每条带 `actorId`、可选的 `momentId`、`reason`、可选的 `code`、`stage`、`slot` 和 `limit`。
 - `code` 取自失败错误消息里的首个大写错误码（例如 `SLOT_PENDING`）；`stage` 取 driver 记录的执行阶段（例如 `runtime.acquire`）。
+
+预算耗尽（`budget_exhausted`）时按已结算处理：`requiredActions` 为空，或非空且已满足，激活走 `success` 完成判定，保留已完成的动作与回执，并在 `warnings` 里记录 `BUDGET_EXHAUSTED`（无必需动作）或 `BUDGET_AFTER_REQUIRED`（必需动作已完成），`limit` 指明先用完的额度。`requiredActions` 非空且未满足时仍为 `incomplete`，run 不会推进到新的完整点。这样 tick 不再因主体只耗尽请求、工具调用或轮次预算而停在 `paused`/`recoveryRequired`，后续 resume 也不会因此报 `HISTORY_DIRTY`。
 
 未完成时返回 `RUN_NOT_COMPLETED`，已完成但文件丢失时返回 `RESULT_MISSING`。
 

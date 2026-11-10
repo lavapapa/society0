@@ -117,6 +117,7 @@ row('D1 budget exhausted after required actions is success with BUDGET_AFTER_REQ
     assert.equal(result.value.reason,'success',JSON.stringify(result.value));
     assert.deepEqual(result.value.warnings,['BUDGET_AFTER_REQUIRED'],JSON.stringify(result.value));
     assert.equal(result.value.requiredSatisfied,true,JSON.stringify(result.value));
+    assert.equal(result.value.limit,'toolCalls',JSON.stringify(result.value));
   }finally{await env.close()}
   const blocked=await fixture({script:[toolTurn('d1-blocked','read',{path:'/workspace/blocked'}),finalTurn],driver:{maxToolCalls:0}});
   try{
@@ -125,7 +126,80 @@ row('D1 budget exhausted after required actions is success with BUDGET_AFTER_REQ
     assert.equal(result.value.reason,'budget_exhausted',JSON.stringify(result.value));
     assert.equal(result.value.warnings,undefined,JSON.stringify(result.value));
     assert.equal(result.value.requiredSatisfied,false,JSON.stringify(result.value));
+    assert.equal(result.value.limit,'toolCalls',JSON.stringify(result.value));
   }finally{await blocked.close()}
+});
+
+row('D2 requests budget settles empty and satisfied activations, stays incomplete when required work is missing',async()=>{
+  const empty=await fixture({script:[actSum,finalTurn],driver:{requiredActions:[],maxRequests:1}});
+  try{
+    const result=await empty.activate('d2/requests-empty');
+    assert.equal(result.status,'completed',JSON.stringify(result));
+    assert.equal(result.value.reason,'success',JSON.stringify(result.value));
+    assert.deepEqual(result.value.warnings,['BUDGET_EXHAUSTED'],JSON.stringify(result.value));
+    assert.equal(result.value.limit,'requests',JSON.stringify(result.value));
+    assert.equal(result.value.requiredSatisfied,true,JSON.stringify(result.value));
+    assert.equal(result.value.requests,1,JSON.stringify(result.value));
+    assert.equal(result.evidence.actionReceipts[0].receipt.status,'completed',JSON.stringify(result.evidence.actionReceipts));
+  }finally{await empty.close()}
+  const satisfied=await fixture({script:[actSum,finalTurn],driver:{maxRequests:1}});
+  try{
+    const result=await satisfied.activate('d2/requests-satisfied');
+    assert.equal(result.status,'completed',JSON.stringify(result));
+    assert.deepEqual(result.value.warnings,['BUDGET_AFTER_REQUIRED'],JSON.stringify(result.value));
+    assert.equal(result.value.limit,'requests',JSON.stringify(result.value));
+    assert.equal(result.value.requiredSatisfied,true,JSON.stringify(result.value));
+  }finally{await satisfied.close()}
+  const unsatisfied=await fixture({script:[toolTurn('d2-requests-miss','read',{path:'/workspace/missing'}),finalTurn],driver:{maxRequests:1}});
+  try{
+    const result=await unsatisfied.activate('d2/requests-unsatisfied');
+    assert.equal(result.status,'incomplete',JSON.stringify(result));
+    assert.equal(result.value.reason,'budget_exhausted',JSON.stringify(result.value));
+    assert.equal(result.value.limit,'requests',JSON.stringify(result.value));
+    assert.equal(result.value.requiredSatisfied,false,JSON.stringify(result.value));
+    assert.equal(result.value.warnings,undefined,JSON.stringify(result.value));
+  }finally{await unsatisfied.close()}
+});
+
+row('D2 toolCalls budget settles an activation without required actions',async()=>{
+  const env=await fixture({script:[toolTurn('d2-blocked','read',{path:'/workspace/blocked'}),finalTurn],driver:{requiredActions:[],maxToolCalls:0}});
+  try{
+    const result=await env.activate('d2/tool-empty');
+    assert.equal(result.status,'completed',JSON.stringify(result));
+    assert.equal(result.value.reason,'success',JSON.stringify(result.value));
+    assert.deepEqual(result.value.warnings,['BUDGET_EXHAUSTED'],JSON.stringify(result.value));
+    assert.equal(result.value.limit,'toolCalls',JSON.stringify(result.value));
+    assert.equal(result.value.requiredSatisfied,true,JSON.stringify(result.value));
+  }finally{await env.close()}
+});
+
+row('D2 turns budget settles empty and satisfied activations, stays incomplete when required work is missing',async()=>{
+  const empty=await fixture({script:[finalTurn,finalTurn],driver:{requiredActions:[],maxTurns:1}});
+  try{
+    const result=await empty.activate('d2/turns-empty');
+    assert.equal(result.status,'completed',JSON.stringify(result));
+    assert.equal(result.value.reason,'success',JSON.stringify(result.value));
+    assert.deepEqual(result.value.warnings,['BUDGET_EXHAUSTED'],JSON.stringify(result.value));
+    assert.equal(result.value.limit,'turns',JSON.stringify(result.value));
+    assert.equal(result.value.requiredSatisfied,true,JSON.stringify(result.value));
+  }finally{await empty.close()}
+  const satisfied=await fixture({script:[actSum,finalTurn],driver:{maxTurns:1}});
+  try{
+    const result=await satisfied.activate('d2/turns-satisfied');
+    assert.equal(result.status,'completed',JSON.stringify(result));
+    assert.deepEqual(result.value.warnings,['BUDGET_AFTER_REQUIRED'],JSON.stringify(result.value));
+    assert.equal(result.value.limit,'turns',JSON.stringify(result.value));
+    assert.equal(result.value.requiredSatisfied,true,JSON.stringify(result.value));
+  }finally{await satisfied.close()}
+  const unsatisfied=await fixture({script:[finalTurn,finalTurn],driver:{maxTurns:1}});
+  try{
+    const result=await unsatisfied.activate('d2/turns-unsatisfied');
+    assert.equal(result.status,'incomplete',JSON.stringify(result));
+    assert.equal(result.value.reason,'budget_exhausted',JSON.stringify(result.value));
+    assert.equal(result.value.limit,'turns',JSON.stringify(result.value));
+    assert.equal(result.value.requiredSatisfied,false,JSON.stringify(result.value));
+    assert.equal(result.value.warnings,undefined,JSON.stringify(result.value));
+  }finally{await unsatisfied.close()}
 });
 
 row('D1 perception commit retries stale batch in the same activation',async()=>{

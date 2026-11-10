@@ -221,6 +221,8 @@ export interface RunActivationSummary {
     readonly actRecoverable: number;
     readonly actFailed: number;
     readonly requiredSatisfied: boolean;
+    /** 预算耗尽时先用完的额度；未耗尽时省略。 */
+    readonly limit?: 'requests' | 'toolCalls' | 'turns';
     /** 失败激活的事件时刻；成功摘要不写，避免扩大既有公开形状。 */
     readonly momentId?: string;
     /** 失败激活错误消息里的首个大写错误码，例如 SLOT_PENDING。 */

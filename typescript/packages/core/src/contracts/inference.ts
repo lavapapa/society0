@@ -110,6 +110,8 @@ export interface InferenceOutcome {
   readonly requiredSatisfied?: boolean;
   /** 激活已完成但出现非阻断异常时记录的机器码；不影响 status。 */
   readonly warnings?: readonly string[];
+  /** 本次激活先用完的预算额度；只在 budget_exhausted 时出现。 */
+  readonly limit?: 'requests' | 'toolCalls' | 'turns';
   /** 输出预算本地拒绝的诊断；仅在本地拒绝时出现。 */
   readonly outputBudget?: OutputBudgetDiagnostics;
 }

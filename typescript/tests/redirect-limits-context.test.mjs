@@ -49,14 +49,17 @@ test('redirect-limits/driver-llm maxTurns is passed to the runtime budget',async
  }finally{await run.close()}
 });
 
-test('redirect-limits/pi runtime stops after maxTurns even when requests remain',async()=>{
+test('redirect-limits/pi runtime settles after maxTurns even when requests remain',async()=>{
  const run=await fixture();let provider,runtime,held;
  try{
   const messages=[1,2,3].map(index=>assistant([{type:'toolCall',id:'turn-'+index,name:'record_sum',arguments:{a:index,b:1}}],'toolUse'));
   provider=new ReplayProvider({turns:messages});const context=run.context('redirect-runtime-turns');const binding=tools(run,context);held=await provider.prepare({provider:'replay/v1',model:'turns'},context);runtime=new PiRuntime();
   const sink=new OrderedInferenceSink({maxPendingEvents:64,maxPendingBytes:1048576},async()=>{},async()=>{},()=>{});
   const outcome=await runtime.run({threadId:'t',interactionId:'i',history:[{role:'user',content:'run turns',timestamp:0}],prompts:[],tools:[binding.tool],actionReceipts:binding.reader,selection:held.value,budget:{maxRequests:5,maxToolCalls:5,maxTurns:2},requiredActions:[]},context,sink,extensions());
-  assert.equal(outcome.reason,'budget_exhausted',JSON.stringify(outcome));
+  assert.equal(outcome.status,'completed',JSON.stringify(outcome));
+  assert.equal(outcome.reason,'success',JSON.stringify(outcome));
+  assert.deepEqual(outcome.warnings,['BUDGET_EXHAUSTED']);
+  assert.equal(outcome.limit,'turns');
   assert.equal(outcome.requests,2);
   assert.equal(outcome.actionReceipts.length,2);
  }finally{await held?.release();await provider?.close();await runtime?.drain('redirect maxTurns');await run.close()}
