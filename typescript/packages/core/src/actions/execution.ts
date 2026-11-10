@@ -135,13 +135,15 @@ export class ActionCall {
         const code = this.authority.delivered?.has(this.authority.key) ? 'ACTION_EXPIRED' : 'ACTION_NOT_OFFERED';
         const receipt = this.rejectedReceipt(code);
         const available = await this.authority.available(reader);
+        const alternatives = [...available.alternatives] as unknown as Json;
+        if (code === 'ACTION_EXPIRED')
+            return { ...receipt, value: { ...(receipt.value as Readonly<Record<string, Json>>), alternatives } };
         const target = this.authority.target ? ` ${targetText(this.authority.target)}` : '';
-        const reason = code === 'ACTION_EXPIRED' ? '该行动已过期' : '该行动当前不在可选行动里';
         const value = {
             ...(receipt.value as Readonly<Record<string, Json>>),
-            message: `${reason}（${this.entry.definition.name}${target}）。${availabilityText(available)}`,
+            message: `该行动当前不在可选行动里（${this.entry.definition.name}${target}）。${availabilityText(available)}`,
             details: availabilityDetails(available) as Json,
-            alternatives: [...available.alternatives] as unknown as Json,
+            alternatives,
         };
         return { ...receipt, value };
     }
