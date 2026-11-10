@@ -34,18 +34,25 @@ function rpc(op: string, args: unknown[]) {
 }
 const unsupported = async () => { throw Error('SHELL_FILESYSTEM_OPERATION_UNSUPPORTED'); };
 const encoding = (options: any) => typeof options === 'string' ? options : options?.encoding ?? 'utf8';
+// 虚拟设备：只在本 worker 内实现，绝不落到探索会话，避免 /dev/null 成为可写落盘路径。
+const DEVICES = new Set(['/dev/null', '/dev/stdout', '/dev/stderr']);
+const normalise = (path: string) => posix.normalize(path);
+const device = (path: string) => DEVICES.has(normalise(path));
+const deviceList = (path: string) => normalise(path) === '/dev' ? ['null', 'stdout', 'stderr'] : null;
 const fs: IFileSystem = {
-    readFile: async (path, options) => Buffer.from(await rpc('read', [path])).toString(encoding(options)),
-    readFileBuffer: path => rpc('read', [path]),
-    writeFile: async (path, value, options) => { await rpc('write', [path, Buffer.from(value as string, typeof value === 'string' ? encoding(options) : undefined).toString('base64'), false]); },
-    appendFile: async (path, value, options) => { await rpc('write', [path, Buffer.from(value as string, typeof value === 'string' ? encoding(options) : undefined).toString('base64'), true]); },
-    exists: path => rpc('exists', [path]),
+    readFile: async (path, options) => device(path) ? '' : Buffer.from(await rpc('read', [path])).toString(encoding(options)),
+    readFileBuffer: async path => device(path) ? Buffer.alloc(0) : rpc('read', [path]),
+    writeFile: async (path, value, options) => { if (device(path)) return; await rpc('write', [path, Buffer.from(value as string, typeof value === 'string' ? encoding(options) : undefined).toString('base64'), false]); },
+    appendFile: async (path, value, options) => { if (device(path)) return; await rpc('write', [path, Buffer.from(value as string, typeof value === 'string' ? encoding(options) : undefined).toString('base64'), true]); },
+    exists: path => device(path) || deviceList(path) !== null ? Promise.resolve(true) : rpc('exists', [path]),
     stat: async path => {
+        if (device(path)) return { isFile: true, isDirectory: false, isSymbolicLink: false, mode: 0o666, size: 0, mtime: new Date(0), identity: 'device:' + normalise(path) };
+        if (deviceList(path)) return { isFile: false, isDirectory: true, isSymbolicLink: false, mode: 0o755, size: 0, mtime: new Date(0), identity: 'device:/dev' };
         const node = await rpc('stat', [path]);
         return { isFile: node.kind === 'file', isDirectory: node.kind === 'directory', isSymbolicLink: false, mode: node.kind === 'directory' ? 0o755 : 0o644, size: Number(node.rawBytes ?? 0), mtime: new Date(0), identity: node.objectId };
     },
     mkdir: async (path, options) => { await rpc('mkdir', [path, Boolean(options?.recursive)]); },
-    readdir: path => rpc('list', [path]),
+    readdir: path => { const list = deviceList(path); return list ? Promise.resolve(list) : rpc('list', [path]); },
     rm: async (path, options) => { await rpc('remove', [path, options ?? {}]); },
     cp: async (from, to, options) => { if (options?.recursive) throw Error('SHELL_RECURSIVE_COPY_UNSUPPORTED'); await rpc('copy', [from, to]); },
     mv: async (from, to) => { await rpc('rename', [from, to]); },
