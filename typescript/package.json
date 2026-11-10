@@ -12,7 +12,7 @@
     "test:acceptance": "python3 scripts/acceptance.py",
     "test:include-types": "tsc -p tests/include-types.tsconfig.json",
     "test:baseline": "python3 -B scripts/check_tests.py",
-    "test:all": "node --test tests/*.test.mjs"
+    "test:all": "node --test tests/*.test.mjs tests/pr10-recommendation-boundaries.mjs"
   },
   "devDependencies": {
     "@earendil-works/pi-agent-core": "1.3.0",

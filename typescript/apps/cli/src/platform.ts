@@ -638,24 +638,40 @@ function worldProblem(error: unknown, plan: CompositionPlan): ProfileProblem {
             detail: message
         };
     }
-    const constraint = /(UNIQUE|NOT NULL|CHECK|FOREIGN KEY) constraint failed(?::?\s*([^\n]+))?/.exec(message);
+    if (/FOREIGN KEY constraint failed/.test(message)) {
+        return {
+            kind: 'world', id: 'foreign-key',
+            hint: `外键引用指向不存在的记录（${message}）；检查 world 的 actors 段是否包含被引用的主体，以及 profile initializer 写入的边、配对、消息等关联记录是否引用了 world 中不存在的主体`,
+            detail: message
+        };
+    }
+    const constraint = /(UNIQUE|NOT NULL|CHECK) constraint failed(?::?\s*([^\n]+))?/.exec(message);
     if (constraint) {
         const kind = constraint[1]!;
         const detail = constraint[2]?.trim();
         const tableMatch = detail ? /([A-Za-z_][\w]*)\.([A-Za-z_][\w]*)/.exec(detail) : null;
         const table = tableMatch?.[1];
         const column = tableMatch?.[2];
+        // CHECK failures may name only the expression (for example "kind IN (...)"),
+        // so fall back to its leading field name to keep the hint actionable.
+        const field = !tableMatch && detail ? /^([A-Za-z_][\w]*)\b/.exec(detail)?.[1] : undefined;
+        const target = column ?? field;
         const owners = tableOwners(plan, table);
         const where = table
             ? `表 ${table}${column ? ` 的列 ${column}` : ''}`
-            : '根创建写入的数据';
+            : field ? `字段 ${field}` : '根创建写入的数据';
         const scope = owners.length
             ? `profile 条目 ${owners.join(', ')}`
             : 'world 的 actors 段与写入该表的 profile 条目';
+        const remedy = kind === 'NOT NULL'
+            ? `检查 ${scope} 是否为${target ? `${column ? '列' : '字段'} ${target}` : '该字段'}写了空值`
+            : kind === 'CHECK'
+                ? `检查 ${scope} 写入${target ? `${column ? '列' : '字段'} ${target}` : '该记录'}的值是否满足约束`
+                : `检查 ${scope}，保证每个主体 / 每条记录只写一次`;
         return {
-            kind: 'world', id: table ? (column ? `${table}.${column}` : table) : 'root-creation',
+            kind: 'world', id: table ? (column ? `${table}.${column}` : table) : field ? `root-creation.${field}` : 'root-creation',
             requiredBy: owners.join(',') || undefined,
-            hint: `${where} 违反 ${kind} 约束${detail ? `（${detail}）` : ''}；检查 ${scope}，保证每个主体 / 每条记录只写一次`,
+            hint: `${where} 违反 ${kind} 约束${detail ? `（${detail}）` : ''}；${remedy}`,
             detail: message
         };
     }
