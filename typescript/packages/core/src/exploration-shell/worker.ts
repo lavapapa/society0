@@ -25,7 +25,10 @@ port.on('message', async message => {
     const call = pending.get(message.id);
     if (!call) return;
     pending.delete(message.id);
-    if (message.error) call.reject(Object.assign(Error(message.error.message), { code: message.error.code }));
+    if (message.error) {
+        const code = message.error.code;
+        call.reject(Object.assign(Error(code ? `${code}: ${message.error.message}` : message.error.message), { code }));
+    }
     else call.resolve(message.value);
 });
 
@@ -34,6 +37,7 @@ function rpc(op: string, args: unknown[]) {
     const id = ++sequence, call = Promise.withResolvers<any>();
     pending.set(id, call);
     port.postMessage({ id, op, args });
+    void call.promise.catch(error => { const message = budgetMessage(error); if (message) budgetWarning = message; });
     return call.promise;
 }
 const unsupported = async () => { throw Error('SHELL_FILESYSTEM_OPERATION_UNSUPPORTED'); };
@@ -188,9 +192,23 @@ function tmpCopy(from: string, to: string, recursive: boolean) {
 }
 const tmpCrossMount = () => { throw Error('SHELL_TMP_CROSS_MOUNT: /tmp is an activation-local filesystem'); };
 
+let warnings: string[] = [];
+let budgetWarning: string | undefined;
+function budgetMessage(error: unknown): string | undefined {
+    const text = String(error), code = (error as { code?: string } | null)?.code ?? '';
+    if (!/SQLITE_(QUERY|RETURN|RESULT)_BUDGET|SQLITE_RESULT_LIMIT/.test(text) && !/SQLITE_(QUERY|RETURN)_BUDGET|SQLITE_RESULT_LIMIT/.test(code))
+        return undefined;
+    return `结果超出单次查询预算，已截断或无法完整返回；请用 head/grep 或更具体的路径缩小范围。\n${text.split('\n')[0]}`;
+}
+function readBytes(path: string, value: any): Buffer {
+    const bytes = Buffer.from(value.data);
+    if (value.truncated)
+        warnings.push(`文件 ${path} 共 ${value.total} 字节，超过单次读取上限 ${bytes.length} 字节，已截断；请用 head/grep 缩小范围。`);
+    return bytes;
+}
 const fs: IFileSystem = {
-    readFile: async (path, options) => inTmp(path) ? tmpRead(path).toString(encoding(options) as BufferEncoding) : device(path) ? '' : Buffer.from(await rpc('read', [path])).toString(encoding(options)),
-    readFileBuffer: async path => inTmp(path) ? Buffer.from(tmpRead(path)) : device(path) ? Buffer.alloc(0) : rpc('read', [path]),
+    readFile: async (path, options) => inTmp(path) ? tmpRead(path).toString(encoding(options) as BufferEncoding) : device(path) ? '' : readBytes(path, await rpc('read', [path])).toString(encoding(options)),
+    readFileBuffer: async path => inTmp(path) ? Buffer.from(tmpRead(path)) : device(path) ? Buffer.alloc(0) : readBytes(path, await rpc('read', [path])),
     writeFile: async (path, value, options) => {
         if (inTmp(path)) { tmpWrite(path, typeof value === 'string' ? Buffer.from(value, encoding(options) as BufferEncoding) : Buffer.from(value), false); return; }
         if (device(path)) return;
@@ -207,7 +225,8 @@ const fs: IFileSystem = {
         if (device(path)) return { isFile: true, isDirectory: false, isSymbolicLink: false, mode: 0o666, size: 0, mtime: new Date(0), identity: 'device:' + normalise(path) };
         if (deviceList(path)) return { isFile: false, isDirectory: true, isSymbolicLink: false, mode: 0o755, size: 0, mtime: new Date(0), identity: 'device:/dev' };
         const node = await rpc('stat', [path]);
-        return { isFile: node.kind === 'file', isDirectory: node.kind === 'directory', isSymbolicLink: false, mode: node.kind === 'directory' ? 0o755 : 0o644, size: Number(node.rawBytes ?? 0), mtime: new Date(0), identity: node.objectId };
+        // 超过单次读取上限的文件按可读上限报告大小，命令据此走截断读取而不是直接拒绝。
+        return { isFile: node.kind === 'file', isDirectory: node.kind === 'directory', isSymbolicLink: false, mode: node.kind === 'directory' ? 0o755 : 0o644, size: Math.min(Number(node.rawBytes ?? 0), workerData.maxFileBytes), mtime: new Date(0), identity: node.objectId };
     },
     mkdir: async (path, options) => { if (inTmp(path)) { tmpMkdir(path, Boolean(options?.recursive)); return; } await rpc('mkdir', [path, Boolean(options?.recursive)]); },
     readdir: path => { if (inTmp(path)) return Promise.resolve(tmpList(path)); const list = deviceList(path); return list ? Promise.resolve(list) : rpc('list', [path]); },
@@ -256,6 +275,8 @@ function piped(command: string) {
 }
 
 async function execute(command: string) {
+    warnings = [];
+    budgetWarning = undefined;
     const hasPipe = piped(command);
     const bash = new Bash({
         fs, cwd: '/workspace', env: {}, javascript: false, python: false,
@@ -286,8 +307,23 @@ async function execute(command: string) {
             }
         });
     }
-    const result = await bash.exec(command);
-    return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+    let result;
+    try {
+        result = await bash.exec(command);
+    }
+    catch (error) {
+        const budget = budgetMessage(error);
+        if (budget)
+            return { exitCode: 1, stdout: '', stderr: budget + '\n' };
+        throw error;
+    }
+    const budget = budgetMessage(result.stderr) ?? budgetWarning;
+    const stderr = [budget, ...warnings].filter(Boolean).join('\n');
+    return {
+        exitCode: budget ? (result.exitCode || 1) : result.exitCode,
+        stdout: result.stdout,
+        stderr: (stderr ? stderr + '\n' : '') + (budget ? '' : result.stderr)
+    };
 }
 
 // 预热：just-bash 的首次 exec 会加载命令实现。先跑一条无副作用命令，

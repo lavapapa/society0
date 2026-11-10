@@ -114,7 +114,7 @@ export class PublicRepository extends Service {
     }
     private changeReader(): PublicChangeReader {
         const registry = this.registry as Registry;
-        return { tables: registry.tables, docs: registry.docs, defaultNotify: this.options.changesPerception === 'percept' ? 'percept' : 'digest' };
+        return { tables: registry.tables, docs: registry.docs, defaultNotify: this.options.changesPerception === 'percept' ? 'percept' : 'digest', limits: { maxQueryBytes: this.ctx.database.maxQueryBytes, maxQueryRows: this.ctx.database.maxQueryRows } };
     }
     private async revision(scope: { readonly momentId: string }, view: SqliteReadView | SqliteTransaction): Promise<string> {
         const service = this.ctx.get('momentViews', false);

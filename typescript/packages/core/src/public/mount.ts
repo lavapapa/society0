@@ -7,7 +7,7 @@ import type { Context } from '@society0/cordis';
 import type { Page, PageRequest, DiscoveryScope, StoredValue } from '../contracts/data.js';
 import type { ExplorationContent, ExplorationMatch, ExplorationMount, ExplorationNode } from '../contracts/exploration.js';
 import type { Audience, PublicDocDecl, PublicFile, PublicNode, PublicTableDecl } from '../contracts/public.js';
-import type { SqliteReadView } from '../sqlite/contracts.js';
+import type { SqliteReadView, SqliteRow } from '../sqlite/contracts.js';
 import { after, identity, page, fail } from '../information/page.js';
 import { AS_OF, parentOf, readChildren, readFile, readFiles, readNode, renderRows } from './store.js';
 import { effective, intersects, type AudienceResolver } from './audience.js';
@@ -67,6 +67,78 @@ export class PublicMount implements ExplorationMount {
             this.nodeSizes.clear();
         this.nodeSizes.set(node.objectId, bytes);
         return bytes;
+    }
+    private get batchRows(): number { return this.host.limits.maxQueryRows; }
+    private get batchBytes(): number { return this.host.limits.maxQueryBytes; }
+    /** 单页先按每行 256 字节估算；实际行更宽时按预算错误折半重试。 */
+    private async boundedRows(run: (size: number) => Promise<readonly SqliteRow[]>, size: number): Promise<{ rows: readonly SqliteRow[]; size: number }> {
+        let current = Math.max(1, Math.min(size, this.batchRows, Math.floor(this.batchBytes / 256)));
+        for (;;) {
+            try {
+                return { rows: await run(current), size: current };
+            }
+            catch (error) {
+                const code = (error as { code?: string } | null)?.code ?? '';
+                if (current === 1 || (!/SQLITE_(RESULT_LIMIT|QUERY_BUDGET|RETURN_BUDGET)/.test(String(error)) && !/SQLITE_(RESULT_LIMIT|QUERY_BUDGET|RETURN_BUDGET)/.test(code)))
+                    throw error;
+                current = Math.max(1, Math.floor(current / 2));
+            }
+        }
+    }
+    /** 目录可能超过单次查询上限：按 file/path keyset 分批取完，保持完整列表语义。 */
+    private async allDirectoryFiles(view: SqliteReadView, parent: string, revision: string): Promise<readonly PublicFile[]> {
+        const files: PublicFile[] = [];
+        let after: string | undefined;
+        do {
+            const batch = await readFiles(view, parent, revision, { maxRows: this.batchRows, maxBytes: this.batchBytes, ...(after === undefined ? {} : { after }) });
+            files.push(...batch);
+            after = batch.length === this.batchRows ? batch[batch.length - 1]!.file : undefined;
+        } while (after !== undefined);
+        return files;
+    }
+    private async allDirectoryChildren(view: SqliteReadView, parent: string, revision: string, kinds?: readonly string[]): Promise<readonly PublicNode[]> {
+        const nodes: PublicNode[] = [];
+        let after: string | undefined;
+        do {
+            const batch = await readChildren(view, parent, revision, { maxRows: this.batchRows, maxBytes: this.batchBytes, ...(kinds === undefined ? {} : { kinds }), ...(after === undefined ? {} : { after }) });
+            nodes.push(...batch);
+            after = batch.length === this.batchRows ? batch[batch.length - 1]!.path : undefined;
+        } while (after !== undefined);
+        return nodes;
+    }
+    /** 按 keyset 分批扫描文件区间；每批都在数据库查询预算之内。 */
+    private async scanFiles(view: SqliteReadView, lower: string, upper: string, at: bigint, limit: number, select: string): Promise<SqliteRow[]> {
+        const rows: SqliteRow[] = [];
+        let cursor: string | undefined;
+        while (rows.length < limit) {
+            const size = Math.min(limit - rows.length, this.batchRows);
+            const bound = cursor === undefined ? '' : ' AND file>?';
+            const batch = await this.boundedRows(page => view.query({
+                sql: `SELECT ${select} FROM public_files WHERE file>=? AND file<? AND ${AS_OF}${bound} ORDER BY file LIMIT ?`,
+                parameters: [lower, upper, at, at, ...(cursor === undefined ? [] : [cursor]), page]
+            }, { maxRows: page, maxBytes: this.batchBytes }), size);
+            rows.push(...batch.rows);
+            if (batch.rows.length < batch.size)
+                break;
+            cursor = String(batch.rows[batch.rows.length - 1]!.file);
+        }
+        return rows;
+    }
+    private async scanNodes(view: SqliteReadView, lower: string, upper: string, at: bigint, select: string): Promise<SqliteRow[]> {
+        const rows: SqliteRow[] = [];
+        let cursor: string | undefined;
+        while (true) {
+            const bound = cursor === undefined ? '' : ' AND path>?';
+            const batch = await this.boundedRows(size => view.query({
+                sql: `SELECT ${select} FROM public_nodes WHERE path>=? AND path<? AND ${AS_OF}${bound} ORDER BY path LIMIT ?`,
+                parameters: [lower, upper, at, at, ...(cursor === undefined ? [] : [cursor]), size]
+            }, { maxRows: size, maxBytes: this.batchBytes }), this.batchRows);
+            rows.push(...batch.rows);
+            if (batch.rows.length < batch.size)
+                break;
+            cursor = String(batch.rows[batch.rows.length - 1]!.path);
+        }
+        return rows;
     }
     private directories(): Set<string> {
         const directories = new Set<string>([this.prefix]);
@@ -171,8 +243,8 @@ export class PublicMount implements ExplorationMount {
             const decl = this.host.tableForDirectory(dir)!;
             return Buffer.from(JSON.stringify({ path: decl.path, title: decl.title, description: decl.description, schema: decl.schema, key: decl.key, sort: decl.sort, shard: decl.shard, ...(decl.decimals ? { decimals: decl.decimals } : {}), ...(decl.notify ? { notify: decl.notify } : {}) }, null, 2) + '\n');
         }
-        const files = (await readFiles(view, dir, revision, { maxRows: 10000, maxBytes: 4 * 1024 * 1024 })).filter(file => intersects(file.audiences, agent));
-        const children = (await readChildren(view, dir, revision, { maxRows: 10000, maxBytes: 4 * 1024 * 1024 })).filter(node => audienceOk(node.audience, agent));
+        const files = (await this.allDirectoryFiles(view, dir, revision)).filter(file => intersects(file.audiences, agent));
+        const children = (await this.allDirectoryChildren(view, dir, revision)).filter(node => audienceOk(node.audience, agent));
         const table = this.host.tableForDirectory(dir);
         const lines = ['# ' + (table?.title ?? (posix.basename(dir) || dir)), ''];
         if (table?.description)
@@ -236,13 +308,13 @@ export class PublicMount implements ExplorationMount {
         for (const dir of this.directories())
             if (dir !== path && parentOf(dir) === path)
                 items.set(dir, this.directoryNode(dir, revision));
-        const children = (await readChildren(view, path, revision, { maxRows: request.maxItems + 1024, maxBytes: 4 * 1024 * 1024, kinds: ['dir', 'doc', 'derived'] })).filter(node => audienceOk(node.audience, agent));
+        const children = (await this.allDirectoryChildren(view, path, revision, ['dir', 'doc', 'derived'])).filter(node => audienceOk(node.audience, agent));
         for (const child of children) {
             if (child.kind === 'table' || child.kind === 'derived')
                 continue;
             items.set(child.path, await this.nodeOf(child, revision, agent));
         }
-        const files = (await readFiles(view, path, revision, { maxRows: request.maxItems + 1024, maxBytes: 4 * 1024 * 1024 })).filter(file => intersects(file.audiences, agent));
+        const files = (await this.allDirectoryFiles(view, path, revision)).filter(file => intersects(file.audiences, agent));
         for (const entry of files)
             items.set(entry.file, await this.fileStat(entry, scope, view, revision, agent));
         items.set(path + '/README.md', this.virtualNodeFrom('readme', path, this.readmeBytes(path, files, children), revision, agent));
@@ -269,32 +341,49 @@ export class PublicMount implements ExplorationMount {
             const fileMatch = suffix === undefined ? `file LIKE ? ESCAPE '\\'` : 'extension=?';
             const fileMatchParameters = suffix === undefined ? [pattern] : [suffix];
             const nodeFilter = `path>=? AND path<? AND ${AS_OF} AND (${agent.map(() => 'audience=?').join(' OR ')}) AND kind IN ('doc','derived') AND path LIKE ? ESCAPE '\\'`;
-            const bound = last === undefined ? '' : ' AND file>?';
-            const boundParameters = last === undefined ? [] : [String(last)];
             const limit = request.maxItems + 1;
             const audienceParameters = agent.map(a => `%"${a}"%`);
             // 当前版本与历史版本分开查询：live 走部分索引，历史版本只覆盖 R_m 之前仍有效的旧版本。
-            const liveSql = `SELECT file,rev_from,audiences FROM public_files INDEXED BY public_files_live_name WHERE file>=? AND file<? AND rev_to IS NULL AND rev_from<=? AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}${bound}`;
-            const historySql = `SELECT file,rev_from,audiences FROM public_files INDEXED BY public_files_history_name WHERE file>=? AND file<? AND rev_to IS NOT NULL AND rev_to>? AND rev_from<=? AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}${bound}`;
-            const liveParameters = [lower, upper, at, ...audienceParameters, ...fileMatchParameters, ...boundParameters];
-            const historyParameters = [lower, upper, at, at, ...audienceParameters, ...fileMatchParameters, ...boundParameters];
-            // SQL 直接返回紧凑路径列；live 与历史版本分两条查询，JS 按文件合并，避免 OR/UNION 的大排序。
-            const [liveEncoded] = await view.query({
-                sql: `SELECT group_concat(file || char(31) || rev_from || char(31) || audiences, char(30)) AS data FROM (${liveSql} ORDER BY file LIMIT ?)`,
-                parameters: [...liveParameters, limit]
-            }, { maxRows: 1, maxBytes: 16 * 1024 * 1024 });
-            const [historyEncoded] = await view.query({
-                sql: `SELECT group_concat(file || char(31) || rev_from || char(31) || audiences, char(30)) AS data FROM (${historySql} ORDER BY file LIMIT ?)`,
-                parameters: [...historyParameters, limit]
-            }, { maxRows: 1, maxBytes: 16 * 1024 * 1024 });
-            const decode = (encoded: any) => {
-                const data = encoded?.data === null || encoded?.data === undefined ? '' : String(encoded.data);
-                return data ? data.split('\u001e').map(line => {
-                    const first = line.indexOf('\u001f'), second = line.indexOf('\u001f', first + 1);
-                    return [line.slice(0, first), line.slice(first + 1, second), line.slice(second + 1)] as const;
-                }) : [];
+            const liveSql = `SELECT file,rev_from,audiences FROM public_files INDEXED BY public_files_live_name WHERE file>=? AND file<? AND rev_to IS NULL AND rev_from<=? AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}`;
+            const historySql = `SELECT file,rev_from,audiences FROM public_files INDEXED BY public_files_history_name WHERE file>=? AND file<? AND rev_to IS NOT NULL AND rev_to>? AND rev_from<=? AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}`;
+            const liveParameters = [lower, upper, at, ...audienceParameters, ...fileMatchParameters];
+            const historyParameters = [lower, upper, at, at, ...audienceParameters, ...fileMatchParameters];
+            // 热路径沿用单条 group_concat 聚合；只有聚合结果超出数据库预算时才退回 keyset 分页。
+            const scan = async (sql: string, parameters: readonly any[], count: number): Promise<[string, string, string][]> => {
+                const bound = last === undefined ? '' : ' AND file>?';
+                const boundParameters = last === undefined ? [] : [String(last)];
+                try {
+                    const [encoded] = await view.query({
+                        sql: `SELECT group_concat(file || char(31) || rev_from || char(31) || audiences, char(30)) AS data FROM (${sql}${bound} ORDER BY file LIMIT ?)`,
+                        parameters: [...parameters, ...boundParameters, count]
+                    }, { maxRows: 1, maxBytes: this.batchBytes });
+                    const data = encoded?.data === null || encoded?.data === undefined ? '' : String(encoded.data);
+                    return data ? data.split('\u001e').map(line => {
+                        const first = line.indexOf('\u001f'), second = line.indexOf('\u001f', first + 1);
+                        return [line.slice(0, first), line.slice(first + 1, second), line.slice(second + 1)] as [string, string, string];
+                    }) : [];
+                }
+                catch (error) {
+                    const code = (error as { code?: string } | null)?.code ?? '';
+                    if (!/SQLITE_(RESULT_LIMIT|QUERY_BUDGET|RETURN_BUDGET)/.test(String(error)) && !/SQLITE_(RESULT_LIMIT|QUERY_BUDGET|RETURN_BUDGET)/.test(code))
+                        throw error;
+                }
+                const rows: [string, string, string][] = [];
+                let cursor: string | undefined = last === undefined ? undefined : String(last);
+                while (rows.length < count) {
+                    const size = Math.min(count - rows.length, this.batchRows);
+                    const pageBound = cursor === undefined ? '' : ' AND file>?';
+                    const batch = await this.boundedRows(page => view.query({ sql: `${sql}${pageBound} ORDER BY file LIMIT ?`, parameters: [...parameters, ...(cursor === undefined ? [] : [cursor]), page] }, { maxRows: page, maxBytes: this.batchBytes }), size);
+                    for (const row of batch.rows)
+                        rows.push([String(row.file), String(row.rev_from), String(row.audiences)]);
+                    if (batch.rows.length < batch.size)
+                        break;
+                    cursor = rows[rows.length - 1]![0];
+                }
+                return rows;
             };
-            const live = decode(liveEncoded), history = decode(historyEncoded);
+            const live = await scan(liveSql, liveParameters, limit);
+            const history = await scan(historySql, historyParameters, limit);
             const files: [string, string, string][] = [];
             let left = 0, right = 0;
             while (files.length < limit && (left < live.length || right < history.length)) {
@@ -305,15 +394,35 @@ export class PublicMount implements ExplorationMount {
             }
             let fileTotal = files.length;
             if (last !== undefined || files.length > request.maxItems) {
-                const [liveCount] = await view.query({ sql: `SELECT count(*) AS n FROM public_files WHERE file>=? AND file<? AND rev_to IS NULL AND rev_from<=? AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}`, parameters: [lower, upper, at, ...audienceParameters, ...fileMatchParameters] }, { maxRows: 1, maxBytes: 65536 });
-                const [historyCount] = await view.query({ sql: `SELECT count(*) AS n FROM public_files WHERE file>=? AND file<? AND rev_to IS NOT NULL AND rev_to>? AND rev_from<=? AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}`, parameters: [lower, upper, at, at, ...audienceParameters, ...fileMatchParameters] }, { maxRows: 1, maxBytes: 65536 });
+                const [liveCount] = await view.query({ sql: `SELECT count(*) AS n FROM public_files WHERE file>=? AND file<? AND rev_to IS NULL AND rev_from<=? AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}`, parameters: [lower, upper, at, ...audienceParameters, ...fileMatchParameters] }, { maxRows: 1, maxBytes: Math.min(65536, this.batchBytes) });
+                const [historyCount] = await view.query({ sql: `SELECT count(*) AS n FROM public_files WHERE file>=? AND file<? AND rev_to IS NOT NULL AND rev_to>? AND rev_from<=? AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}`, parameters: [lower, upper, at, at, ...audienceParameters, ...fileMatchParameters] }, { maxRows: 1, maxBytes: Math.min(65536, this.batchBytes) });
                 fileTotal = Number(liveCount?.n ?? 0) + Number(historyCount?.n ?? 0);
             }
             const nodeBound = last === undefined ? '' : ' AND path>?';
-            const nodes = await view.query({ sql: `SELECT path,kind,audience,rev_from FROM public_nodes WHERE ${nodeFilter}${nodeBound} ORDER BY path LIMIT ?`, parameters: [lower, upper, at, at, ...agent, pattern, ...(last === undefined ? [] : [String(last)]), request.maxItems + 1] }, { maxRows: request.maxItems + 1, maxBytes: 4 * 1024 * 1024 });
+            const nodeLimit = request.maxItems + 1;
+            const nodes: SqliteRow[] = [];
+            let nodeCursor = last === undefined ? undefined : String(last);
+            while (nodes.length < nodeLimit) {
+                const size = Math.min(nodeLimit - nodes.length, this.batchRows);
+                const cursorBound = nodeCursor === undefined ? '' : ' AND path>?';
+                let batch: readonly SqliteRow[];
+                try {
+                    batch = await view.query({ sql: `SELECT path,kind,audience,rev_from FROM public_nodes WHERE ${nodeFilter}${nodeBound}${cursorBound} ORDER BY path LIMIT ?`, parameters: [lower, upper, at, at, ...agent, pattern, ...(last === undefined ? [] : [String(last)]), ...(nodeCursor === undefined ? [] : [nodeCursor]), size] }, { maxRows: size, maxBytes: this.batchBytes });
+                }
+                catch (error) {
+                    const code = (error as { code?: string } | null)?.code ?? '';
+                    if (!/SQLITE_(RESULT_LIMIT|QUERY_BUDGET|RETURN_BUDGET)/.test(String(error)) && !/SQLITE_(RESULT_LIMIT|QUERY_BUDGET|RETURN_BUDGET)/.test(code))
+                        throw error;
+                    batch = (await this.boundedRows(page => view.query({ sql: `SELECT path,kind,audience,rev_from FROM public_nodes WHERE ${nodeFilter}${nodeBound}${cursorBound} ORDER BY path LIMIT ?`, parameters: [lower, upper, at, at, ...agent, pattern, ...(last === undefined ? [] : [String(last)]), ...(nodeCursor === undefined ? [] : [nodeCursor]), page] }, { maxRows: page, maxBytes: this.batchBytes }), size)).rows;
+                }
+                nodes.push(...batch);
+                if (batch.length < size)
+                    break;
+                nodeCursor = String(batch[batch.length - 1]!.path);
+            }
             const nodeTotal = last === undefined && nodes.length <= request.maxItems
                 ? nodes.length
-                : Number((await view.query({ sql: `SELECT count(*) AS n FROM public_nodes WHERE ${nodeFilter}`, parameters: [lower, upper, at, at, ...agent, pattern] }, { maxRows: 1, maxBytes: 65536 }))[0]?.n ?? 0);
+                : Number((await view.query({ sql: `SELECT count(*) AS n FROM public_nodes WHERE ${nodeFilter}`, parameters: [lower, upper, at, at, ...agent, pattern] }, { maxRows: 1, maxBytes: Math.min(65536, this.batchBytes) }))[0]?.n ?? 0);
             const total = fileTotal + nodeTotal;
             const matchedFiles: ExplorationNode[] = [], matchedNodes: ExplorationNode[] = [];
             for (const row of files) {
@@ -331,14 +440,8 @@ export class PublicMount implements ExplorationMount {
             const merged = this.mergeByPath(matchedFiles, matchedNodes);
             return page(merged, String(total), view.revision, request, id, node => node.path, false, merged.map(node => this.nodeBytes(node)));
         }
-        const files = await view.query({
-            sql: `SELECT file,parent,rev_from,audiences FROM public_files WHERE file>=? AND file<? AND ${AS_OF} ORDER BY file LIMIT ?`,
-            parameters: [lower, upper, at, at, 100000]
-        }, { maxRows: 100000, maxBytes: 4 * 1024 * 1024 });
-        const nodes = await view.query({
-            sql: `SELECT path,kind,audience,rev_from FROM public_nodes WHERE path>=? AND path<? AND ${AS_OF} ORDER BY path LIMIT ?`,
-            parameters: [lower, upper, at, at, 100000]
-        }, { maxRows: 100000, maxBytes: 4 * 1024 * 1024 });
+        const files = await this.scanFiles(view, lower, upper, at, Number.MAX_SAFE_INTEGER, 'file,parent,rev_from,audiences');
+        const nodes = await this.scanNodes(view, lower, upper, at, 'path,kind,audience,rev_from');
         const matchedFiles: ExplorationNode[] = [], matchedNodes: ExplorationNode[] = [];
         for (const row of files) {
             const path = String(row.file), audiences = JSON.parse(String(row.audiences)) as Audience[];
@@ -530,34 +633,43 @@ export class PublicMount implements ExplorationMount {
             this.host.stats.searchStale++;
             this.host.stats.fallbackScans++;
         }
-        if (literal && literal.length >= 3 && this.host.searchIndex !== 'none' && !stale) {
+                if (literal && literal.length >= 3 && this.host.searchIndex !== 'none' && !stale) {
             try {
-                const rows = await view.query({
-                    sql: `SELECT DISTINCT pr.file AS file FROM public_fts f JOIN public_rows pr ON pr.rowid=f.rowid WHERE public_fts MATCH ? AND pr.file>=? AND pr.file<? AND pr.rev_from<=? AND (pr.rev_to IS NULL OR pr.rev_to>?) AND (pr.audience='all' OR pr.audience IN (${agent.map(() => '?').join(',')})) ORDER BY pr.file LIMIT ?`,
-                    parameters: [this.ftsPhrase(literal), lower, upper, at, at, ...agent, 100000]
-                }, { maxRows: 100000, maxBytes: 8 * 1024 * 1024 });
                 records = [];
-                for (const row of rows) {
-                    const record = await readFile(view, String(row.file), revision);
-                    if (record && intersects(record.audiences, agent))
-                        records.push(record);
+                                let cursor: string | undefined;
+                while (true) {
+                    const bound = cursor === undefined ? '' : ' AND pr.file>?';
+                    const batch = await this.boundedRows(size => view.query({
+                        sql: `SELECT DISTINCT pr.file AS file FROM public_fts f JOIN public_rows pr ON pr.rowid=f.rowid WHERE public_fts MATCH ? AND pr.file>=? AND pr.file<? AND pr.rev_from<=? AND (pr.rev_to IS NULL OR pr.rev_to>?) AND (pr.audience='all' OR pr.audience IN (${agent.map(() => '?').join(',')}))${bound} ORDER BY pr.file LIMIT ?`,
+                        parameters: [this.ftsPhrase(literal), lower, upper, at, at, ...agent, ...(cursor === undefined ? [] : [cursor]), size]
+                    }, { maxRows: size, maxBytes: this.batchBytes }), this.batchRows);
+                    if (!batch.rows.length)
+                        break;
+                    for (const row of batch.rows) {
+                        const record = await readFile(view, String(row.file), revision);
+                        if (record && intersects(record.audiences, agent))
+                            records.push(record);
+                    }
+                    if (batch.rows.length < batch.size)
+                        break;
+                    cursor = String(batch.rows[batch.rows.length - 1]!.file);
                 }
             }
             catch (error) {
-                if (!/fts5|MATCH/i.test(String(error)))
+                                if (!/fts5|MATCH/i.test(String(error)))
                     throw error;
                 records = await this.allFiles(lower, upper, at, agent, view);
             }
         }
         else
             records = await this.allFiles(lower, upper, at, agent, view);
-        const entries = [];
+                const entries = [];
         for (const record of records) {
             if (!intersects(record.audiences, agent))
                 continue;
             const audiences = effective(record.audiences, agent);
             const etag = etagOf(record.file, record.revision, audiences);
-            const cached = await this.host.cache.ensureFile(etag, () => this.render(record, revision, audiences, view));
+                        const cached = await this.host.cache.ensureFile(etag, () => this.render(record, revision, audiences, view));
             const node = this.fileNode(record, revision, agent, cached.bytes);
             entries.push({ node, disk: cached.path });
         }
@@ -604,11 +716,20 @@ export class PublicMount implements ExplorationMount {
         return runs?.sort((a, b) => b.length - a.length)[0];
     }
     private async allFiles(lower: string, upper: string, at: bigint, agent: readonly Audience[], view: SqliteReadView): Promise<PublicFile[]> {
-        const rows = await view.query({
-            sql: `SELECT file,parent,table_path,rows,bytes,audiences,rev_from FROM public_files WHERE file>=? AND file<? AND rev_from<=? AND (rev_to IS NULL OR rev_to>?) AND (audiences LIKE ? OR ${agent.map(() => 'audiences LIKE ?').join(' OR ')}) ORDER BY file LIMIT ?`,
-            parameters: [lower, upper, at, at, `%"all"%`, ...agent.map(a => `%"${a}"%`), 100000]
-        }, { maxRows: 100000, maxBytes: 8 * 1024 * 1024 });
-        return rows.map(row => ({ file: String(row.file), parent: String(row.parent), tablePath: String(row.table_path), rows: Number(row.rows), bytes: Number(row.bytes), revision: String(row.rev_from), audiences: JSON.parse(String(row.audiences)) as Audience[] }));
+        const all: PublicFile[] = [];
+        let cursor: string | undefined;
+        while (true) {
+            const bound = cursor === undefined ? '' : ' AND file>?';
+            const batch = await this.boundedRows(size => view.query({
+                sql: `SELECT file,parent,table_path,rows,bytes,audiences,rev_from FROM public_files WHERE file>=? AND file<? AND rev_from<=? AND (rev_to IS NULL OR rev_to>?) AND (audiences LIKE ? OR ${agent.map(() => 'audiences LIKE ?').join(' OR ')})${bound} ORDER BY file LIMIT ?`,
+                parameters: [lower, upper, at, at, `%"all"%`, ...agent.map(a => `%"${a}"%`), ...(cursor === undefined ? [] : [cursor]), size]
+            }, { maxRows: size, maxBytes: this.batchBytes }), this.batchRows);
+            all.push(...batch.rows.map(row => ({ file: String(row.file), parent: String(row.parent), tablePath: String(row.table_path), rows: Number(row.rows), bytes: Number(row.bytes), revision: String(row.rev_from), audiences: JSON.parse(String(row.audiences)) as Audience[] })));
+            if (batch.rows.length < batch.size)
+                break;
+            cursor = String(batch.rows[batch.rows.length - 1]!.file);
+        }
+        return all;
     }
     async collect(): Promise<Page<StoredValue>> { return fail('EXPLORATION_NOT_COLLECTION'); }
 }
