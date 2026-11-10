@@ -1,3 +1,4 @@
+import { appendFileSync } from 'node:fs';
 import { getTraceable } from '@society0/cordis';
 import Schema from '@society0/schemastery';
 import { hostMetadata, hostApi } from '../module-resolver/metadata.js';
@@ -7,6 +8,22 @@ import type { Candidate } from '../composition-strategies/index.js';
 import '../resources/index.js';
 export const Config = Schema.object({});
 export const metadata = hostMetadata('slots', 'Own declaration epochs and immutable selection leases', [], ['host', 'run', 'generation']);
+/** Test-only read-only audit trail; enabled by SOCIETY0_SLOT_AUDIT=<file>. Never changes slot behavior. */
+function audit(record: Record<string, unknown>) {
+    const path = process.env.SOCIETY0_SLOT_AUDIT;
+    if (!path) return;
+    try { appendFileSync(path, JSON.stringify(record) + '\n'); }
+    catch { /* auditing must not affect the run */ }
+}
+function auditOwner(ctx: Context) {
+    let current: object | null = ctx, entry: unknown;
+    while (current) {
+        const descriptor = Object.getOwnPropertyDescriptor(current, 'societyEntryId');
+        if (descriptor) { entry = descriptor.value; break; }
+        current = Object.getPrototypeOf(current);
+    }
+    return { ...(typeof entry === 'string' ? { entry } : {}), fiber: ctx.fiber.name };
+}
 export const api = hostApi('./slots', ["slots"], ["compositionStrategies", "resources"]);
 declare const valueType: unique symbol;
 export interface SlotKey<T> {
@@ -135,6 +152,7 @@ export class Slots extends Service {
         if (this.declarations.has(spec.key.id))
             throw Error(`SLOT_DUPLICATE ${spec.key.id}`);
         const pending = this.pendingDeclaration(spec);
+        audit({ kind: 'declare', key: spec.key.id, version: spec.key.version, strategy: spec.strategy, required: spec.required, owner: auditOwner(this.ctx) });
         const epoch = ++this.epoch;
         const record: Declaration = { ...spec, key: { id: spec.key.id, version: spec.key.version }, retention: new Retention(), descriptor: Object.freeze({ id: spec.key.id, version: spec.key.version, epoch, strategy: spec.strategy, owner: { uid: this.ctx.fiber.uid, name: this.ctx.fiber.name } }) };
         const close = this.ctx.resources.use(`slots.declare(${spec.key.id}:${epoch})`, async () => {
@@ -165,6 +183,7 @@ export class Slots extends Service {
         }
         if (map.has(contribution.id))
             throw Error(`CONTRIBUTION_DUPLICATE ${key.id}/${contribution.id}`);
+        audit({ kind: 'contribute', key: key.id, version: key.version, contribution: contribution.id, owner: auditOwner(this.ctx) });
         if (contribution.replace && !map.has(contribution.replace))
             throw Error(`REPLACE_TARGET_MISSING ${key.id}/${contribution.id} -> ${contribution.replace}`);
         const record: RecordEntry = { key: { id: key.id, version: key.version }, contribution: Object.freeze({ ...contribution }), retention: new Retention(), epoch: decl?.descriptor.epoch, owner: { uid: this.ctx.fiber.uid, name: this.ctx.fiber.name } };
@@ -227,6 +246,7 @@ export class Slots extends Service {
     }): Promise<SelectionLease<T>> {
         options.signal?.throwIfAborted();
         this.version(key);
+        audit({ kind: 'acquire', key: key.id, version: key.version, generation: options.generation, owner: auditOwner(this.ctx) });
         const decl = this.declarations.get(key.id);
         if (!decl)
             throw Error(`SLOT_PENDING ${key.id}`);

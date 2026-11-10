@@ -19,7 +19,7 @@ export const metadata: PluginMetadata = {
         }]
 };
 export const api: ApiEntry = {
-    "exportPath": "./social-init", "provides": [], "requires": [{
+    "exportPath": "./social-init", "provides": [], "slots": { "requires": ["society/social-topology"] }, "requires": [{
             "service": {
                 "key": "initializers", "protocol": "initializers", "major": 1, "capabilities": []
             }, "optional": false, "phase": "module"

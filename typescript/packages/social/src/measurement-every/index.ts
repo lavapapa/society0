@@ -6,7 +6,7 @@ export const metadata: PluginMetadata = {
     "title": "measurement-every", "summary": "measurement-every", "scope": "generation", "hostAbi": "society0/host/1", "configVersion": 1, "configPolicy": []
 };
 export const api: ApiEntry = {
-    "exportPath": "./measurement-every", "provides": [], "requires": [{
+    "exportPath": "./measurement-every", "provides": [], "slots": { "provides": ["society/measurement-sampling"] }, "requires": [{
             "service": {
                 "key": "slots", "protocol": "slots", "major": 1, "capabilities": []
             }, "optional": false, "phase": "module"

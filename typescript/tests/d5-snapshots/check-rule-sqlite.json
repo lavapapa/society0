@@ -48,6 +48,10 @@
     "slots": {
       "core/drivers/rule": [
         "driver-rule"
+      ],
+      "society/rule-handler": [
+        "rule-passive",
+        "plain"
       ]
     }
   },

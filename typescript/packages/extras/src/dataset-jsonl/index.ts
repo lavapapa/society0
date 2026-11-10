@@ -6,7 +6,7 @@ import { datasetCodec, datasetFault, type DatasetCodec } from '../datasets/codec
 import { measureJson } from './size.js';
 export const Config = Schema.object({ maxRecordBytes: Schema.natural().min(2).default(1048576), chunkBytes: Schema.natural().min(1).default(65536) });
 export const metadata: PluginMetadata = { title: 'dataset-jsonl', summary: 'Bounded JSONL codec contribution', configVersion: 1, configPolicy: [{ path: '/maxRecordBytes', mode: 'new-run', affectsResults: true }, { path: '/chunkBytes', mode: 'new-run', affectsResults: true }], scope: 'generation', allowedScopes: ['generation'], hostAbi: 'society0/host/1' };
-export const api: ApiEntry = { exportPath: './dataset-jsonl', provides: [], requires: [{ service: { key: 'slots', protocol: 'slots', major: 1, capabilities: [] }, optional: false, phase: 'module' }] };
+export const api: ApiEntry = { exportPath: './dataset-jsonl', provides: [], slots: { provides: ['society/dataset-codec'] }, requires: [{ service: { key: 'slots', protocol: 'slots', major: 1, capabilities: [] }, optional: false, phase: 'module' }] };
 export class JsonlCodec implements DatasetCodec {
     readonly id = 'jsonl/v1';
     constructor(private options: ReturnType<typeof Config>) { if (!Number.isSafeInteger(options.maxRecordBytes) || options.maxRecordBytes < 2 || !Number.isSafeInteger(options.chunkBytes) || options.chunkBytes < 1)

@@ -4,7 +4,7 @@ import Schema from '@society0/schemastery';
 import type {PluginMetadata,ApiEntry} from '@society0/host/module-resolver';
 export const Config=Schema.object({});
 export const metadata:PluginMetadata={"title": "agent-runtimes", "summary": "agent-runtimes", "configVersion": 1, "configPolicy": [], "scope": "generation", "hostAbi": "society0/host/1"};
-export const api:ApiEntry={"exportPath": "./agent-runtimes", "provides": [{"key": "agentRuntimes", "protocol": "agentRuntimes", "major": 1, "capabilities": []}], "requires": [{"service": {"key": "slots", "protocol": "slots", "major": 1, "capabilities": []}, "optional": false, "phase": "module"}]};
+export const api:ApiEntry={"exportPath": "./agent-runtimes", "provides": [{"key": "agentRuntimes", "protocol": "agentRuntimes", "major": 1, "capabilities": []}], "slots": { "requires": ["society/inference-completion"] }, "requires": [{"service": {"key": "slots", "protocol": "slots", "major": 1, "capabilities": []}, "optional": false, "phase": "module"}]};
 import {slotKey} from '@society0/host/slots';import {INFERENCE_REQUEST,INFERENCE_CONTEXT,INFERENCE_TOOL_POLICY,INFERENCE_COMPLETION,INFERENCE_OBSERVER} from '../contracts/inference.js';
 import type {AgentRuntime,ModelSelectionRequest,ResolvedModelSelection} from '../contracts/inference.js';
 import type {Invocation,Lease} from '../contracts/common.js';

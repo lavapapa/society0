@@ -6,7 +6,7 @@ export const metadata: PluginMetadata = {
     "title": "propagation-neighbors", "summary": "propagation-neighbors", "scope": "generation", "hostAbi": "society0/host/1", "configVersion": 1, "configPolicy": []
 };
 export const api: ApiEntry = {
-    "exportPath": "./propagation-neighbors", "provides": [], "requires": [{
+    "exportPath": "./propagation-neighbors", "provides": [], "slots": { "provides": ["society/social-propagation"] }, "requires": [{
             "service": {
                 "key": "slots", "protocol": "slots", "major": 1, "capabilities": []
             }, "optional": false, "phase": "module"

@@ -28,7 +28,7 @@ export const api: ApiEntry = {
             "key": "social", "protocol": "social", "major": 1, "capabilities": []
         }, {
             "key": "socialPresentation", "protocol": "socialPresentation", "major": 1, "capabilities": []
-        }], "requires": [{
+        }], "slots": { "requires": ["society/social-propagation"] }, "requires": [{
             "service": {
                 "key": "actions", "protocol": "actions", "major": 1, "capabilities": []
             }, "optional": false, "phase": "module"

@@ -82,7 +82,17 @@ society0 check --profile <p> [--lock <f>] [--patches <f>] [--world <f>] [--base 
 
 `provides` 和 `requires` 都是字符串数组。字符串里的 `{配置键}` 会用该条目合并默认值后的有效 `config` 替换；点号表示嵌套键。例如 `driver-llm` 的 `name` 默认 `llm/v1`、`runtime` 默认 `pi/v1`，展开后是 `core/drivers/llm/v1` 和 `core/agent-runtimes/pi/v1`。`driver-rule` 的 `name` 默认 `rule`；`agent-runtime-pi` 静态提供 `core/agent-runtimes/pi/v1`；`measurements` 静态提供 `core/drivers/measurements`。第三方插件用同样的字段声明即可，不要求包名或模块路径符合 `@society0/core/driver-*`。
 
-`slots` 是静态 JSON，会原样进入侧车的 `plugin.api.json`，因此 `check` 和 `s0 compose` 不需要导入插件就能读取。`requires` 的槽位如果没有任何活动条目 `provides`，`check` 报 `kind:"slot"`、`code:"SLOT_PROVIDER_MISSING"`，并带上槽位 id 和 `requiredBy`；如果 lockfile 里已安装的包在其侧车里静态声明了该槽位，提示会写出包名和入口（例如 `@society0/core/agent-runtime-pi`）。带占位符的第三方声明无法在不读取配置 schema 默认值时推断，提示只给槽位 id。
+`slots` 是静态 JSON，会原样进入侧车的 `plugin.api.json`，因此 `check` 和 `s0 compose` 不需要导入插件就能读取。
+
+运行期槽位使用和静态声明要保持这三条对应关系，`tests/d19-slot-audit.test.mjs` 会在装配全部 Core/extras/social 插件的 profile 上实际记录 `declare`、`contribute`、`acquire` 后检查：
+
+- 插件向别的插件声明的 required 槽位贡献时，该 key 必须出现在本插件的 `api.slots.provides`。
+- 插件声明了 required 槽位、自己又不贡献时，该 key 必须出现在本插件的 `api.slots.requires`。
+- 插件获取别的插件声明的 required 槽位、自己又不贡献时，该 key 必须出现在本插件的 `api.slots.requires`。
+
+同一个插件自己声明、自己贡献、自己获取的槽位属于自给自足，不需要写 `requires`；`provides` 仍按第一条写。例如 `model-providers`、`model-credentials` 和 `drivers` 在注册时同时声明并贡献单个 key，因此不写 `requires`。占位符先按条目的有效配置展开再比较；声明了但本次 profile 没观察到的 key 只报 warning，不判失败。第三方插件库不依赖本仓库的测试数据，应在自己的仓库里用同一套规则和 `SOCIETY0_SLOT_AUDIT` 记录方式审计。
+
+`requires` 的槽位如果没有任何活动条目 `provides`，`check` 报 `kind:"slot"`、`code:"SLOT_PROVIDER_MISSING"`，并带上槽位 id 和 `requiredBy`；如果 lockfile 里已安装的包在其侧车里静态声明了该槽位，提示会写出包名和入口（例如 `@society0/core/agent-runtime-pi`）。带占位符的第三方声明无法在不读取配置 schema 默认值时推断，提示只给槽位 id。
 
 静态检查的边界：
 

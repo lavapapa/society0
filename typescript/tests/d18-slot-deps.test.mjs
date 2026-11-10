@@ -113,4 +113,5 @@ test('D18 run result reports activation failures with code and stage', { skip, t
     assert.equal(result.activations.failures[0].reason, 'setup_error');
     assert.equal(result.activations.failures[0].code, 'SLOT_PENDING');
     assert.equal(result.activations.failures[0].stage, 'runtime.acquire');
+    assert.equal(result.activations.failures[0].slot, 'core/agent-runtimes/pi/v1');
 });

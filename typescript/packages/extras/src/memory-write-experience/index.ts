@@ -68,7 +68,7 @@ class ExplicitExperience implements MemoryWritePolicy {
 export const MEMORY_EXPERIENCE_JOB = 'memory-write-experience.extract';
 export const MEMORY_EXPERIENCE_NAMESPACE = 'memory-write-experience';
 export const inject = ['slots', 'threads'];
-export function apply(ctx: Context, options: ReturnType<typeof Config>) { ctx.slots.inject(memoryWrite, async (child) => { await child.plugin({ inject, apply(owner) {
+function apply(ctx: Context, options: ReturnType<typeof Config>) { ctx.slots.inject(memoryWrite, async (child) => { await child.plugin({ inject, apply(owner) {
     const policy = new ExplicitExperience(owner, options);
     owner.slots.contribute(memoryWrite, { id: 'explicit-experience/v1', value: policy });
     owner.inject(['deferredWork'], scoped => {
