@@ -1,6 +1,7 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { posix } from 'node:path';
 import { Bash, type IFileSystem } from 'just-bash';
+import { compareCodePoints } from '@society0/host/order';
 import { parseGrepArgs } from './argv.js';
 import { TMP_MAX_BYTES, TMP_MAX_FILES, type ShellTmpEntry, type ShellTmpState } from './tmp.js';
 
@@ -107,7 +108,7 @@ function tmpList(path: string) {
     if (!node) throw Error(`ENOENT: ${key}: No such file or directory`);
     if (node.kind !== 'directory') throw Error(`ENOTDIR: ${key}: Not a directory`);
     const prefix = key === '/' ? '/' : key + '/';
-    return [...tmpNodes.keys()].filter(candidate => candidate !== key && candidate.startsWith(prefix) && !candidate.slice(prefix.length).includes('/')).map(candidate => posix.basename(candidate)).sort();
+    return [...tmpNodes.keys()].filter(candidate => candidate !== key && candidate.startsWith(prefix) && !candidate.slice(prefix.length).includes('/')).map(candidate => posix.basename(candidate)).sort(compareCodePoints);
 }
 function tmpMkdir(path: string, recursive: boolean): void {
     const key = tmpKey(path);
@@ -177,7 +178,7 @@ function tmpCopy(from: string, to: string, recursive: boolean) {
     if (!recursive) throw Error('SHELL_RECURSIVE_COPY_UNSUPPORTED');
     tmpMkdir(target, true);
     const prefix = source + '/';
-    for (const candidate of [...tmpNodes.keys()].sort())
+    for (const candidate of [...tmpNodes.keys()].sort(compareCodePoints))
         if (candidate.startsWith(prefix)) {
             const child = tmpNodes.get(candidate)!;
             const destination = target + candidate.slice(source.length);
