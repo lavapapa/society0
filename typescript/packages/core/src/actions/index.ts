@@ -4,6 +4,7 @@ import type {SelectionLease} from '@society0/host/slots';
 import type {Invocation,Lease,Json} from '../contracts/common.js';
 import type {ActionDefinition,ActionDelivery,ActionExecutionContext,ActionNotifier,ActionReceipt,ActionScope,ActionSelection} from '../contracts/domain.js';
 export { ActionExecutionFailure, validateInput } from './execution.js';
+export { actionRejection, isActionRejection, type ActionRejectionError } from './rejection.js';
 import { ActionCall, validateInput, type ActionAuthority, type ActionRegistration, type OfferState } from './execution.js';
 import { computeOffers, type OfferFilter } from './offers.js';
 import { offerKey, schemaCard, schemaLine, targetText, DEFAULT_OFFER_LABELS, type ActionRef, type ActionSchemaCard, type OfferLimits, type OfferProvider, type OfferSet, type TargetRef } from '../contracts/affordance.js';

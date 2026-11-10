@@ -249,6 +249,6 @@ row('D1 RunResult carries bounded activation summaries',async()=>{
     assert.ok(result.activations,JSON.stringify(result));
     assert.equal(result.activations.truncated,true,JSON.stringify(result.activations));
     assert.equal(result.activations.entries.length,1,JSON.stringify(result.activations));
-    assert.deepEqual(result.activations.entries[0],{actorId:'a',tick:'1',reason:'success',requests:2,toolCalls:3,explorationErrors:1,actRecoverable:1,actFailed:0,requiredSatisfied:true,warnings:['BUDGET_AFTER_REQUIRED']});
+    assert.deepEqual(result.activations.entries[0],{actorId:'a',tick:'1',reason:'success',requests:2,toolCalls:3,explorationErrors:1,actRecoverable:1,rejected:0,actFailed:0,requiredSatisfied:true,warnings:['BUDGET_AFTER_REQUIRED']});
   }finally{await env.host.close()}
 });

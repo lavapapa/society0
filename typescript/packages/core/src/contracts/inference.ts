@@ -104,6 +104,8 @@ export interface InferenceOutcome {
   readonly explorationErrors?: number;
   /** 可恢复的 act 错误数（拒绝、参数校验、行动名不存在）。 */
   readonly actRecoverable?: number;
+  /** 按领域拒绝结算的 act 数：不计入 actFailed，也不把激活判为失败。 */
+  readonly actRejected?: number;
   /** 不可恢复的 act 失败数。 */
   readonly actFailed?: number;
   /** requiredActions 是否满足。 */

@@ -219,6 +219,8 @@ export interface RunActivationSummary {
     readonly toolCalls: number;
     readonly explorationErrors: number;
     readonly actRecoverable: number;
+    /** 按领域拒绝结算的 act 数。 */
+    readonly rejected: number;
     readonly actFailed: number;
     readonly requiredSatisfied: boolean;
     /** 预算耗尽时先用完的额度；未耗尽时省略。 */
