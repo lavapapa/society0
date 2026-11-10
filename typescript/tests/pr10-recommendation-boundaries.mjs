@@ -25,7 +25,8 @@ test('PR10 third-party SQL sources enforce item identity budgets byte LRU and co
   await c.database.transaction(held.lease,request('source-seed'),async tx=>{for(const id of ['one','two'])await c.socialRepository.publish(tx,{id,authorId:'a',content:'来源完整原文 '+id,tags:[],createdTime:'1'},['b'])});
   const context=activation(f,held,'prepare-source','b');
   const prepare=(mode,limits={maxItems:10,maxBytes:8192},tag=mode)=>c.recommendations.prepare({actorId:'b',momentId:tag,query:{mode,time:'2'}},limits,context);
-  for(const [mode,limits,reason] of [['duplicate',undefined,/RECOMMENDATION_DUPLICATE_ITEM/],['item-count',{maxItems:1,maxBytes:8192},/RECOMMENDATION_ITEM_BUDGET/],['item-bytes',undefined,/RECOMMENDATION_ITEM_BUDGET/],['prepared-bytes',undefined,/RECOMMENDATION_INPUT_BYTES/],['identity',undefined,/RECOMMENDATION_PREPARE_IDENTITY/]])await assert.rejects(prepare(mode,limits),reason);
+  for(const [mode,limits,reason] of [['duplicate',undefined,/RECOMMENDATION_DUPLICATE_ITEM/],['item-count',{maxItems:1,maxBytes:8192},/RECOMMENDATION_ITEM_BUDGET/],['prepared-bytes',undefined,/RECOMMENDATION_INPUT_BYTES/],['identity',undefined,/RECOMMENDATION_PREPARE_IDENTITY/]])await assert.rejects(prepare(mode,limits),reason);
+  const itemBytes=await prepare('item-bytes');assert.equal(itemBytes.status,'ready');assert.equal(itemBytes.input.items.length,0,JSON.stringify(itemBytes.input));assert.equal(itemBytes.input.truncated,2,JSON.stringify(itemBytes.input));assert.ok(Buffer.byteLength(JSON.stringify(itemBytes.input))<=8192,JSON.stringify(itemBytes.input));
   const paged=await prepare('page');assert.equal(paged.status,'ready');assert.ok(paged.input.sourcePages[0].next);
   const input=(await prepare('minimal')).input;
   const weighted=await c.recommendations.preview(input,'weighted/v1',bounds);assert.equal(weighted.items.length,2);assert.equal(weighted.items[0].components.engagementScore,0);
