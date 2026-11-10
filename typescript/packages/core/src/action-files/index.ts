@@ -23,7 +23,7 @@ export const metadata: PluginMetadata = {
 };
 export const api: ApiEntry = {
     "exportPath": "./action-files",
-    "provides": [],
+    "provides": [{ "key": "actionFiles", "protocol": "actionFiles", "major": 1, "capabilities": [] }],
     "requires": [
         { "service": { "key": "actions", "protocol": "actions", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" },
         { "service": { "key": "publicSelf", "protocol": "publicSelf", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }
@@ -32,6 +32,23 @@ export const api: ApiEntry = {
 
 export const OFFERS_PATH = '/self/actions/offers.jsonl';
 export const CATALOG_PATH = '/self/actions/catalog.jsonl';
+
+/** 只读标记服务：告知其它插件完整行动清单文件的位置。 */
+export interface ActionFilesService {
+    readonly offersPath: string;
+    readonly catalogPath: string;
+}
+
+export const ACTION_FILES_SERVICE: ActionFilesService = Object.freeze({
+    offersPath: OFFERS_PATH,
+    catalogPath: CATALOG_PATH,
+});
+
+declare module '@society0/cordis' {
+    interface Context {
+        actionFiles: ActionFilesService;
+    }
+}
 
 /** 文件视图是完整清单，不受送达截断影响；预算参数保持安全整数上限。 */
 export const SELF_ACTION_LIMITS: OfferLimits = {
@@ -74,6 +91,7 @@ export default {
     Config,
     inject: ['actions', 'publicSelf'],
     apply(ctx: Context) {
+        ctx.provide('actionFiles', ACTION_FILES_SERVICE);
         const offers = providerOf(ctx, OFFERS_PATH, async function* (actorId, view, momentId) {
             const set = await ctx.actions.offers(scopeOf(actorId, momentId), view, SELF_ACTION_LIMITS);
             for (const offer of set.offers)

@@ -64,6 +64,10 @@ society0 check --profile <p> [--lock <f>] [--patches <f>] [--world <f>] [--base 
 
 `resolved.plugins` 是未禁用条目的插件名（排序去重），`resolved.slots` 是静态可识别的槽位到提供者条目 id 的映射。`check` 和 `run start` 前的装配检查使用同一个 `slotGraph(plan)`。
 
+### actionFiles 标记服务
+
+`@society0/core/action-files` 提供 `actionFiles` 服务（`protocol` 同名，major 1，无 capabilities）。服务值只有 `{ offersPath, catalogPath }`，分别是 `/self/actions/offers.jsonl` 与 `/self/actions/catalog.jsonl` 两个完整行动清单文件视图的路径。需要在自身产物里引用这两个路径的插件（例如经济简报的文件清单）应在 `api.requires` 声明 `actionFiles`，让 profile compose 按服务键把 action-files 带上；不引用这两个路径的插件不需要声明。
+
 ### 槽位依赖声明（`slots`）
 
 插件入口可以导出可选的 `api.slots`，声明自己提供和需要哪些运行期槽位：
