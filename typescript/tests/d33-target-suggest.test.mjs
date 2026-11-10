@@ -48,6 +48,10 @@ async function harness(t) {
                 execute: async (input) => {
                     if (input.keep === true)
                         throw actionRejection('ACTION_INPUT', '未知字段 keep', { example: { seller: 'custom' } });
+                    if (input.unit === 'barrel')
+                        throw actionRejection('ACTION_INPUT', 'contract.propose 无法识别单位 barrel；未知字段：unit；允许的字段：seller、buyer、obligations', { fieldHints: ['插件提示：unit 应为 seller'] });
+                    if (input.silent === true)
+                        throw actionRejection('ACTION_INPUT', '');
                     throw actionRejection('ACTION_INPUT', '未知字段 party');
                 },
             }));
@@ -160,7 +164,21 @@ test('D33 插件 handler 抛出的 ACTION_INPUT 由 Core 补 inputHelp', async (
         assert.deepEqual(receipt.value.example, { seller: 'a', buyer: 'b', obligations: [] });
         assert.equal(receipt.value.exampleText, '{"buyer":"b","obligations":[],"seller":"a"}');
         assert.deepEqual(receipt.value.fieldHints, ['你写了 party，应为 seller']);
-        assert.match(receipt.value.message, /contract\.propose/);
+        assert.match(receipt.value.message, /^未知字段 party/);
+        assert.match(receipt.value.message, /请参考 example 与 fieldHints/);
+
+        const specific = await call(binding, context, 'd33-plugin-specific-message', 'contract.propose', undefined, { unit: 'barrel', party: 'a' });
+        assert.equal(specific.value.code, 'ACTION_INPUT');
+        assert.match(specific.value.message, /^contract\.propose 无法识别单位 barrel；未知字段：unit；允许的字段：seller、buyer、obligations/);
+        assert.match(specific.value.message, /请参考 example 与 fieldHints/);
+        assert.deepEqual(specific.value.example, { seller: 'a', buyer: 'b', obligations: [] });
+        assert.deepEqual(specific.value.fieldHints, ['插件提示：unit 应为 seller', '你写了 party，应为 seller']);
+        assert.ok(Buffer.byteLength(specific.value.fieldHints.join('\n')) <= 2048);
+
+        const silent = await call(binding, context, 'd33-plugin-no-message', 'contract.propose', undefined, { silent: true });
+        assert.equal(silent.value.code, 'ACTION_INPUT');
+        assert.equal(silent.value.message, '输入不符合 contract.propose 的 input schema；请按 example 与 fieldHints 改正后重试。');
+        assert.deepEqual(silent.value.example, { seller: 'a', buyer: 'b', obligations: [] });
 
         const kept = await call(binding, context, 'd33-plugin-input-kept', 'contract.propose', undefined, { keep: true });
         assert.equal(kept.value.code, 'ACTION_INPUT');
