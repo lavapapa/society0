@@ -206,6 +206,10 @@
       "state": "added",
       "consumer": "typescript/packages/core/src/driver-llm/activation.ts:100"
     },
+    "@society0/core/driver-llm/defaultPerceptions": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:218"
+    },
     "@society0/core/driver-llm/reasoning": {
       "state": "added",
       "consumer": "typescript/packages/core/src/model-pi/selection.ts:9",

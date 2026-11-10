@@ -30,8 +30,22 @@ declare module '@society0/cordis' {
 export class Perceptions extends Service {
     static Config = Config;
     static inject = ['database', 'artifacts', 'slots', 'threads'];
+    private readonly sources = new Map<string, PerceptionSource>();
     constructor(ctx: Context) { super(ctx, 'perceptions'); ctx.slots.declare({ key: perceptionSourceSlot, strategy: 'keyed', required: false, validate: validateSource }); }
-    register(source: PerceptionSource) { return this.ctx.slots.contribute(perceptionSourceSlot, { id: source.id, value: { source, registrationId: randomUUID() } }); }
+    register(source: PerceptionSource) {
+        const remove = this.ctx.slots.contribute(perceptionSourceSlot, { id: source.id, value: { source, registrationId: randomUUID() } });
+        this.sources.set(source.id, source);
+        let active = true;
+        return async () => {
+            if (!active) return;
+            active = false;
+            if (this.sources.get(source.id) === source) this.sources.delete(source.id);
+            await remove();
+        };
+    }
+    defaultsFor(driverName: string): string[] {
+        return [...this.sources.values()].filter(source => source.defaultDrivers?.includes(driverName) || source.defaultDrivers?.includes('*')).map(source => source.id);
+    }
     async acquire(ids: readonly string[], context: Invocation): Promise<Lease<PerceptionSelection>> {
         const selected = await this.ctx.slots.acquire(perceptionSourceSlot, context);
         try {

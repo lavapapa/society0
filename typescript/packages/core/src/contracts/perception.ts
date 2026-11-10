@@ -32,6 +32,8 @@ export interface PerceptionPreparation {
 export interface PerceptionSource {
     readonly id: string;
     readonly schema: Json;
+    /** 可选默认挂载的Driver名；'*'表示所有LLM Driver。 */
+    readonly defaultDrivers?: readonly string[];
     readonly cursorScope: 'actor' | 'thread';
     available(scope: PerceptionScope, reader: SqliteReader): Promise<boolean>;
     versions(scope: PerceptionScope, reader: SqliteReader): Promise<readonly DomainVersion[]>;
@@ -68,5 +70,7 @@ export interface PerceptionSelection {
 }
 export interface Perceptions {
     register(source: PerceptionSource): Disposer;
+    /** 按注册顺序返回默认挂载到指定Driver的源id。 */
+    defaultsFor(driverName: string): string[];
     acquire(ids: readonly string[], context: Invocation): Promise<Lease<PerceptionSelection>>;
 }

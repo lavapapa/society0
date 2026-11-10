@@ -150,6 +150,7 @@
 | ./driver-llm | reasoning | union | "off" | recreate | true | false |
 | ./driver-llm | runtime | string | "pi/v1" | recreate | true | false |
 | ./driver-llm | perceptions | array | [] | recreate | true | false |
+| ./driver-llm | defaultPerceptions | boolean | true | recreate | true | false |
 | ./driver-llm | requiredActions | array | [] | recreate | true | false |
 | ./driver-llm | maxRequests | number | 4 | recreate | true | false |
 | ./driver-llm | maxToolCalls | number | 8 | recreate | true | false |
