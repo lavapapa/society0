@@ -1,7 +1,7 @@
 import type { ArtifactRef } from '../artifacts-local/store.js';
 import type { Context } from '@society0/cordis';
 import type { ValidateFunction } from 'ajv';
-import type { ActionDefinition, ActionExecutionContext, ActionReceipt } from '../contracts/domain.js';
+import type { ActionDefinition, ActionExecutionContext, ActionInputHelp, ActionReceipt } from '../contracts/domain.js';
 import type { ActionRef, AvailabilitySummary, OfferIdentity, TargetRef } from '../contracts/affordance.js';
 import type { ActivationContext } from '../contracts/runtime.js';
 import type { Json } from '../contracts/common.js';
@@ -11,6 +11,7 @@ import { targetText, canonicalJson, availabilityDetails, availabilityText } from
 import { fail, bytes } from '../information/page.js';
 import { prepareValue, attachValue, readValue } from '../results/payload.js';
 import { isActionRejection, type ActionRejectionError } from './rejection.js';
+import { suggestedCallsFromRefs } from './suggest.js';
 import '../attempts/index.js';
 import '../artifacts-local/index.js';
 
@@ -110,6 +111,16 @@ export function inputFieldHints(input: Json, aliases: Readonly<Record<string, re
     }
     return hints;
 }
+/** validateInput 与插件 ACTION_INPUT 共用同一份声明式帮助字段。 */
+export function inputHelpFields(definition: ActionDefinition, input: Json, help: ActionInputHelp): Readonly<Record<string, Json>> {
+    return {
+        action: definition.name,
+        example: help.example,
+        exampleText: canonicalJson(help.example),
+        fieldHints: inputFieldHints(input, help.fieldAliases),
+        message: `输入不符合 ${definition.name} 的 input schema；请按 example 与 fieldHints 改正后重试。`,
+    };
+}
 /** 输入校验失败是业务拒绝：回执带字段路径、错误计数和 input schema 摘要，不 claim attempt。 */
 export function validateInput(entry: ActionRegistration, input: Json, operationId: string): ActionReceipt | undefined {
     if (entry.input(input))
@@ -119,13 +130,7 @@ export function validateInput(entry: ActionRegistration, input: Json, operationI
     const help = entry.definition.inputHelp;
     const value = {
         code: 'ACTION_INPUT', errors, errorCount: all.length, expected: expectedSummary(entry.definition.inputSchema),
-        ...(help ? {
-            action: entry.definition.name,
-            example: help.example,
-            exampleText: canonicalJson(help.example),
-            fieldHints: inputFieldHints(input, help.fieldAliases),
-            message: `输入不符合 ${entry.definition.name} 的 input schema；请按 example 与 fieldHints 改正后重试。`,
-        } : {}),
+        ...(help ? inputHelpFields(entry.definition, input, help) : {}),
     };
     return { operationId, status: 'rejected', value, original: null, artifacts: [], requiredOperations: [] };
 }
@@ -161,13 +166,17 @@ export class ActionCall {
     }
     /** execute 显式声明的领域拒绝：保留 code/message/details，形状与 rejectedReceipt 一致。 */
     private actionRejectionReceipt(error: ActionRejectionError): ActionReceipt {
+        const details = error.details;
+        const help = this.entry.definition.inputHelp;
+        const detailsHasExample = details !== null && typeof details === 'object' && !Array.isArray(details) && (details as Readonly<Record<string, Json>>).example !== undefined;
         return {
             operationId: this.activation.operationId,
             status: 'rejected',
             value: {
                 code: error.code,
                 message: error.message,
-                ...(error.details === undefined ? {} : { details: error.details }),
+                ...(details === undefined ? {} : { details }),
+                ...(error.code === 'ACTION_INPUT' && help && !detailsHasExample ? inputHelpFields(this.entry.definition, this.input, help) : {}),
                 action: this.entry.definition.name,
                 ...(this.authority.target ? { target: targetText(this.authority.target) } : {}),
             },
@@ -191,11 +200,13 @@ export class ActionCall {
         if (code === 'ACTION_EXPIRED')
             return { ...receipt, value: { ...(receipt.value as Readonly<Record<string, Json>>), alternatives } };
         const target = this.authority.target ? ` ${targetText(this.authority.target)}` : '';
+        const suggested = suggestedCallsFromRefs(available.alternatives, this.entry.definition.inputHelp?.example);
         const value = {
             ...(receipt.value as Readonly<Record<string, Json>>),
             message: `该行动当前不在可选行动里（${this.entry.definition.name}${target}）。${availabilityText(available)}`,
             details: availabilityDetails(available) as Json,
             alternatives,
+            ...(suggested.length ? { suggestedCall: suggested as unknown as Json } : {}),
         };
         return { ...receipt, value };
     }

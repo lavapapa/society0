@@ -2,11 +2,12 @@ import {compareCodePoints} from '@society0/host/order';
 import {BoundActions} from './selection.js';
 import type {SelectionLease} from '@society0/host/slots';
 import type {Invocation,Lease,Json} from '../contracts/common.js';
-import type {ActionDefinition,ActionDelivery,ActionExecutionContext,ActionNotifier,ActionReceipt,ActionScope,ActionSelection} from '../contracts/domain.js';
+import type {ActionDefinition,ActionDelivery,ActionExecutionContext,ActionInputHelp,ActionNotifier,ActionReceipt,ActionScope,ActionSelection} from '../contracts/domain.js';
 export { ActionExecutionFailure, validateInput } from './execution.js';
 export { actionRejection, isActionRejection, type ActionRejectionError } from './rejection.js';
 import { ActionCall, validateInput, type ActionAuthority, type ActionAvailability, type ActionRegistration, type OfferState } from './execution.js';
 import { computeOffers, type OfferFilter } from './offers.js';
+import { suggestedCallsFromOffers } from './suggest.js';
 import { offerKey, schemaCard, schemaLine, targetText, availabilityDetails, availabilitySummary, availabilityText, DEFAULT_OFFER_LABELS, type ActionRef, type ActionSchemaCard, type OfferLimits, type OfferProvider, type OfferSet, type TargetRef } from '../contracts/affordance.js';
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
@@ -187,6 +188,16 @@ export class Actions extends Service {
             await selection.release();
         }
     }
+    /** 行动声明的输入帮助；供 actor-tools 在拒绝回执里复用同一份 example/fieldHints。 */
+    async inputHelp(name: string): Promise<ActionInputHelp | undefined> {
+        const selection = await this.ctx.slots.acquire(key, { generation: 'read' });
+        try {
+            return selection.items.find((item) => item.id === name)?.value.definition.inputHelp;
+        }
+        finally {
+            await selection.release();
+        }
+    }
     private targetIssue(definition: ActionDefinition, target?: TargetRef): 'unexpected' | 'missing' | 'kind' | undefined {
         if (!definition.targets)
             return target ? 'unexpected' : undefined;
@@ -194,8 +205,8 @@ export class Actions extends Service {
             return definition.targets.required ? 'missing' : undefined;
         return definition.targets.kinds.includes(target.kind) ? undefined : 'kind';
     }
-    private rejection(context: ActivationContext, code: string, action: string, message: string, details: Readonly<Record<string, Json>>, target?: TargetRef): ActionReceipt {
-        return { operationId: context.operationId, status: 'rejected', value: { code, message, details, action, ...(target ? { target: targetText(target) } : {}) }, original: null, artifacts: [], requiredOperations: [] };
+    private rejection(context: ActivationContext, code: string, action: string, message: string, details: Readonly<Record<string, Json>>, target?: TargetRef, extra: Readonly<Record<string, Json>> = {}): ActionReceipt {
+        return { operationId: context.operationId, status: 'rejected', value: { code, message, details, action, ...(target ? { target: targetText(target) } : {}), ...extra }, original: null, artifacts: [], requiredOperations: [] };
     }
     /** 拒绝时按当前 offer 集列出最多 5 个可用 target 或行动；只多算一次发现，不碰感知预算。 */
     private async availableOffers(selection: SelectionLease<ActionRegistration>, scope: ActionScope): Promise<OfferSet> {
@@ -222,7 +233,12 @@ export class Actions extends Service {
             : issue === 'missing'
                 ? `该行动需要 target；target.kind 应为 ${kinds}`
                 : `target.kind 应为 ${kinds}，收到 ${target!.kind}`;
-        return this.rejection(context, 'ACTION_TARGET_INVALID', entry.definition.name, `${reason}。${availabilityText(summary)}`, availabilityDetails(summary), target);
+        const suggested = suggestedCallsFromOffers(set.offers, entry.definition.name, {
+            targets: entry.definition.targets,
+            issue,
+            example: entry.definition.inputHelp?.example,
+        });
+        return this.rejection(context, 'ACTION_TARGET_INVALID', entry.definition.name, `${reason}。${availabilityText(summary)}`, availabilityDetails(summary), target, suggested.length ? { suggestedCall: suggested as unknown as Json } : {});
     }
     /** 执行期复查：先按 action 请求判门槛与 available，再看当前 offer 是否存在。 */
     private async currentOffer(selection: SelectionLease<ActionRegistration>, providers: readonly OfferProvider[], entry: ActionRegistration, scope: ActionScope, view: Reader, name: string, input: Json, target?: TargetRef): Promise<OfferState> {
