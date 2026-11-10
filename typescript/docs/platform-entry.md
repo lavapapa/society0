@@ -280,6 +280,19 @@ platform 按同一约定收集所有活动入口的 `migrations` 导出，包括
 
 `run start` 和 `check --world` 的试跑走同一个根创建入口，因此用的是同一份推导结果。列表按上面的顺序生成；某个插件登记的 initializer 只有在实际加载后才会进入 initializer 集合，缺少必需项时 `sqlite-bootstrap` 仍会报 `INITIALIZER_MISSING`。profile 没有任何 actor 创建者时，推导结果为空，`check` 保持原来的行为，只提示 actor 相关缺失，不额外报 `INITIALIZER_MISSING`。
 
+## 冻结上下文与默认感知
+
+`/context` 下的冻结文件按主体和 Moment 命名，不再使用 `operationId` 的百分号编码：
+
+```
+/context/<actorId>-<momentId>-<index>-<sequence>.txt
+```
+
+- `actorId`、`momentId` 只保留 ASCII 字母、数字和 `- _ .`；其他字符替换为 `_`。发生过替换、截断或原值为空时，该段追加 `.` 加原值 SHA-256 的前 8 位十六进制，避免不同原名落到同一路径。
+- 每段最多 48 个安全字符；`index` 是同一冻结内的文件序号。
+- `sequence` 是同一 `actorId + momentId` 下的冻结序号，从 0 开始递增。一次激活会同时持有多份冻结（提示上下文和每个感知页），激活重试也会再次冻结，因此序号必须保留；序号由调用顺序确定，不使用随机数。
+- Driver 提示里给出的“冻结上下文”路径就是 `freeze` 的真实返回值，模型可以按原样交给 `read` 工具。
+
 ## 退出码
 
 | 退出码 | 场景 |

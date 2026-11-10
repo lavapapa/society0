@@ -13,7 +13,7 @@ test('NEW-1-T02 /context pages are complete, unique and code-point ordered', asy
     const reader = { runId: 'r', revision: '1' };
     for (const operationId of ['a', 'B', 'c', '_x', '9'])
         mount.freeze(['text'], { operationId, actorId: 'A', momentId: 'M' });
-    const expected = ['/context/9-0.txt', '/context/B-0.txt', '/context/_x-0.txt', '/context/a-0.txt', '/context/c-0.txt'];
+    const expected = [0, 1, 2, 3, 4].map(sequence => `/context/A-M-0-${sequence}.txt`);
     for (const maxItems of [1, 2, 3, 5]) {
         const all = [];
         let cursor;
@@ -35,16 +35,19 @@ test('NEW-1-T02 /context pages are complete, unique and code-point ordered', asy
     assert.throws(() => budget.freeze(['a', 'b'], { operationId: 'budget', actorId: 'A', momentId: 'M' }), /CONTEXT_MOUNT_BUDGET/);
     const duplicate = Object.create(ContextMount.prototype);
     Object.assign(duplicate, { files: new Map(), held: new Set(), bytes: 0, version: 0, closing: false, config: { maxBytes: 1048576, maxFiles: 2 }, id: 'duplicate', prefix: '/context' });
-    duplicate.freeze(['one'], { operationId: 'duplicate', actorId: 'A', momentId: 'M' });
-    assert.throws(() => duplicate.freeze(['two'], { operationId: 'duplicate', actorId: 'A', momentId: 'M' }), /CONTEXT_MOUNT_EXISTS/);
+    const firstDuplicate = duplicate.freeze(['one'], { operationId: 'duplicate', actorId: 'A', momentId: 'M' });
+    const secondDuplicate = duplicate.freeze(['two'], { operationId: 'duplicate', actorId: 'A', momentId: 'M' });
+    assert.notEqual(firstDuplicate.value[0], secondDuplicate.value[0]);
+    assert.equal(duplicate.files.get(firstDuplicate.value[0]).bytes.toString(), 'one');
+    assert.equal(duplicate.files.get(secondDuplicate.value[0]).bytes.toString(), 'two');
     const closed = Object.create(ContextMount.prototype);
     Object.assign(closed, { files: new Map(), held: new Set(), bytes: 0, version: 0, closing: true, config: { maxBytes: 1048576, maxFiles: 2 }, id: 'closed', prefix: '/context' });
     assert.throws(() => closed.freeze(['one'], { operationId: 'closed', actorId: 'A', momentId: 'M' }), /CONTEXT_MOUNT_CLOSED/);
     const bytesBefore = mount.bytes;
     const lease = mount.freeze(['released'], { operationId: 'release', actorId: 'A', momentId: 'M' });
-    assert.equal(mount.files.has('/context/release-0.txt'), true);
+    assert.equal(mount.files.has(lease.value[0]), true);
     await lease.release();
-    assert.equal(mount.files.has('/context/release-0.txt'), false);
+    assert.equal(mount.files.has(lease.value[0]), false);
     assert.equal(mount.bytes, bytesBefore);
 });
 
