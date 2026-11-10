@@ -348,14 +348,32 @@ export class PublicMount implements ExplorationMount {
             const historySql = `SELECT file,rev_from,audiences FROM public_files INDEXED BY public_files_history_name WHERE file>=? AND file<? AND rev_to IS NOT NULL AND rev_to>? AND rev_from<=? AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}`;
             const liveParameters = [lower, upper, at, ...audienceParameters, ...fileMatchParameters];
             const historyParameters = [lower, upper, at, at, ...audienceParameters, ...fileMatchParameters];
-            // 每条查询都按 maxQueryRows/maxQueryBytes 预算分批，再用 file>? keyset 续读，避免单条 SQL 超限。
+            // 热路径沿用单条 group_concat 聚合；只有聚合结果超出数据库预算时才退回 keyset 分页。
             const scan = async (sql: string, parameters: readonly any[], count: number): Promise<[string, string, string][]> => {
+                const bound = last === undefined ? '' : ' AND file>?';
+                const boundParameters = last === undefined ? [] : [String(last)];
+                try {
+                    const [encoded] = await view.query({
+                        sql: `SELECT group_concat(file || char(31) || rev_from || char(31) || audiences, char(30)) AS data FROM (${sql}${bound} ORDER BY file LIMIT ?)`,
+                        parameters: [...parameters, ...boundParameters, count]
+                    }, { maxRows: 1, maxBytes: this.batchBytes });
+                    const data = encoded?.data === null || encoded?.data === undefined ? '' : String(encoded.data);
+                    return data ? data.split('\u001e').map(line => {
+                        const first = line.indexOf('\u001f'), second = line.indexOf('\u001f', first + 1);
+                        return [line.slice(0, first), line.slice(first + 1, second), line.slice(second + 1)] as [string, string, string];
+                    }) : [];
+                }
+                catch (error) {
+                    const code = (error as { code?: string } | null)?.code ?? '';
+                    if (!/SQLITE_(RESULT_LIMIT|QUERY_BUDGET|RETURN_BUDGET)/.test(String(error)) && !/SQLITE_(RESULT_LIMIT|QUERY_BUDGET|RETURN_BUDGET)/.test(code))
+                        throw error;
+                }
                 const rows: [string, string, string][] = [];
                 let cursor: string | undefined = last === undefined ? undefined : String(last);
                 while (rows.length < count) {
                     const size = Math.min(count - rows.length, this.batchRows);
-                    const bound = cursor === undefined ? '' : ' AND file>?';
-                    const batch = await this.boundedRows(page => view.query({ sql: `${sql}${bound} ORDER BY file LIMIT ?`, parameters: [...parameters, ...(cursor === undefined ? [] : [cursor]), page] }, { maxRows: page, maxBytes: this.batchBytes }), size);
+                    const pageBound = cursor === undefined ? '' : ' AND file>?';
+                    const batch = await this.boundedRows(page => view.query({ sql: `${sql}${pageBound} ORDER BY file LIMIT ?`, parameters: [...parameters, ...(cursor === undefined ? [] : [cursor]), page] }, { maxRows: page, maxBytes: this.batchBytes }), size);
                     for (const row of batch.rows)
                         rows.push([String(row.file), String(row.rev_from), String(row.audiences)]);
                     if (batch.rows.length < batch.size)
@@ -387,11 +405,20 @@ export class PublicMount implements ExplorationMount {
             while (nodes.length < nodeLimit) {
                 const size = Math.min(nodeLimit - nodes.length, this.batchRows);
                 const cursorBound = nodeCursor === undefined ? '' : ' AND path>?';
-                const batch = await this.boundedRows(page => view.query({ sql: `SELECT path,kind,audience,rev_from FROM public_nodes WHERE ${nodeFilter}${nodeBound}${cursorBound} ORDER BY path LIMIT ?`, parameters: [lower, upper, at, at, ...agent, pattern, ...(last === undefined ? [] : [String(last)]), ...(nodeCursor === undefined ? [] : [nodeCursor]), page] }, { maxRows: page, maxBytes: this.batchBytes }), size);
-                nodes.push(...batch.rows);
-                if (batch.rows.length < batch.size)
+                let batch: readonly SqliteRow[];
+                try {
+                    batch = await view.query({ sql: `SELECT path,kind,audience,rev_from FROM public_nodes WHERE ${nodeFilter}${nodeBound}${cursorBound} ORDER BY path LIMIT ?`, parameters: [lower, upper, at, at, ...agent, pattern, ...(last === undefined ? [] : [String(last)]), ...(nodeCursor === undefined ? [] : [nodeCursor]), size] }, { maxRows: size, maxBytes: this.batchBytes });
+                }
+                catch (error) {
+                    const code = (error as { code?: string } | null)?.code ?? '';
+                    if (!/SQLITE_(RESULT_LIMIT|QUERY_BUDGET|RETURN_BUDGET)/.test(String(error)) && !/SQLITE_(RESULT_LIMIT|QUERY_BUDGET|RETURN_BUDGET)/.test(code))
+                        throw error;
+                    batch = (await this.boundedRows(page => view.query({ sql: `SELECT path,kind,audience,rev_from FROM public_nodes WHERE ${nodeFilter}${nodeBound}${cursorBound} ORDER BY path LIMIT ?`, parameters: [lower, upper, at, at, ...agent, pattern, ...(last === undefined ? [] : [String(last)]), ...(nodeCursor === undefined ? [] : [nodeCursor]), page] }, { maxRows: page, maxBytes: this.batchBytes }), size)).rows;
+                }
+                nodes.push(...batch);
+                if (batch.length < size)
                     break;
-                nodeCursor = String(batch.rows[batch.rows.length - 1]!.path);
+                nodeCursor = String(batch[batch.length - 1]!.path);
             }
             const nodeTotal = last === undefined && nodes.length <= request.maxItems
                 ? nodes.length
