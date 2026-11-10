@@ -4,13 +4,14 @@ export interface SqliteStatement {readonly sql:string;readonly parameters?:reado
 export interface QueryBounds {readonly maxRows:number;readonly maxBytes:number}
 export interface SqliteSchemaVersion {readonly owner:string;readonly version:number}
 export interface SqliteMigration {readonly owner:string;readonly from:number;readonly to:number;readonly after:readonly string[];readonly source:Readonly<Record<string,unknown>>;readonly statements:readonly SqliteStatement[]}
-export interface TransactionRequest {readonly operationId:string;readonly expectedRevision?:string;readonly maxDurationMs:number;readonly maxStatements:number;readonly maxInputBytes:number;readonly maxChangedRows:number;readonly maxCapturedBytes:number}
+export interface TransactionRequest {readonly operationId:string;readonly expectedRevision?:string;readonly maxDurationMs:number;readonly maxStatements:number;readonly maxFrameworkStatements?:number;readonly maxInputBytes:number;readonly maxChangedRows:number;readonly maxCapturedBytes:number}
+export interface StatementOptions {readonly framework?:boolean}
 export interface CommitCounters {readonly commits:number;readonly fsyncs:number}
 export interface CommitReceipt {readonly operationId:string;readonly revision:string;readonly counters?:CommitCounters}
 export type CommitProbe={status:'committed';receipt:CommitReceipt}|{status:'not-committed'}|{status:'unknown';reason:string};
 export type CommitPhase='prepare'|'commit'|'segment';
 export interface CommitFailure {readonly operationId:string;readonly tx:string;readonly phase:CommitPhase|'transport';readonly message:string;readonly sqliteCode?:number;readonly stopReason?:string}
-export interface SqliteTransaction {readonly id:string;readonly operationId:string;readonly runId:string;readonly baseRevision:string;query(statement:SqliteStatement,bounds:QueryBounds):Promise<readonly SqliteRow[]>;execute(statement:SqliteStatement):Promise<{changes:bigint;lastInsertRowid:bigint}>;executeMany(sql:string,parameters:readonly (readonly SqliteValue[])[],bounds:{maxRows:number;maxInputBytes:number}):Promise<{changes:bigint}>}
+export interface SqliteTransaction {readonly id:string;readonly operationId:string;readonly runId:string;readonly baseRevision:string;query(statement:SqliteStatement,bounds:QueryBounds,options?:StatementOptions):Promise<readonly SqliteRow[]>;execute(statement:SqliteStatement,options?:StatementOptions):Promise<{changes:bigint;lastInsertRowid:bigint}>;executeMany(sql:string,parameters:readonly (readonly SqliteValue[])[],bounds:{maxRows:number;maxInputBytes:number},options?:StatementOptions):Promise<{changes:bigint}>}
 export interface BlobRequest {table:string;column:string;rowid:bigint;offset:number;length:number;maxBytes:number}
 export interface SqliteReadView {readonly id:string;readonly runId:string;readonly revision:string;readonly schema:readonly SqliteSchemaVersion[];query(statement:SqliteStatement,bounds:QueryBounds):Promise<readonly SqliteRow[]>;readBlobRange(request:BlobRequest):Promise<Uint8Array>}
 export interface SqliteSnapshot extends SqliteReadView {close():Promise<void>}
