@@ -206,6 +206,37 @@ society0 run result --dir <run> --json
 
 预算耗尽（`budget_exhausted`）时按已结算处理：`requiredActions` 为空，或非空且已满足，激活走 `success` 完成判定，保留已完成的动作与回执，并在 `warnings` 里记录 `BUDGET_EXHAUSTED`（无必需动作）或 `BUDGET_AFTER_REQUIRED`（必需动作已完成），`limit` 指明先用完的额度。`requiredActions` 非空且未满足时仍为 `incomplete`，run 不会推进到新的完整点。这样 tick 不再因主体只耗尽请求、工具调用或轮次预算而停在 `paused`/`recoveryRequired`，后续 resume 也不会因此报 `HISTORY_DIRTY`。
 
+## 领域拒绝与执行故障
+
+行动插件要区分“规则拒绝”和“执行故障”。规则拒绝表示环境按业务规则明确不允许这次行动，世界状态没有因此改变；执行故障表示插件异常、持久化失败、传输未知或平台内部错误。
+
+规则拒绝用 core 的 `actionRejection` 声明：
+
+```js
+import { actionRejection } from '@society0/core/actions';
+
+// 在 ActionDefinition.execute 里
+throw actionRejection('ECON_BUDGET_INVALID', '资金不足，无法支付本次行动', {
+  need: 10,
+  have: 7,
+});
+```
+
+契约：
+
+- `actionRejection(code, message, details?)` 返回带 `rejection: true` 的 `Error`；`isActionRejection(value)` 只认这个显式标记，不按错误码猜测。
+- 执行器捕获该错误后返回 `status: 'rejected'` 的回执，`value` 形如 `{ code, message, details?, action, target? }`，与现有 rejected 回执兼容；这次行动不记为 attempt 失败。
+- `execute` 自己返回 `status: 'rejected'` 的回执也按同一规则处理。工具结果文本保留 `code` 和 `message`，主体能看到拒绝原因。
+- 激活统计把这类回执计入 `rejected`（内部计数 `actRejected`），不计入 `actFailed`，也不设置 `toolFailed`；只要 `requiredActions` 已满足，激活按 `success` 结算，并在 `warnings` 里记录 `ACTION_REJECTED`。回执原样保留在 activation evidence 里。
+- `RunResult.activations.entries[].rejected` 是该次激活按领域拒绝结算的 act 数量。
+
+仍判 `incomplete` 的情况：
+
+- 未带 `rejection:true` 的抛错（插件执行异常、schema 输出不符等）；输出不符仍报 `ACTION_OUTPUT`。
+- 持久化、传输、平台错误，以及基础设施错误码（`TOOL_*`、`INFERENCE_*`、`ATTEMPT_*`、`SQLITE_*` 等现有集合）。即使 `actionRejection` 带了这些码，也不按领域拒绝结算。
+- 平台不可用类回执（`ACTION_UNAVAILABLE`）不走领域拒绝计数，仍按原有未知回执处理。
+- `requiredActions` 非空且未满足：按 D20 的规则返回 `required_action_failed`，run 不会推进到新的完整点。
+
 未完成时返回 `RUN_NOT_COMPLETED`，已完成但文件丢失时返回 `RESULT_MISSING`。
 
 ## lock

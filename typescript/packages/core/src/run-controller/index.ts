@@ -155,6 +155,7 @@ export class RunController extends Service {
             toolCalls: count('toolCalls'),
             explorationErrors: count('explorationErrors'),
             actRecoverable: count('actRecoverable'),
+            rejected: count('actRejected'),
             actFailed: count('actFailed'),
             requiredSatisfied: typeof value.requiredSatisfied === 'boolean' ? value.requiredSatisfied : entry.status === 'completed',
             ...(limit ? { limit: limit as 'requests' | 'toolCalls' | 'turns' } : {}),

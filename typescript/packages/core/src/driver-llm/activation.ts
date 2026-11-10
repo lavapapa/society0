@@ -392,7 +392,7 @@ export class LlmActivation {
   const incompleteStream=outcome.status==='incomplete'&&(outcome.reason==='provider_error'||outcome.reason==='cancelled'||outcome.reason==='transport_unknown');
   if(!incompleteStream)await this.flushEvents();
   for(const item of outcome.actionReceipts)for(const operationId of item.receipt.requiredOperations??[])this.operations.add(operationId);
-  return {status:outcome.status,value:{reason:outcome.reason,requests:outcome.requests,toolCalls:outcome.toolCalls??0,explorationErrors:outcome.explorationErrors??0,actRecoverable:outcome.actRecoverable??0,actFailed:outcome.actFailed??0,requiredSatisfied:outcome.requiredSatisfied===true,...(outcome.warnings?.length?{warnings:[...outcome.warnings]}:{}),...(outcome.limit?{limit:outcome.limit}:{})},evidence:outcome as unknown as Json,requiredOperations:[...this.operations]};
+  return {status:outcome.status,value:{reason:outcome.reason,requests:outcome.requests,toolCalls:outcome.toolCalls??0,explorationErrors:outcome.explorationErrors??0,actRecoverable:outcome.actRecoverable??0,actRejected:outcome.actRejected??0,actFailed:outcome.actFailed??0,requiredSatisfied:outcome.requiredSatisfied===true,...(outcome.warnings?.length?{warnings:[...outcome.warnings]}:{}),...(outcome.limit?{limit:outcome.limit}:{})},evidence:outcome as unknown as Json,requiredOperations:[...this.operations]};
  }
  private failureReason(failure:LlmActivationError):LlmActivationReason{
   const unknown=failure.reason==='persistence_unknown'||failure.reason==='transport_unknown';
