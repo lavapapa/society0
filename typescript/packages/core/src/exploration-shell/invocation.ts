@@ -1,7 +1,8 @@
 import { ShellPool, type ShellInvocationSink, type WorkerSlot } from './pool.js';
 import type { ExplorationFiles, FileLimits } from './filesystem.js';
+import type { ShellTmpState } from './tmp.js';
 export interface ShellOptions extends FileLimits { workers: number; maxCommandCount: number; maxCommandBytes: number; maxPendingRpc: number; timeoutMs: number; maxWorkerMb: number }
-interface ShellResult { exitCode: number; stdout: string; stderr: string }
+export interface ShellResult { exitCode: number; stdout: string; stderr: string; tmp?: ShellTmpState }
 export class ShellInvocation implements ShellInvocationSink {
     private accepted = new Set<Promise<void>>();
     private result?: ShellResult;
@@ -9,7 +10,7 @@ export class ShellInvocation implements ShellInvocationSink {
     private accepting = true;
     private slot?: WorkerSlot;
     private readonly settled = Promise.withResolvers<void>();
-    constructor(private command: string, private files: ExplorationFiles, private config: ShellOptions, private signal: AbortSignal, private pool: ShellPool, slot?: WorkerSlot) { this.slot = slot; }
+    constructor(private command: string, private files: ExplorationFiles, private config: ShellOptions, private signal: AbortSignal, private pool: ShellPool, private tmp?: ShellTmpState, slot?: WorkerSlot) { this.slot = slot; }
     private stop(reason: unknown) {
         this.failure ??= reason;
         this.accepting = false;
@@ -72,7 +73,7 @@ export class ShellInvocation implements ShellInvocationSink {
             slot.attach(this);
             // 命令预算只约束命令本身：Worker 已加载就绪后才开始计时。
             timer = setTimeout(() => this.stop(Error('SHELL_TIMEOUT')), this.config.timeoutMs);
-            slot.post({ kind: 'run', command: this.command });
+            slot.post({ kind: 'run', command: this.command, tmp: this.tmp });
             await Promise.race([
                 this.settled.promise,
                 slot.exited.then(() => {
