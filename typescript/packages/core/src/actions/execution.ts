@@ -111,14 +111,34 @@ export function inputFieldHints(input: Json, aliases: Readonly<Record<string, re
     }
     return hints;
 }
+/** 合并后的 fieldHints 仍受总字节上限约束；调用方给出的提示排在前。 */
+function capFieldHints(hints: readonly string[]): string[] {
+    const values: string[] = [];
+    let bytes = 0;
+    for (const hint of hints) {
+        const size = Buffer.byteLength(hint) + 1;
+        if (bytes + size > INPUT_HELP_FIELD_HINTS_BYTES)
+            break;
+        bytes += size;
+        values.push(hint);
+    }
+    return values;
+}
+export interface InputHelpFieldsOptions {
+    /** 插件拒绝自带的 message；缺省时用通用句。 */
+    readonly message?: string;
+    /** 插件自带的 fieldHints，与 inputHelp 生成的提示合并。 */
+    readonly fieldHints?: readonly string[];
+    /** 插件已带 example 时只补其他帮助字段，不覆盖 example。 */
+    readonly includeExample?: boolean;
+}
 /** validateInput 与插件 ACTION_INPUT 共用同一份声明式帮助字段。 */
-export function inputHelpFields(definition: ActionDefinition, input: Json, help: ActionInputHelp): Readonly<Record<string, Json>> {
+export function inputHelpFields(definition: ActionDefinition, input: Json, help: ActionInputHelp, options: InputHelpFieldsOptions = {}): Readonly<Record<string, Json>> {
     return {
         action: definition.name,
-        example: help.example,
-        exampleText: canonicalJson(help.example),
-        fieldHints: inputFieldHints(input, help.fieldAliases),
-        message: `输入不符合 ${definition.name} 的 input schema；请按 example 与 fieldHints 改正后重试。`,
+        ...(options.includeExample === false ? {} : { example: help.example, exampleText: canonicalJson(help.example) }),
+        fieldHints: capFieldHints([...(options.fieldHints ?? []), ...inputFieldHints(input, help.fieldAliases)]),
+        message: options.message ?? `输入不符合 ${definition.name} 的 input schema；请按 example 与 fieldHints 改正后重试。`,
     };
 }
 /** 输入校验失败是业务拒绝：回执带字段路径、错误计数和 input schema 摘要，不 claim attempt。 */
@@ -167,8 +187,23 @@ export class ActionCall {
     /** execute 显式声明的领域拒绝：保留 code/message/details，形状与 rejectedReceipt 一致。 */
     private actionRejectionReceipt(error: ActionRejectionError): ActionReceipt {
         const details = error.details;
+        const detailsObject = details !== null && typeof details === 'object' && !Array.isArray(details) ? details as Readonly<Record<string, Json>> : undefined;
         const help = this.entry.definition.inputHelp;
-        const detailsHasExample = details !== null && typeof details === 'object' && !Array.isArray(details) && (details as Readonly<Record<string, Json>>).example !== undefined;
+        const detailsHasExample = detailsObject?.example !== undefined;
+        const detailsHints = Array.isArray(detailsObject?.fieldHints) ? detailsObject.fieldHints.filter((value): value is string => typeof value === 'string') : [];
+        const hasMessage = error.message.trim().length > 0;
+        let helpFields: Readonly<Record<string, Json>> | undefined;
+        if (error.code === 'ACTION_INPUT' && help) {
+            helpFields = inputHelpFields(this.entry.definition, this.input, help, {
+                ...(hasMessage ? { message: error.message } : {}),
+                ...(detailsHints.length ? { fieldHints: detailsHints } : {}),
+                ...(detailsHasExample ? { includeExample: false } : {}),
+            });
+            // 插件 message 保留为正文；只有确实补了 example/fieldHints 时追加提示，不替换原句。
+            const hints = Array.isArray(helpFields.fieldHints) ? helpFields.fieldHints : [];
+            if (hasMessage && (helpFields.example !== undefined || hints.length > 0) && !String(helpFields.message).includes('example') && !String(helpFields.message).includes('fieldHints'))
+                helpFields = { ...helpFields, message: `${String(helpFields.message)}；请参考 example 与 fieldHints。` };
+        }
         return {
             operationId: this.activation.operationId,
             status: 'rejected',
@@ -176,7 +211,7 @@ export class ActionCall {
                 code: error.code,
                 message: error.message,
                 ...(details === undefined ? {} : { details }),
-                ...(error.code === 'ACTION_INPUT' && help && !detailsHasExample ? inputHelpFields(this.entry.definition, this.input, help) : {}),
+                ...(helpFields ?? {}),
                 action: this.entry.definition.name,
                 ...(this.authority.target ? { target: targetText(this.authority.target) } : {}),
             },
