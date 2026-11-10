@@ -1508,6 +1508,14 @@
               "secret": false
             },
             {
+              "name": "defaultPerceptions",
+              "type": "boolean",
+              "default": true,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
               "name": "requiredActions",
               "type": "array",
               "default": [],

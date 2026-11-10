@@ -215,10 +215,12 @@ export class LlmActivation {
    return {messages:await this.reconcile(messages,origins),delivery};
   }));
  }
+ private perceptionIds(){const ids=[...this.config.perceptions];if(this.config.defaultPerceptions)for(const id of this.ctx.perceptions.defaultsFor(this.config.name))if(!ids.includes(id))ids.push(id);return ids}
  private async percepts(contexts:readonly StoredValue[],paths:string[]){
-  if(!this.config.perceptions.length)return;
+  const perceptions=this.perceptionIds();
+  if(!perceptions.length)return;
   const logicalTime=this.context.logicalTime;
-  const selected=await this.step('perception_error','perception.collect',()=>this.ctx.perceptions.acquire(this.config.perceptions,this.context));
+  const selected=await this.step('perception_error','perception.collect',()=>this.ctx.perceptions.acquire(perceptions,this.context));
   this.held.push(selected);
   for(let page=0;page<this.config.maxPerceptionPages;page++){
    const scope={actorId:this.context.actorId,momentId:this.context.momentId,threadId:this.thread.id,logicalTime,reason:this.intent.input};

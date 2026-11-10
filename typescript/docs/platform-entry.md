@@ -293,6 +293,8 @@ platform 按同一约定收集所有活动入口的 `migrations` 导出，包括
 - `sequence` 是同一 `actorId + momentId` 下的冻结序号，从 0 开始递增。一次激活会同时持有多份冻结（提示上下文和每个感知页），激活重试也会再次冻结，因此序号必须保留；序号由调用顺序确定，不使用随机数。
 - Driver 提示里给出的“冻结上下文”路径就是 `freeze` 的真实返回值，模型可以按原样交给 `read` 工具。
 
+感知源在 `PerceptionSource` 上可以声明可选的 `defaultDrivers`，值是 Driver 名数组，`'*'` 表示所有 LLM Driver。`perceptions` 服务提供 `defaultsFor(driverName)`，按注册顺序返回命中的源 id。`driver-llm` 的 `defaultPerceptions` 默认为 `true`：实际获取的列表是配置里的 `perceptions` 在前，再把 `defaultsFor(name)` 去重追加在后。设为 `false` 时只使用显式 `perceptions`，与未引入默认挂载前的行为一致；没有任何源声明 `defaultDrivers` 时，默认值为 `true` 也不会改变现有 profile 的感知列表。
+
 ## 退出码
 
 | 退出码 | 场景 |
