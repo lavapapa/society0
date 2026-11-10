@@ -50,22 +50,33 @@ declare module '@society0/cordis' {
     }
 }
 
-/** 文件视图是完整清单，不受送达截断影响；预算参数保持安全整数上限。 */
+/**
+ * 文件视图的具名上限：与 SQLite 默认单次查询预算一致（maxQueryRows=10000、maxQueryBytes=1 MiB）。
+ * offer provider 会把 maxOffers 当作 SQL 的 maxRows，超过数据库上限会直接 SQLITE_QUERY_BUDGET；
+ * 这里取同一组具名值，既不放任 provider 无界查询，也让生成的 JSONL 不超过 shell 单次读取上限。
+ */
+export const SELF_ACTION_MAX_OFFERS = 10000;
+export const SELF_ACTION_MAX_BYTES = 1024 * 1024;
 export const SELF_ACTION_LIMITS: OfferLimits = {
-    maxOffers: Number.MAX_SAFE_INTEGER,
-    maxOfferBytes: Number.MAX_SAFE_INTEGER,
-    maxSchemaBytes: Number.MAX_SAFE_INTEGER,
+    maxOffers: SELF_ACTION_MAX_OFFERS,
+    maxOfferBytes: SELF_ACTION_MAX_BYTES,
+    maxSchemaBytes: SELF_ACTION_MAX_BYTES,
 };
 
 const scopeOf = (actorId: string, momentId: string) => ({ actorId, momentId, query: null });
 const bytes = (text: string) => Buffer.from(text);
 
-function refOf(offer: ActionOffer): ActionRef {
+/** 一行只保留行动名、摘要与执行必需的可供性字段；完整 input/output schema 只在 catalog.jsonl。 */
+function fileLine(offer: ActionOffer, description?: string): ActionRef & Readonly<Record<string, Json>> {
     return {
         act: offer.action,
+        ...(description ? { summary: description } : {}),
         ...(offer.target ? { target: `${offer.target.kind}:${offer.target.id}` } : {}),
         ...(offer.prefill !== undefined ? { prefill: offer.prefill } : {}),
+        ...(offer.locked ? { locked: [...offer.locked] } : {}),
         ...(offer.needs ? { needs: offer.needs } : {}),
+        ...(offer.reason ? { reason: offer.reason } : {}),
+        ...(offer.until !== undefined ? { until: offer.until } : {}),
     };
 }
 
@@ -95,7 +106,7 @@ export default {
         const offers = providerOf(ctx, OFFERS_PATH, async function* (actorId, view, momentId) {
             const set = await ctx.actions.offers(scopeOf(actorId, momentId), view, SELF_ACTION_LIMITS);
             for (const offer of set.offers)
-                yield bytes(canonicalJson(refOf(offer) as unknown as Json) + '\n');
+                yield bytes(canonicalJson(fileLine(offer, set.schemas.get(offer.action)?.description) as unknown as Json) + '\n');
         });
         const catalog = providerOf(ctx, CATALOG_PATH, async function* (actorId, view, momentId) {
             const set = await ctx.actions.offers(scopeOf(actorId, momentId), view, SELF_ACTION_LIMITS);

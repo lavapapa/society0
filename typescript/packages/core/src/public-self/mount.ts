@@ -19,6 +19,12 @@ export interface PublicSelfMountHost {
 }
 interface Rendered { readonly versions: readonly { owner: string; version: string }[]; readonly bytes: Uint8Array }
 interface FileRecord { readonly node: ExplorationNode; readonly bytes: Uint8Array }
+const BUDGET_ERROR = /SQLITE_(QUERY|RETURN|RESULT)_BUDGET|SQLITE_RESULT_LIMIT/;
+const TRUNCATION_NOTE = Buffer.from(JSON.stringify({ truncated: true, message: '已截断：该文件超过单次查询预算，只返回已生成部分；请用 head/grep 或更具体的路径缩小范围。' }) + '\n');
+function budgetError(error: unknown): boolean {
+    const text = String(error), code = (error as { code?: string } | null)?.code ?? '';
+    return BUDGET_ERROR.test(text) || BUDGET_ERROR.test(code);
+}
 
 export class PublicSelfMount implements ExplorationMount {
     readonly id = 'self/files';
@@ -92,8 +98,19 @@ export class PublicSelfMount implements ExplorationMount {
         const key = SelfCache.key(provider.path, actorId, versions);
         const bytes = await this.host.cache.bytes(key, async () => {
             const chunks: Uint8Array[] = [];
-            for await (const chunk of provider.render(actorId, view, new AbortController().signal, scope))
-                chunks.push(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk as ArrayBufferLike));
+            try {
+                for await (const chunk of provider.render(actorId, view, new AbortController().signal, scope))
+                    chunks.push(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk as ArrayBufferLike));
+            }
+            catch (error) {
+                // 预算超限属于“文件太大”，不是访问失败：返回已生成部分并附截断说明，让 stat/read 仍可读。
+                if (!budgetError(error))
+                    throw error;
+                const last = chunks.at(-1);
+                if (last && last.byteLength && last[last.byteLength - 1] !== 0x0a)
+                    chunks.push(Buffer.from('\n'));
+                chunks.push(TRUNCATION_NOTE);
+            }
             return Buffer.concat(chunks);
         });
         return { versions, bytes };

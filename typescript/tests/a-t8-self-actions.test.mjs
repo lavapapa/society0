@@ -83,9 +83,13 @@ async function readFile(session, path) {
 function refs(set) {
     return set.offers.map(offer => ({
         act: offer.action,
+        ...(set.schemas.get(offer.action)?.description ? { summary: set.schemas.get(offer.action).description } : {}),
         ...(offer.target ? { target: `${offer.target.kind}:${offer.target.id}` } : {}),
         ...(offer.prefill !== undefined ? { prefill: offer.prefill } : {}),
+        ...(offer.locked ? { locked: [...offer.locked] } : {}),
         ...(offer.needs ? { needs: offer.needs } : {}),
+        ...(offer.reason ? { reason: offer.reason } : {}),
+        ...(offer.until !== undefined ? { until: offer.until } : {}),
     }));
 }
 
