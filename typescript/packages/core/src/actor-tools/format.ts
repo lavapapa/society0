@@ -3,11 +3,12 @@ const byteLength=(text:string)=>Buffer.byteLength(text);
 function clip(text:string,limit=512){if(byteLength(text)<=limit)return text;return Buffer.from(text).subarray(0,limit-3).toString('utf8')+'…'}
 function version(node:any){const versions=Array.isArray(node?.versions)?node.versions:[];const last=versions.at(-1);return last?`${last.name}@${last.version}`:String(node?.objectId??'').slice(0,8)}
 export function formatError(value:unknown){
- const item=(value??{}) as {code?:string;message?:string;action?:string;alternatives?:readonly {act?:string;target?:string}[];details?:{targets?:unknown;actions?:unknown;omitted?:unknown}};
+ const item=(value??{}) as {code?:string;message?:string;action?:string;alternatives?:readonly {act?:string;target?:string}[];suggestedCall?:readonly {act?:string;target?:string;prefill?:unknown;note?:string}[];details?:{targets?:unknown;actions?:unknown;omitted?:unknown}};
  const code=item.code??'ACTION_ERROR';
  const message=String(item.message??item.action??'');
  const lines=[`错误 ${code}：${clip(message,512)}`];
  if(item.alternatives?.length)lines.push('可改为：'+item.alternatives.slice(0,5).map(alternative=>alternative.target?`${alternative.act} ${alternative.target}`:alternative.act).filter(Boolean).join('；'));
+ if(item.suggestedCall?.length)lines.push('建议调用：'+item.suggestedCall.slice(0,3).map(call=>{if(!call.act)return '';const target=call.target?` ${call.target}`:'';const prefill=call.prefill===undefined?'':` ${JSON.stringify(call.prefill)}`;const note=call.note?`（${call.note}）`:'';return `${call.act}${target}${prefill}${note}`}).filter(Boolean).join('；'));
  const detail=detailLine(item.details,message);
  if(detail)lines.push(detail);
  return lines.join('\n');

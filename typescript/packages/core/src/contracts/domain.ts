@@ -110,6 +110,7 @@ export interface Actions {
     offers(scope: DiscoveryScope, view: SqliteReadView, limits: OfferLimits): Promise<OfferSet>;
     offersFor(scope: DiscoveryScope, view: SqliteReadView, filter: { readonly targets: readonly TargetRef[]; readonly actions?: readonly string[] }): Promise<readonly ActionRef[]>;
     describe(name: string): Promise<ActionSchemaCard | undefined>;
+    inputHelp(name: string): Promise<ActionInputHelp | undefined>;
 }
 export interface RuleHandler {
     activate(input: Json, context: ActivationContext): Promise<ActivationResult>;
