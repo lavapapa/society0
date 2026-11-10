@@ -35,8 +35,8 @@ export interface PublicChangeReader {
     readonly tables: ReadonlyMap<string, PublicTableDecl>;
     readonly docs: ReadonlyMap<string, PublicDocDecl>;
     readonly defaultNotify: 'digest' | 'percept';
+    readonly limits: { readonly maxQueryBytes: number; readonly maxQueryRows: number };
 }
-const CANDIDATE_BOUNDS = { maxRows: 100000, maxBytes: 16777216 };
 const COUNT_BOUNDS = { maxRows: 1, maxBytes: 4096 };
 
 function audienceClause(audiences: readonly Audience[]): { sql: string; parameters: readonly string[] } {
@@ -89,9 +89,18 @@ function after(token: string | undefined, from: string, to: string): string | un
         throw fault('CURSOR_STALE');
     }
 }
-async function candidates(view: SqliteReadView, sql: string, from: bigint, to: bigint): Promise<readonly string[]> {
-    const rows = await view.query({ sql, parameters: [from, to, from, to] }, CANDIDATE_BOUNDS);
-    return rows.map(row => text(row.file ?? row.path));
+async function candidates(view: SqliteReadView, sql: string, column: 'file' | 'path', from: bigint, to: bigint, limits: PublicChangeReader['limits']): Promise<readonly string[]> {
+    const found: string[] = [];
+    let cursor = '';
+    while (true) {
+        const rows = await view.query({ sql: `SELECT ${column} FROM (${sql}) WHERE ${column}>? ORDER BY ${column} LIMIT ?`, parameters: [from, to, from, to, cursor, limits.maxQueryRows] }, { maxRows: limits.maxQueryRows, maxBytes: limits.maxQueryBytes });
+        for (const row of rows)
+            found.push(text(row.file ?? row.path));
+        if (rows.length < limits.maxQueryRows)
+            break;
+        cursor = found[found.length - 1]!;
+    }
+    return found;
 }
 async function visibleRows(view: SqliteReadView, file: string, revision: string, audiences: readonly Audience[]): Promise<number> {
     const at = revisionNumber(revision), audience = audienceClause(audiences);
@@ -152,8 +161,8 @@ export async function changeEntries(view: SqliteReadView, _scope: { readonly act
     const bounds = canonical(from, to);
     if (bounds.from === bounds.to)
         return [];
-    const files = await candidates(view, CHANGE_FILES_SQL, bounds.from, bounds.to);
-    const docs = await candidates(view, CHANGE_DOCS_SQL, bounds.from, bounds.to);
+    const files = await candidates(view, CHANGE_FILES_SQL, 'file', bounds.from, bounds.to, reader.limits);
+    const docs = await candidates(view, CHANGE_DOCS_SQL, 'path', bounds.from, bounds.to, reader.limits);
     const entries: PublicChangeEntry[] = [];
     for (const file of files) {
         const before = await readFile(view, file, from), after = await readFile(view, file, to);
