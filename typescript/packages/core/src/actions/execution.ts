@@ -2,12 +2,12 @@ import type { ArtifactRef } from '../artifacts-local/store.js';
 import type { Context } from '@society0/cordis';
 import type { ValidateFunction } from 'ajv';
 import type { ActionDefinition, ActionExecutionContext, ActionReceipt } from '../contracts/domain.js';
-import type { ActionRef, OfferIdentity, TargetRef } from '../contracts/affordance.js';
+import type { ActionRef, AvailabilitySummary, OfferIdentity, TargetRef } from '../contracts/affordance.js';
 import type { ActivationContext } from '../contracts/runtime.js';
 import type { Json } from '../contracts/common.js';
 import type { DiscoveryScope, StoredValue } from '../contracts/data.js';
 import type { SqliteReadView, SqliteTransaction, TransactionRequest } from '../sqlite/contracts.js';
-import { targetText, canonicalJson } from '../contracts/affordance.js';
+import { targetText, canonicalJson, availabilityDetails, availabilityText } from '../contracts/affordance.js';
 import { fail, bytes } from '../information/page.js';
 import { prepareValue, attachValue, readValue } from '../results/payload.js';
 import { isActionRejection, type ActionRejectionError } from './rejection.js';
@@ -22,6 +22,10 @@ export interface ActionRegistration {
 }
 type Reader = SqliteReadView | SqliteTransaction;
 export type OfferState = 'valid' | 'ineligible' | 'absent';
+/** 当前可用候选与同行动替代项，供 ACTION_NOT_OFFERED 回执说明。 */
+export interface ActionAvailability extends AvailabilitySummary {
+    readonly alternatives: readonly ActionRef[];
+}
 /** 执行期对 offer 的复查、拒绝原因与替代项；由 Actions 绑定当前注册表、provider 与快照。 */
 export interface ActionAuthority {
     readonly key: string;
@@ -30,7 +34,7 @@ export interface ActionAuthority {
     readonly delivered?: ReadonlySet<string>;
     state(reader: Reader): Promise<OfferState>;
     findings(reader: Reader): Promise<readonly { ruleId: string; reason: string }[]>;
-    alternatives(reader: Reader): Promise<readonly ActionRef[]>;
+    available(reader: Reader): Promise<ActionAvailability>;
 }
 function references(value: StoredValue) { return value.kind === 'reference' ? [value.ref.object] : []; }
 function failureCode(cause: unknown, code?: string): string {
@@ -130,7 +134,18 @@ export class ActionCall {
         }
         const code = this.authority.delivered?.has(this.authority.key) ? 'ACTION_EXPIRED' : 'ACTION_NOT_OFFERED';
         const receipt = this.rejectedReceipt(code);
-        return { ...receipt, value: { ...(receipt.value as Readonly<Record<string, Json>>), alternatives: [...await this.authority.alternatives(reader)] as unknown as Json } };
+        const available = await this.authority.available(reader);
+        const alternatives = [...available.alternatives] as unknown as Json;
+        if (code === 'ACTION_EXPIRED')
+            return { ...receipt, value: { ...(receipt.value as Readonly<Record<string, Json>>), alternatives } };
+        const target = this.authority.target ? ` ${targetText(this.authority.target)}` : '';
+        const value = {
+            ...(receipt.value as Readonly<Record<string, Json>>),
+            message: `该行动当前不在可选行动里（${this.entry.definition.name}${target}）。${availabilityText(available)}`,
+            details: availabilityDetails(available) as Json,
+            alternatives,
+        };
+        return { ...receipt, value };
     }
     private async qualify(reader: Reader) {
         if (await this.authority.state(reader) !== 'valid')

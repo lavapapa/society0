@@ -2,7 +2,26 @@ import type {ActionReceipt} from '../contracts/domain.js';
 const byteLength=(text:string)=>Buffer.byteLength(text);
 function clip(text:string,limit=512){if(byteLength(text)<=limit)return text;return Buffer.from(text).subarray(0,limit-3).toString('utf8')+'…'}
 function version(node:any){const versions=Array.isArray(node?.versions)?node.versions:[];const last=versions.at(-1);return last?`${last.name}@${last.version}`:String(node?.objectId??'').slice(0,8)}
-export function formatError(value:unknown){const item=(value??{}) as {code?:string;message?:string;action?:string;alternatives?:readonly {act?:string;target?:string}[]};const code=item.code??'ACTION_ERROR';const message=item.message??item.action??'';const lines=[`错误 ${code}：${clip(String(message),512)}`];if(item.alternatives?.length)lines.push('可改为：'+item.alternatives.slice(0,5).map(alternative=>alternative.target?`${alternative.act} ${alternative.target}`:alternative.act).filter(Boolean).join('；'));return lines.join('\n')}
+export function formatError(value:unknown){
+ const item=(value??{}) as {code?:string;message?:string;action?:string;alternatives?:readonly {act?:string;target?:string}[];details?:{targets?:unknown;actions?:unknown;omitted?:unknown}};
+ const code=item.code??'ACTION_ERROR';
+ const message=String(item.message??item.action??'');
+ const lines=[`错误 ${code}：${clip(message,512)}`];
+ if(item.alternatives?.length)lines.push('可改为：'+item.alternatives.slice(0,5).map(alternative=>alternative.target?`${alternative.act} ${alternative.target}`:alternative.act).filter(Boolean).join('；'));
+ const detail=detailLine(item.details,message);
+ if(detail)lines.push(detail);
+ return lines.join('\n');
+}
+/** details 里的候选只在 message 没完整带出时补一行，避免重复。 */
+function detailLine(details:{targets?:unknown;actions?:unknown;omitted?:unknown}|undefined,message:string){
+ if(!details||typeof details!=='object')return '';
+ const source=Array.isArray(details.targets)?details.targets:Array.isArray(details.actions)?details.actions:[];
+ const candidates=source.filter((value):value is string=>typeof value==='string').slice(0,5);
+ if(!candidates.length)return '';
+ const omitted=typeof details.omitted==='number'&&Number.isFinite(details.omitted)?Math.max(0,details.omitted):Math.max(0,source.length-candidates.length);
+ if(candidates.every(candidate=>message.includes(candidate))&&(omitted===0||message.includes(`另有 ${omitted} 个`)))return '';
+ return `候选：${candidates.join('；')}${omitted>0?`（另有 ${omitted} 个）`:''}`;
+}
 export function formatRead(value:any){const node=value?.node??{},offset=String(value?.offset??'0'),text=String(value?.text??''),size=node.rawBytes===undefined?offset.length+byteLength(text):Number(node.rawBytes),end=Number(offset)+byteLength(text);const lines=[`# ${node.path??''} ${version(node)} bytes ${offset}-${end}/${size}`,text];if(Number(offset)+byteLength(text)<size&&text.length)lines.push(`# 续读: read path=${node.path??''} offset=${end}`);return lines.join('\n')}
 export function formatFind(value:any){const items=Array.isArray(value?.items)?value.items:[];const lines=items.map((node:any)=>node.kind==='directory'&&!String(node.path).endsWith('/')?node.path+'/':String(node.path));lines.push(`# 共 ${value?.total??items.length} 项`);if(value?.next!==undefined)lines.push(`# 续页: cursor=${value.next}`);return lines.join('\n')}
 export function formatGrep(value:any){const items=Array.isArray(value?.items)?value.items:[];const lines=items.map((match:any)=>`${match.path}:${match.line}:${clip(String(match.lineText??match.text??'').replace(/\r?\n/g,' '))}`);lines.push(`# 共 ${value?.total??items.length} 项`);if(value?.next!==undefined)lines.push(`# 续页: cursor=${value.next}`);return lines.join('\n')}

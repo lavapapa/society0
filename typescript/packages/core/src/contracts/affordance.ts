@@ -98,6 +98,53 @@ export interface OfferLimits {
     readonly maxSchemaBytes: number;
 }
 
+/** 拒绝回执里的可用候选：同一行动优先列 target，行动整体不可用时列行动名。 */
+export interface AvailabilitySummary {
+    readonly targets: readonly string[];
+    readonly actions: readonly string[];
+    readonly omitted: number;
+}
+
+/**
+ * 从当前 offer 集提炼最多 limit 条候选，超出部分只报数量。
+ * 同一 action 有可选 target 时列 `kind:id`；否则列可用行动名。
+ */
+export function availabilitySummary(offers: readonly ActionOffer[], action: string, target: TargetRef | undefined, limit = 5, omitted: readonly OmittedOffer[] = []): AvailabilitySummary {
+    const same = offers.filter((offer) => offer.action === action && (!target || offerKey(offer) !== offerKey({ action, target })));
+    const targeted = same.filter((offer) => offer.target !== undefined);
+    const values = targeted.length
+        ? [...new Set(targeted.map((offer) => targetText(offer.target!)))]
+        : [...new Set(same.map((offer) => offer.action))];
+    const fallback = same.length ? values : [...new Set(offers.map((offer) => offer.action))];
+    const candidates = values.length ? values : fallback;
+    const hidden = same.length
+        ? omitted.filter((item) => item.action === action).reduce((sum, item) => sum + item.count, 0)
+        : omitted.filter((item) => !candidates.includes(item.action)).length;
+    const shown = candidates.slice(0, Math.max(0, limit));
+    const extra = candidates.length + hidden - shown.length;
+    return {
+        targets: targeted.length ? shown : [],
+        actions: targeted.length ? [] : shown,
+        omitted: Math.max(0, extra),
+    };
+}
+
+/** 把候选写成一行；没有候选也保留非空说明。 */
+export function availabilityText(summary: AvailabilitySummary): string {
+    const values = summary.targets.length ? summary.targets : summary.actions;
+    const label = summary.targets.length ? '当前可选 target' : '当前可选行动';
+    const omitted = summary.omitted > 0 ? `（另有 ${summary.omitted} 个）` : '';
+    return values.length ? `${label}：${values.join('；')}${omitted}` : '当前没有可选的行动或 target';
+}
+
+export function availabilityDetails(summary: AvailabilitySummary): Readonly<Record<string, Json>> {
+    return {
+        ...(summary.targets.length ? { targets: [...summary.targets] } : {}),
+        ...(summary.actions.length ? { actions: [...summary.actions] } : {}),
+        ...(summary.omitted > 0 ? { omitted: summary.omitted } : {}),
+    };
+}
+
 /** 一条待送达的 offer：offer 本体、变更判定摘要、可选的 schema 卡片。 */
 export interface OfferEntry {
     readonly offer: ActionOffer;

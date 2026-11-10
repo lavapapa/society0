@@ -5,9 +5,9 @@ import type {Invocation,Lease,Json} from '../contracts/common.js';
 import type {ActionDefinition,ActionDelivery,ActionExecutionContext,ActionNotifier,ActionReceipt,ActionScope,ActionSelection} from '../contracts/domain.js';
 export { ActionExecutionFailure, validateInput } from './execution.js';
 export { actionRejection, isActionRejection, type ActionRejectionError } from './rejection.js';
-import { ActionCall, validateInput, type ActionAuthority, type ActionRegistration, type OfferState } from './execution.js';
+import { ActionCall, validateInput, type ActionAuthority, type ActionAvailability, type ActionRegistration, type OfferState } from './execution.js';
 import { computeOffers, type OfferFilter } from './offers.js';
-import { offerKey, schemaCard, schemaLine, targetText, DEFAULT_OFFER_LABELS, type ActionRef, type ActionSchemaCard, type OfferLimits, type OfferProvider, type OfferSet, type TargetRef } from '../contracts/affordance.js';
+import { offerKey, schemaCard, schemaLine, targetText, availabilityDetails, availabilitySummary, availabilityText, DEFAULT_OFFER_LABELS, type ActionRef, type ActionSchemaCard, type OfferLimits, type OfferProvider, type OfferSet, type TargetRef } from '../contracts/affordance.js';
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 export const Config = Schema.object({
@@ -187,15 +187,42 @@ export class Actions extends Service {
             await selection.release();
         }
     }
-    private targetIssue(definition: ActionDefinition, target?: TargetRef): string | undefined {
+    private targetIssue(definition: ActionDefinition, target?: TargetRef): 'unexpected' | 'missing' | 'kind' | undefined {
         if (!definition.targets)
-            return target ? 'ACTION_TARGET_INVALID' : undefined;
+            return target ? 'unexpected' : undefined;
         if (!target)
-            return definition.targets.required ? 'ACTION_TARGET_INVALID' : undefined;
-        return definition.targets.kinds.includes(target.kind) ? undefined : 'ACTION_TARGET_INVALID';
+            return definition.targets.required ? 'missing' : undefined;
+        return definition.targets.kinds.includes(target.kind) ? undefined : 'kind';
     }
-    private rejection(context: ActivationContext, code: string, action: string, target?: TargetRef): ActionReceipt {
-        return { operationId: context.operationId, status: 'rejected', value: { code, action, ...(target ? { target: targetText(target) } : {}) }, original: null, artifacts: [], requiredOperations: [] };
+    private rejection(context: ActivationContext, code: string, action: string, message: string, details: Readonly<Record<string, Json>>, target?: TargetRef): ActionReceipt {
+        return { operationId: context.operationId, status: 'rejected', value: { code, message, details, action, ...(target ? { target: targetText(target) } : {}) }, original: null, artifacts: [], requiredOperations: [] };
+    }
+    /** 拒绝时按当前 offer 集列出最多 5 个可用 target 或行动；只多算一次发现，不碰感知预算。 */
+    private async availableOffers(selection: SelectionLease<ActionRegistration>, scope: ActionScope): Promise<OfferSet> {
+        const view = await this.ctx.database.snapshot({ maxAgeMs: 30000 });
+        try {
+            const providerLease = await this.ctx.slots.acquire(offerKeySlot, { generation: 'read' });
+            try {
+                return await this.compute(selection, providerLease.items.map((item) => item.value), scope, view, this.limits(this.options.maxOffers));
+            }
+            finally {
+                await providerLease.release();
+            }
+        }
+        finally {
+            await view.close();
+        }
+    }
+    private async targetRejection(selection: SelectionLease<ActionRegistration>, entry: ActionRegistration, issue: 'unexpected' | 'missing' | 'kind', scope: ActionScope, context: ActivationContext, target?: TargetRef): Promise<ActionReceipt> {
+        const set = await this.availableOffers(selection, scope);
+        const summary = availabilitySummary(set.offers, entry.definition.name, issue === 'unexpected' ? undefined : target, 5, set.omitted);
+        const kinds = entry.definition.targets?.kinds.join(', ') ?? '';
+        const reason = issue === 'unexpected'
+            ? `该行动不接受 target（收到 ${targetText(target!)}）`
+            : issue === 'missing'
+                ? `该行动需要 target；target.kind 应为 ${kinds}`
+                : `target.kind 应为 ${kinds}，收到 ${target!.kind}`;
+        return this.rejection(context, 'ACTION_TARGET_INVALID', entry.definition.name, `${reason}。${availabilityText(summary)}`, availabilityDetails(summary), target);
     }
     /** 执行期复查：先按 action 请求判门槛与 available，再看当前 offer 是否存在。 */
     private async currentOffer(selection: SelectionLease<ActionRegistration>, providers: readonly OfferProvider[], entry: ActionRegistration, scope: ActionScope, view: Reader, name: string, input: Json, target?: TargetRef): Promise<OfferState> {
@@ -219,9 +246,9 @@ export class Actions extends Service {
         if (!entry)
             return fail('ACTION_UNAVAILABLE');
         const issue = this.targetIssue(entry.definition, target);
-        if (issue)
-            return this.rejection(context, issue, name, target);
         const scope: ActionScope = { actorId: context.actorId, momentId: context.momentId, logicalTime: context.logicalTime, query: null, ...(target ? { target } : {}) };
+        if (issue)
+            return this.targetRejection(selection, entry, issue, scope, context, target);
         let effective: Json = input;
         let authority!: ActionAuthority;
         const providerLease = await this.ctx.slots.acquire(offerKeySlot, { generation: 'read' });
@@ -236,7 +263,7 @@ export class Actions extends Service {
                 if (locked.length && input !== null && typeof input === 'object' && !Array.isArray(input)) {
                     for (const field of locked) {
                         if (Object.prototype.hasOwnProperty.call(input, field) && JSON.stringify((input as Readonly<Record<string, Json>>)[field]) !== JSON.stringify(prefill !== null && typeof prefill === 'object' && !Array.isArray(prefill) ? (prefill as Readonly<Record<string, Json>>)[field] : undefined))
-                            return this.rejection(context, 'ACTION_INPUT_LOCKED', name, target);
+                            return this.rejection(context, 'ACTION_INPUT_LOCKED', name, `锁定字段 ${field} 与预填不同`, {}, target);
                     }
                 }
                 effective = prefill !== null && typeof prefill === 'object' && !Array.isArray(prefill) && input !== null && typeof input === 'object' && !Array.isArray(input) ? { ...prefill, ...input } : input;
@@ -253,9 +280,14 @@ export class Actions extends Service {
                         const decision = await this.decide(name, effective, scope, reader, context.logicalTime, true, target);
                         return decision.findings.filter((finding) => !finding.finding.allowed).map((finding) => ({ ruleId: finding.ruleId, reason: finding.finding.reason }));
                     },
-                    alternatives: async (reader) => {
-                        const alternatives = await this.compute(selection, providers, scope, reader, this.limits(this.options.maxAlternatives + 1), { action: name });
-                        return alternatives.offers.filter((item) => offerKey(item) !== offerKey({ action: name, target })).slice(0, this.options.maxAlternatives).map((item) => ({ act: item.action, ...(item.target ? { target: targetText(item.target) } : {}), ...(item.prefill !== undefined ? { prefill: item.prefill } : {}), ...(item.needs ? { needs: item.needs } : {}) }));
+                    available: async (reader) => {
+                        const set = await this.compute(selection, providers, scope, reader, this.limits(this.options.maxOffers));
+                        const summary = availabilitySummary(set.offers, name, target, 5, set.omitted);
+                        const alternatives = set.offers
+                            .filter((item) => item.action === name && (!target || offerKey(item) !== offerKey({ action: name, target })))
+                            .slice(0, this.options.maxAlternatives)
+                            .map((item) => ({ act: item.action, ...(item.target ? { target: targetText(item.target) } : {}), ...(item.prefill !== undefined ? { prefill: item.prefill } : {}), ...(item.needs ? { needs: item.needs } : {}) }));
+                        return { ...summary, alternatives } satisfies ActionAvailability;
                     },
                 };
             }
