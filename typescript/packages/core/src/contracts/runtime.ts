@@ -227,6 +227,8 @@ export interface RunActivationSummary {
     readonly code?: string;
     /** 失败激活的触发阶段，例如 runtime.acquire。 */
     readonly stage?: string;
+    /** SLOT_REQUIRED / SLOT_PENDING / SLOT_PROVIDER_MISSING 对应的槽位 key id。 */
+    readonly slot?: string;
 }
 export interface RunActivationSummaries {
     readonly entries: readonly RunActivationSummary[];

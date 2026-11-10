@@ -145,6 +145,7 @@ export class RunController extends Service {
         const errorText = typeof activationEvidence.error === 'string' ? activationEvidence.error : '';
         const code = /[A-Z][A-Z0-9_]+/.exec(errorText)?.[0] ?? (typeof activationEvidence.code === 'string' ? activationEvidence.code : undefined);
         const stage = typeof activationEvidence.stage === 'string' ? activationEvidence.stage : undefined;
+        const slot = /SLOT_(?:REQUIRED|PENDING|PROVIDER_MISSING)\s+(\S+)/.exec(errorText)?.[1];
         return {
             actorId: typeof entry.actorId === 'string' ? entry.actorId : '',
             tick: this.tickText(logicalTime),
@@ -158,6 +159,7 @@ export class RunController extends Service {
             ...(!completed && typeof entry.momentId === 'string' ? { momentId: entry.momentId } : {}),
             ...(!completed && code ? { code } : {}),
             ...(!completed && stage ? { stage } : {}),
+            ...(!completed && slot ? { slot } : {}),
             ...(warnings.length ? { warnings } : {})
         };
     }

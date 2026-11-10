@@ -43,7 +43,7 @@ export const metadata: PluginMetadata = {
         }]
 };
 export const api: ApiEntry = {
-    "exportPath": "./topology-edges", "provides": [], "requires": [{
+    "exportPath": "./topology-edges", "provides": [], "slots": { "provides": ["society/social-topology"] }, "requires": [{
             "service": {
                 "key": "slots", "protocol": "slots", "major": 1, "capabilities": []
             }, "optional": false, "phase": "module"

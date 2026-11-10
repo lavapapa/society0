@@ -1041,6 +1041,7 @@ interface ActivationReport {
         readonly reason: string;
         readonly code?: string;
         readonly stage?: string;
+        readonly slot?: string;
     }[];
 }
 
@@ -1071,7 +1072,8 @@ function activationReport(result: Record<string, unknown>): ActivationReport {
             ...(typeof entry.momentId === 'string' ? { momentId: entry.momentId } : {}),
             reason,
             ...(typeof entry.code === 'string' ? { code: entry.code } : {}),
-            ...(typeof entry.stage === 'string' ? { stage: entry.stage } : {})
+            ...(typeof entry.stage === 'string' ? { stage: entry.stage } : {}),
+            ...(typeof entry.slot === 'string' ? { slot: entry.slot } : {})
         });
     }
     return { total: entries.length, completed, failed: entries.length - completed, byReason, failures };
