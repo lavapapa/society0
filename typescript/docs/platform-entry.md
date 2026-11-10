@@ -295,6 +295,38 @@ export const migrations = [{
 
 platform 按同一约定收集所有活动入口的 `migrations` 导出，包括内置的 core/social 插件；不再维护额外的内置 migration 名单。复制安装到实验 `node_modules` 的包和以 symlink 安装的包都按 run 加载插件时的同一解析结果读取。没有 `migrations` 导出的插件会被跳过。同一个 `owner+from+to` 只收一次；内容不同的同名 migration 会报 `kind: 'migration'` 冲突。`check` 的 JSON 输出里 `migrations` 列出实际收到的 owner。
 
+## 插件 sidecar 随附声明
+
+sidecar 的 `plugin.meta.json` 中，每个 entry 的 `metadata` 可以带两个随附声明。它们只描述装配意图，不参与 Next 的插件生命周期：Next 内核不读取这两个字段，平台 compose（C 实现）按通用规则读取；compose 之外的工具（例如匹配工具）也可以读取同样的字段。平台不维护插件名清单，只按字段内容执行规则。
+
+### metadata.companions
+
+`string[]`，每项是插件名。装了本插件，就一并装上列出的插件；每个插件仍按自己声明的 `scope` 放置，因此不会出现生命周期倒置或依赖环。它适合 leaf 插件：自身没有任何服务依赖方，但又必须和主插件同在。
+
+### metadata.suggests
+
+形如 `{ plugin: string; when: "multi-location"; hint: string }[]`。这些插件不会自动安装；当 compose 或蓝图校验发现条件成立、而该插件尚未安装时，给出 `hint`。`when` 目前只支持 `multi-location`（世界有多个 location），不做通用表达式；以后增加取值时要同步修改本文档。
+
+### 示例（仅示例）
+
+下面的 `example-production` / `example-market` 只用于说明字段形状，不在本仓库内。
+
+`example-production` 的 entry：
+
+```json
+{"entries": [{"exportPath": ".", "metadata": {"companions": ["example-production-actions"]}}]}
+```
+
+`example-market` 的 entry：
+
+```json
+{"entries": [{"exportPath": ".", "metadata": {"suggests": [{"plugin": "econ-logistics", "when": "multi-location", "hint": "世界有多个 location 而未装 econ-logistics，跨地点成交将被拒绝"}]}}]}
+```
+
+### 为什么不用 requires
+
+`requires` 只能写服务键，而且是静态依赖，表达不了「装我时顺带装谁」。把生产动作插件写成生产插件的 `requires`，会在服务图上形成生产与生产动作之间的静态环，宿主报 `LIFETIME_INVERSION` 或 `DEPENDENCY_CYCLE`。随附声明由 compose 在服务依赖图之外处理，不要为了同装关系去改 `requires`。
+
 ## world 与 actors
 
 `--world` 的 `actors` 段是 Core `actors.seed` 的唯一输入，每个记录为 `{id, attributes, source}`。本单采用做法 A（D6 §2）：`s0_actors` 只由 `actors.seed` 在根创建事务里写一次；`social-init` 的 `social.seed` 声明 `after: ["actors.seed"]`，`social-repository.addMember` 只写 `social_members`，actor 不存在时报 `ACTOR_MISSING`。profile 里 `@society0/core/actors` 需要显式开启：
