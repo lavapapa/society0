@@ -73,8 +73,8 @@ export class LlmActivation {
  private async recoveryMarker(){
   const recovery=this.context.recovery;if(!recovery)return;
   const text=`上一次尝试因上游错误中断（operationId: ${recovery.baseOperationId}，第 ${recovery.attempt} 次自动恢复）。中断前的帧保留在线程中，本次重跑的内容完整追加在后面。`;
-  const native={role:'system',content:text,timestamp:Date.now()} as unknown as Json;
-  const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/interrupt','system',native,{activationId:this.context.operationId,recovery:{attempt:recovery.attempt,baseOperationId:recovery.baseOperationId}}));
+  const native={role:'user',content:text,timestamp:Date.now()} as unknown as Json;
+  const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/interrupt','user',native,{activationId:this.context.operationId,recovery:{attempt:recovery.attempt,baseOperationId:recovery.baseOperationId}}));
   await this.transaction('interrupt',tx=>this.step('thread_error','thread.append',()=>this.ctx.threads.append(tx,this.thread.id,message)));
  }
  private async readValue(value:StoredValue){

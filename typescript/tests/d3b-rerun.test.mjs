@@ -107,7 +107,7 @@ test('D3b rerun appends a marker and keeps aborted frames alongside the new cont
     assert.ok(text.includes('上一次尝试因上游错误中断'), 'interrupt marker missing');
     assert.ok(text.includes('good-new'), 'new tool call missing');
     assert.ok(text.includes('done'), 'new completion text missing');
-    const markers = rows.filter(row => String(row.role) === 'system' && String(row.payload).includes('上一次尝试因上游错误中断'));
+    const markers = rows.filter(row => String(row.role) === 'user' && String(row.payload).includes('上一次尝试因上游错误中断'));
     assert.equal(markers.length, 1);
     assert.deepEqual(facts.posts.map(post => post.id), ['post-a', 'post-new']);
   } finally { await f.host.close(); }
@@ -161,6 +161,35 @@ test('D3b rerun reports an input mismatch while still replaying the committed re
     assert.ok(text.includes('重放'), 'replay marker missing');
     assert.ok(text.includes('replayed'), 'replayed flag not visible: ' + text.slice(-2000));
     assert.ok(text.includes('inputMismatch'), 'inputMismatch flag not visible');
+  } finally { await f.host.close(); }
+});
+
+test('D3-P3B autoRecover off writes no interrupt marker', async () => {
+  const same = () => toolCall('publish-b', {id: 'post-b', content: 'post b'});
+  const {f, result} = await scenario({
+    enabled: false,
+    script: (operationId, attempt) => operationId.includes('tick-1/b') ? (attempt === 0 ? failedB(same) : retriedB(same)) : aPost(),
+  });
+  try {
+    assert.equal(result.status, 'paused');
+    const facts = await table(f);
+    const markers = facts.thread.filter(row => String(row.payload).includes('上一次尝试因上游错误中断'));
+    assert.equal(markers.length, 0, JSON.stringify(facts.thread.map(row => [row.role, row.message_id])));
+  } finally { await f.host.close(); }
+});
+
+test('D3-P3B autoRecover on writes the interrupt marker with role user', async () => {
+  const same = () => toolCall('publish-b', {id: 'post-b', content: 'post b'});
+  const {f, result} = await scenario({
+    enabled: true,
+    script: (operationId, attempt) => operationId.includes('tick-1/b') ? (attempt === 0 ? failedB(same) : retriedB(same)) : aPost(),
+  });
+  try {
+    assert.equal(result.status, 'completed', JSON.stringify(result));
+    const facts = await table(f);
+    const markers = facts.thread.filter(row => String(row.payload).includes('上一次尝试因上游错误中断'));
+    assert.equal(markers.length, 1, JSON.stringify(facts.thread.map(row => [row.role, row.message_id])));
+    assert.equal(String(markers[0].role), 'user', JSON.stringify({...markers[0], seq: String(markers[0].seq)}));
   } finally { await f.host.close(); }
 });
 
