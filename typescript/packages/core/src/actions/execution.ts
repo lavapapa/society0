@@ -10,6 +10,7 @@ import type { SqliteReadView, SqliteTransaction, TransactionRequest } from '../s
 import { targetText, canonicalJson } from '../contracts/affordance.js';
 import { fail, bytes } from '../information/page.js';
 import { prepareValue, attachValue, readValue } from '../results/payload.js';
+import { isActionRejection, type ActionRejectionError } from './rejection.js';
 import '../attempts/index.js';
 import '../artifacts-local/index.js';
 
@@ -100,6 +101,23 @@ export class ActionCall {
             original: null,
             artifacts: [],
             requiredOperations: [],
+        };
+    }
+    /** execute 显式声明的领域拒绝：保留 code/message/details，形状与 rejectedReceipt 一致。 */
+    private actionRejectionReceipt(error: ActionRejectionError): ActionReceipt {
+        return {
+            operationId: this.activation.operationId,
+            status: 'rejected',
+            value: {
+                code: error.code,
+                message: error.message,
+                ...(error.details === undefined ? {} : { details: error.details }),
+                action: this.entry.definition.name,
+                ...(this.authority.target ? { target: targetText(this.authority.target) } : {}),
+            },
+            original: null,
+            artifacts: [],
+            requiredOperations: [...this.committed],
         };
     }
     private async rejection(reader: Reader): Promise<ActionReceipt> {
@@ -276,6 +294,16 @@ export class ActionCall {
             return receipt;
         }
         catch (error) {
+            if (isActionRejection(error)) {
+                const receipt = this.actionRejectionReceipt(error);
+                try {
+                    await this.returned(receipt);
+                    return receipt;
+                }
+                catch (persistence) {
+                    return this.rejected(persistence);
+                }
+            }
             return this.rejected(error);
         }
     }
