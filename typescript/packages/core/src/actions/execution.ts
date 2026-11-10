@@ -14,6 +14,26 @@ import { isActionRejection, type ActionRejectionError } from './rejection.js';
 import '../attempts/index.js';
 import '../artifacts-local/index.js';
 
+/**
+ * 行动事务的框架语句独立计数：execution.ts 在插件 body 之前/之后执行 qualify（authority.state）、
+ * assertUncommitted、attachValue 与 action_receipts 回执写入，这些语句记在框架计数里，不占插件在
+ * TransactionRequest.maxStatements 声明的额度。实测标准 provider 形状（每个 provider 一条
+ * versions 查询 + 一条 offers 查询）下框架语句 = 4 + 2 × provider 数：
+ * 0 个 provider 为 4 条（当前 offer 资格、ambient 门槛、uncommitted 查询、回执 INSERT 各 1），
+ * 6 个为 16 条，12 个为 28 条；D26 最小世界实测 14 条。下面两个常量与公式只用于守住实测形状，
+ * 不参与额度计算。
+ */
+export const ACTION_FRAMEWORK_FIXED_STATEMENTS = 4;
+export const ACTION_FRAMEWORK_STATEMENTS_PER_PROVIDER = 2;
+export function actionFrameworkStatements(providers: number): number {
+    return ACTION_FRAMEWORK_FIXED_STATEMENTS + ACTION_FRAMEWORK_STATEMENTS_PER_PROVIDER * providers;
+}
+/**
+ * 框架计数的宽松上限，只防失控，不约束插件 body。实测最大 28 条（12 个 provider），
+ * 4096 条相当于 2000 个 provider 的实测斜率，远高于实际世界（run 32 为 6 个 provider）。
+ */
+export const ACTION_FRAMEWORK_STATEMENTS_CEILING = 4096;
+
 export interface ActionRegistration {
     definition: ActionDefinition;
     registrationId: string;
@@ -240,7 +260,7 @@ export class ActionCall {
     private async assertUncommitted(reader: Reader) { const receipts = await reader.query({ sql: 'SELECT operation_id FROM action_receipts WHERE invocation_id=?', parameters: [this.activation.operationId] }, { maxRows: 1000, maxBytes: 65536 }); if (receipts.some(row => !this.committed.has(String(row.operation_id))))
         return fail('ACTION_ALREADY_COMMITTED'); }
     private async transaction<T>(input: StoredValue, request: TransactionRequest, body: (tx: SqliteTransaction) => Promise<T>) { this.activation.signal.throwIfAborted(); if (this.entry.definition.effect === 'read')
-        return fail('ACTION_READ_ONLY'); const result = await this.activation.database.transaction(this.activation.writeLease, request, async (tx) => { this.activation.signal.throwIfAborted(); await this.qualify(tx); await this.assertUncommitted(tx); const value = await body(tx); this.activation.signal.throwIfAborted(); await this.receipt(tx, input, request, value); return value; }); this.committed.add(result.receipt.operationId); this.revision = result.receipt.revision; return result; }
+        return fail('ACTION_READ_ONLY'); const framed: TransactionRequest = { ...request, maxFrameworkStatements: ACTION_FRAMEWORK_STATEMENTS_CEILING }; const result = await this.activation.database.transaction(this.activation.writeLease, framed, async (tx) => { this.activation.signal.throwIfAborted(); const framework: SqliteTransaction = { ...tx, query: (statement, bounds) => tx.query(statement, bounds, { framework: true }), execute: (statement) => tx.execute(statement, { framework: true }), executeMany: (sql, parameters, bounds) => tx.executeMany(sql, parameters, bounds, { framework: true }) }; await this.qualify(framework); await this.assertUncommitted(framework); const value = await body(tx); this.activation.signal.throwIfAborted(); await this.receipt(framework, input, request, value); return value; }); this.committed.add(result.receipt.operationId); this.revision = result.receipt.revision; return result; }
     private async receipt(tx: SqliteTransaction, input: StoredValue, request: TransactionRequest, result: unknown) {
         const value=result??null;
         const encoded=JSON.stringify(value,(_key,value)=>typeof value==='bigint'?value.toString():value);

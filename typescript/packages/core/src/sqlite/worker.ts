@@ -22,14 +22,14 @@ if(!probeOnly&&String(db.query('SELECT run_id FROM s0_identity WHERE id=1',[],{m
 const revision=()=>String(db.query('SELECT revision FROM s0_identity WHERE id=1',[],{maxRows:1,maxBytes:256})[0]!.revision);
 const schema=()=>readSchemaVersions(db);
 const counters={commits:0,fsyncs:0};
-let active:{id:string;request:TransactionRequest;statements:number;input:number;changed:bigint;baseline:bigint;failed:boolean;timer:ReturnType<typeof setTimeout>}|undefined;
+let active:{id:string;request:TransactionRequest;statements:number;framework:number;input:number;changed:bigint;baseline:bigint;failed:boolean;timer:ReturnType<typeof setTimeout>}|undefined;
 const snapshots=new Map<string,{db:SqliteConnection;timer:ReturnType<typeof setTimeout>}>();
 let tables:string[]|undefined;let schemaEnumerations=0;
 function rollback(){if(!active)return;clearTimeout(active.timer);try{db.rollback()}finally{active=undefined}}
 function tx(args:any){if(!active||args.tx!==active.id)throw fault('SQLITE_TX_EXPIRED');if(active.failed)throw fault('SQLITE_TX_FAILED');if(Atomics.load(control,0))throw fault('SQLITE_CANCELLED');return active}
 const changes=()=>BigInt(String(db.query('SELECT total_changes() AS n',[],{maxRows:1,maxBytes:256})[0]!.n));
 function changed(state:NonNullable<typeof active>){state.changed=changes()-state.baseline;if(state.changed>BigInt(state.request.maxChangedRows))throw fault('SQLITE_CHANGED_ROWS',`${state.changed} > maxChangedRows ${state.request.maxChangedRows}`)}
-function statement(args:any,count=1){const state=tx(args);state.statements+=count;state.input+=inputBytes(args.statement??{sql:args.sql,parameters:args.parameters});if(state.statements>state.request.maxStatements)throw fault('SQLITE_TX_BUDGET',`maxStatements ${state.statements} > ${state.request.maxStatements}`);if(state.input>state.request.maxInputBytes)throw fault('SQLITE_TX_BUDGET',`maxInputBytes ${state.input} > ${state.request.maxInputBytes}`);return state}
+function statement(args:any,count=1){const state=tx(args);const framework=args.framework===true;if(framework){state.framework+=count;const limit=state.request.maxFrameworkStatements??0;if(state.framework>limit)throw fault('SQLITE_TX_BUDGET',`maxFrameworkStatements ${state.framework} > ${limit}`)}else{state.statements+=count;if(state.statements>state.request.maxStatements)throw fault('SQLITE_TX_BUDGET',`maxStatements ${state.statements} > ${state.request.maxStatements}`)}state.input+=inputBytes(args.statement??{sql:args.sql,parameters:args.parameters});if(state.input>state.request.maxInputBytes)throw fault('SQLITE_TX_BUDGET',`maxInputBytes ${state.input} > ${state.request.maxInputBytes}`);return state}
 function bounds(value:any){if(!Number.isSafeInteger(value.maxRows)||value.maxRows<1||value.maxRows>options.maxQueryRows||!Number.isSafeInteger(value.maxBytes)||value.maxBytes<1||value.maxBytes>options.maxQueryBytes)throw fault('SQLITE_QUERY_BUDGET');return value}
 function reader(id:string){const snapshot=snapshots.get(id);if(!snapshot)throw fault('SQLITE_SNAPSHOT_EXPIRED');return snapshot.db}
 function closeSnapshot(id:string){const snapshot=snapshots.get(id);if(!snapshot)return;clearTimeout(snapshot.timer);snapshot.db.close();snapshots.delete(id)}
@@ -44,7 +44,7 @@ function begin(args:any){
  const baseRevision=revision();if(args.request.expectedRevision!==undefined&&args.request.expectedRevision!==baseRevision)throw fault('SQLITE_STALE_REVISION');
  if(!tables){schemaEnumerations++;const rows=db.query("SELECT name,sql FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",[],{maxRows:10000,maxBytes:4194304});const fts=rows.filter(r=>/^CREATE\s+VIRTUAL\s+TABLE\s+.+\s+USING\s+fts5/i.test(String(r.sql??''))).map(r=>String(r.name));const shadows=new Set(fts.flatMap(base=>['_data','_idx','_content','_docsize','_config'].map(suffix=>base+suffix)));tables=rows.filter(r=>{const name=String(r.name);return !fts.includes(name)&&!shadows.has(name)}).map(r=>String(r.name))}
  db.startSession(tables);
- try{db.begin({maxDurationMs:args.request.maxDurationMs,maxCapturedBytes:args.request.maxCapturedBytes});active={id:args.tx,request:args.request,statements:0,input:0,changed:0n,baseline:changes(),failed:false,timer:setTimeout(()=>rollback(),args.request.maxDurationMs)}}
+ try{db.begin({maxDurationMs:args.request.maxDurationMs,maxCapturedBytes:args.request.maxCapturedBytes});active={id:args.tx,request:args.request,statements:0,framework:0,input:0,changed:0n,baseline:changes(),failed:false,timer:setTimeout(()=>rollback(),args.request.maxDurationMs)}}
  catch(error){if(db.state().transaction)db.rollback();else db.retireSession();throw error}
  return {baseRevision};
 }

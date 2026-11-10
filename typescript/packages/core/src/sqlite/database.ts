@@ -65,6 +65,7 @@ export class Database {
  async applyMigrations(migrations:readonly SqliteMigration[]):Promise<readonly SqliteSchemaVersion[]>{this.available();if(this.transactions.size)throw fault('SQLITE_BUSY');try{return await this.readCall('migrate',{migrations})}catch(error){this.halted=true;this.fence.halt('SCHEMA_FAILED');throw error}}
   private transactionRequest(request:TransactionRequest):void{
    for(const key of ['maxDurationMs','maxStatements','maxInputBytes','maxChangedRows','maxCapturedBytes'] as const)positive(request[key],key);
+   if(request.maxFrameworkStatements!==undefined)positive(request.maxFrameworkStatements,'maxFrameworkStatements');
    if(request.maxDurationMs>this.options.maxTransactionMs||request.maxInputBytes>this.options.maxInputBytes)throw fault('SQLITE_TX_BUDGET');
    if(typeof request.operationId!=='string'||!request.operationId||this.inflight.has(request.operationId))throw fault('OPERATION_EXISTS');
   }
@@ -135,7 +136,7 @@ export class Database {
   try{
    stage.begun=true;const start=await this.rpc.call('begin',{tx:id,request},signal);begun=true;
    tx=Object.freeze({id,operationId:request.operationId,runId:this.runId,baseRevision:start.baseRevision,
-    execute:(statement:any)=>call('execute',{statement}),query:(statement:any,bounds:any)=>call('query',{statement,bounds}),executeMany:(sql:string,parameters:any,bounds:any)=>call('many',{sql,parameters,bounds})});
+    execute:(statement:any,options?:any)=>call('execute',{statement,...(options?.framework?{framework:true}:{})}),query:(statement:any,bounds:any,options?:any)=>call('query',{statement,bounds,...(options?.framework?{framework:true}:{})}),executeMany:(sql:string,parameters:any,bounds:any,options?:any)=>call('many',{sql,parameters,bounds,...(options?.framework?{framework:true}:{})})});
    this.transactionIds.set(tx,id);this.txCalls.set(tx,call);
    callback=inTransaction.run(this,()=>Promise.resolve().then(()=>body(tx!)));void callback.catch(()=>{});
    const value=await Promise.race([callback,expired.promise]);
