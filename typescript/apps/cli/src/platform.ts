@@ -1035,6 +1035,8 @@ interface ActivationReport {
     readonly completed: number;
     readonly failed: number;
     readonly byReason: Readonly<Record<string, number>>;
+    /** 预算耗尽时先用完的额度计数：requests / toolCalls / turns。 */
+    readonly limits: Readonly<Record<string, number>>;
     readonly failures: readonly {
         readonly actorId: string;
         readonly momentId?: string;
@@ -1042,6 +1044,7 @@ interface ActivationReport {
         readonly code?: string;
         readonly stage?: string;
         readonly slot?: string;
+        readonly limit?: string;
     }[];
 }
 
@@ -1056,11 +1059,15 @@ function activationReport(result: Record<string, unknown>): ActivationReport {
         ? summary.entries.filter(item => item && typeof item === 'object' && !Array.isArray(item)) as Record<string, unknown>[]
         : [];
     const byReason: Record<string, number> = {};
+    const limits: Record<string, number> = {};
     const failures: ActivationReport['failures'][number][] = [];
     let completed = 0;
     for (const entry of entries) {
         const reason = typeof entry.reason === 'string' ? entry.reason : 'unknown';
         byReason[reason] = (byReason[reason] ?? 0) + 1;
+        const limit = typeof entry.limit === 'string' ? entry.limit : undefined;
+        if (limit)
+            limits[limit] = (limits[limit] ?? 0) + 1;
         if (entry.requiredSatisfied === true) {
             completed++;
             continue;
@@ -1073,10 +1080,11 @@ function activationReport(result: Record<string, unknown>): ActivationReport {
             reason,
             ...(typeof entry.code === 'string' ? { code: entry.code } : {}),
             ...(typeof entry.stage === 'string' ? { stage: entry.stage } : {}),
-            ...(typeof entry.slot === 'string' ? { slot: entry.slot } : {})
+            ...(typeof entry.slot === 'string' ? { slot: entry.slot } : {}),
+            ...(limit ? { limit } : {})
         });
     }
-    return { total: entries.length, completed, failed: entries.length - completed, byReason, failures };
+    return { total: entries.length, completed, failed: entries.length - completed, byReason, limits, failures };
 }
 
 export async function runResult(dir: string): Promise<Record<string, unknown>> {

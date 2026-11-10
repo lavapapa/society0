@@ -141,6 +141,7 @@ export class RunController extends Service {
         const reason = typeof value.reason === 'string' ? value.reason : typeof activationEvidence.reason === 'string' ? activationEvidence.reason : String(entry.status ?? 'incomplete');
         const count = (name: string) => typeof value[name] === 'number' ? value[name] as number : typeof activationEvidence[name] === 'number' ? activationEvidence[name] as number : 0;
         const warnings = Array.isArray(value.warnings) ? value.warnings.filter(item => typeof item === 'string') : [];
+        const limit = typeof value.limit === 'string' ? value.limit : typeof activationEvidence.limit === 'string' ? activationEvidence.limit : undefined;
         const completed = entry.status === 'completed' || (value.requiredSatisfied === true && (reason === 'success' || reason === 'completed'));
         const errorText = typeof activationEvidence.error === 'string' ? activationEvidence.error : '';
         const code = /[A-Z][A-Z0-9_]+/.exec(errorText)?.[0] ?? (typeof activationEvidence.code === 'string' ? activationEvidence.code : undefined);
@@ -156,6 +157,7 @@ export class RunController extends Service {
             actRecoverable: count('actRecoverable'),
             actFailed: count('actFailed'),
             requiredSatisfied: typeof value.requiredSatisfied === 'boolean' ? value.requiredSatisfied : entry.status === 'completed',
+            ...(limit ? { limit: limit as 'requests' | 'toolCalls' | 'turns' } : {}),
             ...(!completed && typeof entry.momentId === 'string' ? { momentId: entry.momentId } : {}),
             ...(!completed && code ? { code } : {}),
             ...(!completed && stage ? { stage } : {}),
