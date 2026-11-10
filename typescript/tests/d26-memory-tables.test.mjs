@@ -50,6 +50,56 @@ test('D26 one and many experiences fit the per-experience statement budget', asy
     }
 });
 
+test('D26 memory.write action transaction stays inside the 16 statement budget', async () => {
+    const f = await setup();
+    try {
+        await f.ctx.plugin(Memory);
+        f.ctx.actions.provide({
+            id: 'd26-budget',
+            actions: ['memory.write'],
+            async versions(_query, view) {
+                for (let index = 0; index < 4; index++)
+                    await view.query({ sql: 'SELECT 1 AS n' }, { maxRows: 1, maxBytes: 64 });
+                return [{ owner: 'd26-budget', version: '1' }];
+            },
+            async offers(_query, view) {
+                for (let index = 0; index < 6; index++)
+                    await view.query({ sql: 'SELECT 1 AS n' }, { maxRows: 1, maxBytes: 64 });
+                return [];
+            }
+        });
+        const original = f.ctx.database.transaction.bind(f.ctx.database);
+        let statements = 0;
+        f.ctx.database.transaction = (lease, request, body) => original(lease, request, tx => {
+            const wrapped = {
+                id: tx.id, operationId: tx.operationId, runId: tx.runId, baseRevision: tx.baseRevision,
+                execute: (...args) => { statements++; return tx.execute(...args); },
+                query: (...args) => { statements++; return tx.query(...args); },
+                executeMany: (...args) => { statements++; return tx.executeMany(...args); }
+            };
+            return body(wrapped);
+        });
+        const reservation = await f.ctx.executionFence.reserve({ id: 'd26-action-budget' });
+        try {
+            const context = {
+                ctx: f.ctx, runId: f.runId, generation: 'g', operationId: 'd26-action-budget',
+                signal: new AbortController().signal, actorId: 'a', momentId: 'm', logicalTime: 0,
+                database: f.ctx.database, writeLease: reservation.lease
+            };
+            const receipt = await f.ctx.actions.execute('memory.write', { threadId: f.threadId, body: { id: 'action-budget' } }, context);
+            assert.equal(receipt.status, 'completed');
+            assert.ok(statements <= 16, `memory.write transaction used ${statements} statements`);
+            assert.equal(statements, 15, `memory.write transaction baseline moved to ${statements}`);
+        }
+        finally {
+            await reservation.release();
+        }
+    }
+    finally {
+        await f.close();
+    }
+});
+
 test('D26 recall returns experiences after the memory tables exist', async () => {
     const f = await setup();
     try {

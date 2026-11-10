@@ -10,3 +10,4 @@ CREATE TABLE social_semantic_progress(run_id TEXT NOT NULL,generation TEXT NOT N
         }]
 };
 export const semanticMigrations = [semanticMigration] as const;
+export const migrations = semanticMigrations;
