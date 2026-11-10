@@ -89,13 +89,45 @@ function expectedSummary(schema: Json): string {
     });
     return limitBytes(fields.join('; '), 1024);
 }
+/** fieldHints 的字节上限：回执总大小仍受 actor-tools 的 maxReceiptBytes 约束，示例永远保留。 */
+export const INPUT_HELP_FIELD_HINTS_BYTES = 2048;
+/** 输入里出现的误写键 → “你写了 X，应为 Y”提示；按输入键序生成。 */
+export function inputFieldHints(input: Json, aliases: Readonly<Record<string, readonly string[]>> | undefined): string[] {
+    if (!aliases || input === null || typeof input !== 'object' || Array.isArray(input))
+        return [];
+    const hints: string[] = [];
+    let bytes = 0;
+    for (const key of Object.keys(input)) {
+        const target = aliases[key];
+        if (!target?.length)
+            continue;
+        const hint = `你写了 ${key}，应为 ${target.join('、')}`;
+        const size = Buffer.byteLength(hint) + 1;
+        if (bytes + size > INPUT_HELP_FIELD_HINTS_BYTES)
+            break;
+        bytes += size;
+        hints.push(hint);
+    }
+    return hints;
+}
 /** 输入校验失败是业务拒绝：回执带字段路径、错误计数和 input schema 摘要，不 claim attempt。 */
 export function validateInput(entry: ActionRegistration, input: Json, operationId: string): ActionReceipt | undefined {
     if (entry.input(input))
         return undefined;
     const all = entry.input.errors ?? [];
     const errors = all.slice(0, 5).map((error) => ({ path: typeof error.instancePath === 'string' ? error.instancePath : '', message: String(error.message ?? '') }));
-    return { operationId, status: 'rejected', value: { code: 'ACTION_INPUT', errors, errorCount: all.length, expected: expectedSummary(entry.definition.inputSchema) }, original: null, artifacts: [], requiredOperations: [] };
+    const help = entry.definition.inputHelp;
+    const value = {
+        code: 'ACTION_INPUT', errors, errorCount: all.length, expected: expectedSummary(entry.definition.inputSchema),
+        ...(help ? {
+            action: entry.definition.name,
+            example: help.example,
+            exampleText: canonicalJson(help.example),
+            fieldHints: inputFieldHints(input, help.fieldAliases),
+            message: `输入不符合 ${entry.definition.name} 的 input schema；请按 example 与 fieldHints 改正后重试。`,
+        } : {}),
+    };
+    return { operationId, status: 'rejected', value, original: null, artifacts: [], requiredOperations: [] };
 }
 export class ActionExecutionFailure extends Error {
     readonly code: string;

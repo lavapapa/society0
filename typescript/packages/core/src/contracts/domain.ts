@@ -38,12 +38,21 @@ export interface ActionExecutionContext extends ActivationContext {
         readonly receipt: CommitReceipt;
     }>;
 }
+/** 行动输入被 schema 拒绝时的声明式帮助；由行动定义自带，Core 不猜示例。 */
+export interface ActionInputHelp {
+    /** 该行动的最小合法输入，必须能通过自身 inputSchema。 */
+    readonly example: Json;
+    /** 常见误写字段名 → 应写的字段路径列表，例如 parties → seller/buyer。 */
+    readonly fieldAliases?: Readonly<Record<string, readonly string[]>>;
+}
 export interface ActionDefinition {
     readonly name: string;
     /** 给模型看的一句话说明，计入 schema 摘要。 */
     readonly description?: string;
     readonly inputSchema: Json;
     readonly outputSchema: Json;
+    /** 可选：ACTION_INPUT 回执附带的合法示例与字段别名对照。 */
+    readonly inputHelp?: ActionInputHelp;
     readonly effect: 'world' | 'workspace' | 'external' | 'read';
     /** offer：参与可供性（默认）；tool：固定工具的执行后端，不进入 offer；internal：只供插件或规则调用。 */
     readonly exposure?: ActionExposure;
