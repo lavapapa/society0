@@ -103,8 +103,7 @@ function apply(ctx: Context, options: ReturnType<typeof Config>) { ctx.slots.inj
                 const produce: DeferredProduce = {
                     output: { count: values.length },
                     async write(tx) {
-                        for (const value of values)
-                            await repository!.append(tx, value);
+                        await repository!.appendMany(tx, values);
                     }
                 };
                 return produce;

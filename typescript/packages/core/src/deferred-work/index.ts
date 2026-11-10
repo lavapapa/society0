@@ -16,6 +16,7 @@ import '../sqlite/index.js';
 import '../execution-fence/index.js';
 import '@society0/host/tasks';
 export { deferredJobId, deferredWorkMigration } from '../contracts/deferred-work.js';
+export const migrations = (source: Readonly<Record<string, unknown>>) => [deferredWorkMigration(source)];
 export type { DeferredContext, DeferredHandler, DeferredJob, DeferredJobRecord, DeferredProduce, DeferredRunResult, DeferredWork } from '../contracts/deferred-work.js';
 
 export const Config = Schema.object({
