@@ -1,6 +1,8 @@
-import importlib.util,sys,time,json,statistics
+import importlib.util,sys,time,json,statistics,os
 from pathlib import Path
-base=Path('/path/to/runtime-observation-real-tests-20260929')
+observation=os.environ.get('SOCIETY0_OBSERVATION_ROOT')
+if not observation:print('SOCIETY0_OBSERVATION_ROOT must point to the observation workspace',file=sys.stderr);sys.exit(2)
+base=Path(observation)
 spec=importlib.util.spec_from_file_location('society0._direct_observation',base/'observation-direct.py');m=importlib.util.module_from_spec(spec);sys.modules[spec.name]=m;spec.loader.exec_module(m)
 rs=importlib.util.spec_from_file_location('society0._session_records',base/'checkpoint-records-session.py');rm=importlib.util.module_from_spec(rs);rs.loader.exec_module(rm)
 from society0 import checkpoint_records

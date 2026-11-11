@@ -1,6 +1,6 @@
-# 平台入口（D7）
+# 平台入口
 
-平台（Society0 工作台）不 import Next 的内部模块，只通过 `society0` CLI 的带版本 JSON 交互。CLI 每次调用都是独立进程；状态和结果都落在 run 目录里，因此平台重启或 CLI 冷启动不影响已有 run。
+平台不 import Next 的内部模块，只通过 `society0` CLI 的带版本 JSON 交互。CLI 每次调用都是独立进程；状态和结果都落在 run 目录里，因此平台重启或 CLI 冷启动不影响已有 run。
 
 约定：
 
@@ -239,7 +239,7 @@ throw actionRejection('ECON_BUDGET_INVALID', '资金不足，无法支付本次�
 - 未带 `rejection:true` 的抛错（插件执行异常、schema 输出不符等）；输出不符仍报 `ACTION_OUTPUT`。
 - 持久化、传输、平台错误，以及基础设施错误码（`TOOL_*`、`INFERENCE_*`、`ATTEMPT_*`、`SQLITE_*` 等现有集合）。即使 `actionRejection` 带了这些码，也不按领域拒绝结算。
 - 平台不可用类回执（`ACTION_UNAVAILABLE`）不走领域拒绝计数，仍按原有未知回执处理。
-- `requiredActions` 非空且未满足：按 D20 的规则返回 `required_action_failed`，run 不会推进到新的完整点。
+- `requiredActions` 非空且未满足：按既定规则返回 `required_action_failed`，run 不会推进到新的完整点。
 
 未完成时返回 `RUN_NOT_COMPLETED`，已完成但文件丢失时返回 `RESULT_MISSING`。
 
@@ -320,7 +320,7 @@ sidecar 的 `plugin.meta.json` 中，每个 entry 的 `metadata` 可以带两个
 `example-market` 的 entry：
 
 ```json
-{"entries": [{"exportPath": ".", "metadata": {"suggests": [{"plugin": "econ-logistics", "when": "multi-location", "hint": "世界有多个 location 而未装 econ-logistics，跨地点成交将被拒绝"}]}}]}
+{"entries": [{"exportPath": ".", "metadata": {"suggests": [{"plugin": "example-logistics", "when": "multi-location", "hint": "世界有多个 location 而未装 example-logistics，跨地点交付将被拒绝"}]}}]}
 ```
 
 ### 为什么不用 requires
@@ -329,13 +329,13 @@ sidecar 的 `plugin.meta.json` 中，每个 entry 的 `metadata` 可以带两个
 
 ## world 与 actors
 
-`--world` 的 `actors` 段是 Core `actors.seed` 的唯一输入，每个记录为 `{id, attributes, source}`。本单采用做法 A（D6 §2）：`s0_actors` 只由 `actors.seed` 在根创建事务里写一次；`social-init` 的 `social.seed` 声明 `after: ["actors.seed"]`，`social-repository.addMember` 只写 `social_members`，actor 不存在时报 `ACTOR_MISSING`。profile 里 `@society0/core/actors` 需要显式开启：
+`--world` 的 `actors` 段是 Core `actors.seed` 的唯一输入，每个记录为 `{id, attributes, source}`。采用做法 A：`s0_actors` 只由 `actors.seed` 在根创建事务里写一次；`social-init` 的 `social.seed` 声明 `after: ["actors.seed"]`，`social-repository.addMember` 只写 `social_members`，actor 不存在时报 `ACTOR_MISSING`。profile 里 `@society0/core/actors` 需要显式开启：
 
 ```json
 {"id": "actors", "name": "@society0/core/actors", "config": {"seed": true}}
 ```
 
-旧的 `plain-init` 仍可用 `initialActors` 自建 actor，但同一个 profile 里不要同时开启 `actors.seed` 与 `plain-init`，否则 `check` 会报 `kind: "actor"`。经济侧（私有包）的迁移不在本单范围内。
+旧的 `plain-init` 仍可用 `initialActors` 自建 actor，但同一个 profile 里不要同时开启 `actors.seed` 与 `plain-init`，否则 `check` 会报 `kind: "actor"`。其他领域插件的迁移不在本文范围内。
 
 ### 必需 initializer 的推导
 
@@ -379,6 +379,6 @@ sidecar 的 `plugin.meta.json` 中，每个 entry 的 `metadata` 可以带两个
 1. 缺 driver 槽位、缺服务、缺 migration、未知插件、非法配置、未注册凭据名的 `missing` 条目与 `hint`；完整 profile 返回 `ok=true` 且不创建 run 目录。
 2. fake-provider 之外的 `rule-sqlite` 2 tick：detach → status 轮询到 `completed` → 读 result；以及发布完整点后 SIGTERM，status 为 `paused`/`failed`，`resume` 从 frontier 完成后 `completedTicks=200`。
 3. check 输出的快照（`tests/d5-snapshots/check-rule-sqlite.json`）与 status/error 的字段集合。
-4. social replay profile 的 `--ticks 2` 在完整点结束（D7-1）；check 的 0/2/1 退出码与 actor 规则（D7-2、D7-5）。
-5. `--credentials-env` 不把 key 写进 run 目录或日志（D7-3）；实验目录本地插件的 lock/check/run（D7-4）。
-6. `actors.seed` 写入 `s0_actors`、缺 `source` 报 `ACTOR_SOURCE_MISSING`、`addMember` 缺 actor 报 `ACTOR_MISSING`（D7-5）。
+4. social replay profile 的 `--ticks 2` 在完整点结束；check 的 0/2/1 退出码与 actor 规则。
+5. `--credentials-env` 不把 key 写进 run 目录或日志；实验目录本地插件的 lock/check/run。
+6. `actors.seed` 写入 `s0_actors`、缺 `source` 报 `ACTOR_SOURCE_MISSING`、`addMember` 缺 actor 报 `ACTOR_MISSING`。

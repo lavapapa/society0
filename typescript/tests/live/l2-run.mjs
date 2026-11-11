@@ -31,7 +31,8 @@ class MemoryCredentialStore {
   async delete(reference) { this.#values.delete(reference); }
   async close() {}
 }
-const gatewayEnv = process.env.L2_GATEWAY_ENV || join(W, '..', '..', 'services', 'litellm', '.env');
+const gatewayEnv = process.env.L2_GATEWAY_ENV;
+if (!gatewayEnv) { console.error('L2_GATEWAY_ENV must point to the local LiteLLM gateway .env file'); process.exit(2); }
 const modelId = 'Qwen3.6-35B-A3B-FP8';
 const ticks = 5;
 const actorCount = 20;
@@ -322,7 +323,7 @@ try {
   assert.ok(line, 'LITELLM_MASTER_KEY missing in gateway env');
   secret = line.slice('LITELLM_MASTER_KEY='.length).trim();
   assert.ok(secret.length > 0, 'LITELLM_MASTER_KEY empty');
-  assert.ok(process.env.TMPDIR, 'TMPDIR required (run through tools/run.py)');
+  assert.ok(process.env.TMPDIR, 'TMPDIR required');
 
   let startTick = Number(values['start-tick'] ?? 1);
   if (values['restore-from']) {

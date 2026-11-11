@@ -5,13 +5,13 @@
 ## 约定
 
 - 各簇只追加本簇小节，不修改他簇小节。
-- 需要裁决的事项记录在 `reviews/claude-fix-plan-20261029/02-decisions.md`；已裁决结果见 `evidence/v3fix-e/decisions.md`。
+- 需要裁决的事项与已裁决结果随对应实现记录保留。
 
 ## NEW-5：测试基线只验证当前构建
 
 补充 inputs/society0_next_refactor_v3/docs/12-validation.md §一。
 
-`tests/` 只允许导入当前 `.build`、node 内置模块、同目录支持文件或安装态 `@society0` 包。导入冻结快照（`evidence/pr0*`）、源码树（`packages/*/src`、`packages/*/build`）、主机绝对路径与 env 兜底由 `scripts/check_tests.py` 拒绝；`scripts/test-build.py` 在运行前核验 `@society0/{host,core,schemastery,cordis}` 解析到 `.build` 内，且 build 层测试不含裸 `@society0/` 导入。
+`tests/` 只允许导入当前 `.build`、node 内置模块、同目录支持文件或安装态 `@society0` 包。导入仓外冻结快照、源码树（`packages/*/src`、`packages/*/build`）、主机绝对路径与 env 兜底由 `scripts/check_tests.py` 拒绝；`scripts/test-build.py` 在运行前核验 `@society0/{host,core,schemastery,cordis}` 解析到 `.build` 内，且 build 层测试不含裸 `@society0/` 导入。
 
 ## B 存储与事务：取消、COMMIT、历史清理与事件重投
 
@@ -149,7 +149,7 @@ host 在 profile resolver 之后的 `resolution.value`、Schema validate 之前�
 
 `social-perception.previewChars` 默认 `-1`，非负时只对 post 感知的展示正文按 Unicode 码点截短；超限加 `truncated:true` 与 `fullRef:{information:'social/posts',input:{id}}`，原始信息经 public `social/posts` 的可选 `{id}` 输入读取，SQL 加 `p.id=?`（`id` 为可选字符串，合法空串同样按精确 id 过滤；未提供才按 authorId/scope），保留既有 authorId/cursor/byte budget/BINARY 语义。information source 对 `social/posts` 声明 `properties.id` 与 `properties.authorId`。排名与测量继续读完整正文。
 
-用户裁决：B02/B03/B04 选 (b) 如实未承接；B05 选 (a) 承接。四份 `legacyScope-B02..B05.json` 记录准确 carried/notCarried；本文件承载稳定合同，具体证据见 `evidence/v3fix-d/G17-HANDOFF.md`。
+用户裁决：B02/B03/B04 选 (b) 如实未承接；B05 选 (a) 承接。四份 `legacyScope-B02..B05.json` 记录准确 carried/notCarried；本文件承载稳定合同。
 
 
 ## NEW-6：模型派生标识与失败原因文本

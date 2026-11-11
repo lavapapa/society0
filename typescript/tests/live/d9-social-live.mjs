@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * D9 真实端到端验收：直接装配 profiles/social-sqlite.json，走 本地 LiteLLM 网关 的 LiteLLM。
+ * D9 真实端到端验收：直接装配 profiles/social-sqlite.json，走本地 LiteLLM 网关。
  * 手动运行：node tests/live/d9-social-live.mjs
  * 只打两类补丁：真实模型凭据（临时 0600 文件）与运行目录；场景 prompt/topology 由脚本给出。
  */
@@ -14,7 +14,8 @@ import { performance } from 'node:perf_hooks';
 const here = dirname(fileURLToPath(import.meta.url));
 const W = join(here, '..', '..', '..', '..', '..');
 const evidence = join(W, 'evidence', 'd9');
-const gatewayEnv = process.env.D9_GATEWAY_ENV || join(W, '..', '..', 'services', 'litellm', '.env');
+const gatewayEnv = process.env.D9_GATEWAY_ENV;
+if (!gatewayEnv) { console.error('D9_GATEWAY_ENV must point to the local LiteLLM gateway .env file'); process.exit(2); }
 const modelId = 'Qwen3.6-35B-A3B-FP8';
 const maxRequests = 30;
 const watchdogMs = 15 * 60 * 1000;
@@ -63,7 +64,7 @@ try {
   assert.ok(line, 'LITELLM_MASTER_KEY missing in gateway env');
   secret = line.slice('LITELLM_MASTER_KEY='.length).trim();
   assert.ok(secret.length > 0, 'LITELLM_MASTER_KEY empty');
-  assert.ok(process.env.TMPDIR, 'TMPDIR required (run through tools/run.py)');
+  assert.ok(process.env.TMPDIR, 'TMPDIR required');
   credentialsPath = join(process.env.TMPDIR, `d9-social-gateway-credentials-${process.pid}.json`);
   await writeFile(credentialsPath, JSON.stringify({ 'local-gateway': { type: 'api_key', key: secret } }), { mode: 0o600 });
   await chmod(credentialsPath, 0o600);

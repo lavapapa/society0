@@ -38,7 +38,7 @@ compact增加物化根并保留点身份，失败时原链和既有reader继续�
 
 诊断区分backupBytes（真实数据库分页备份字节）、applyCount（实际changeset应用次数）、rootCopies（发布/物化根数）、对象copy/hardlink与SQLite/RSS峰值。Native状态同时暴露每段capturePeak、Session释放状态及实际schema/session计数。
 
-验收日志与规模、跨设备结果位于[evidence/pr05](../../../../../../evidence/pr05/)。生产能力使用标准SQLite与Node流；恢复身份由分配的ID确定。
+验收日志与规模、跨设备结果由发布记录保存。生产能力使用标准SQLite与Node流；恢复身份由分配的ID确定。
 
 计时使用performance.now累计单调wall time，返回timings.{phase}:{count,failed,totalMs}。jsonEncode精确覆盖JSON.stringify与UTF8 Buffer构造；jsonFileIO、jsonRenameIO、jsonDirectoryIO分别覆盖atomic writer已完成的文件写入同步、rename、目录同步，观察钩子等待另计。fileFinalizeIO覆盖段/根封存。
 

@@ -2,12 +2,6 @@
 
 This repository contains the standalone `society0` simulation library. Keep research mechanisms domain independent and preserve the information, actions and recorded facts needed for each study.
 
-## TypeScript rebuild authorization
-
-This development branch implements the approved TypeScript v3 design under `typescript/`. Use the dated [build record](docs/typescript-build.md) for this implementation's scope and acceptance. The Python contracts below describe the released alpha and remain historical guidance until their replacement is accepted. Do not add compatibility layers or a second active host.
-
-Follow ub-mode: write and observe a failing consumer test, implement the smallest complete change, then refactor and verify. Build and test only on the dedicated simulation workspace. Never modify existing workbench services or use paid model API keys. Model calls require the explicitly approved local LiteLLM route and authorized gateway credential.
-
 ## Version lines
 
 This working tree belongs to Next (猎龙), the independent redesign intended for Society0 V2. Its integration branch is `next`. Keep the official `stable/4.1` architecture, releases and industry consumers unchanged during Next work; do not merge Next into the stable line or rewrite `main` history. Branch roles are defined in PROJECT.md. Legacy transparent-proxy requirements apply to the stable architecture; Next uses the native SQL contract below. Basic-environment migration covers plain, round-robin and social-network; industry migration is a separate task.

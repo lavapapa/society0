@@ -1,5 +1,7 @@
-import sqlite3,zlib,json,time
+import sqlite3,zlib,json,time,os,sys
 from pathlib import Path
+observation=os.environ.get('SOCIETY0_OBSERVATION_ROOT')
+if not observation:print('SOCIETY0_OBSERVATION_ROOT must point to the observation workspace',file=sys.stderr);sys.exit(2)
 base=Path('/tmp/society0-real-query-review-20260929')
 src=sqlite3.connect(f'file:{base}/observation.sqlite?mode=ro',uri=True)
 report={}
@@ -24,4 +26,4 @@ for mode in ['compressed','dictionary']:
  report[mode]={'seconds':time.perf_counter()-t,'encode_seconds':encode,'dbstat':dict(db.execute('SELECT name,sum(pgsize) FROM dbstat GROUP BY name'))}
  if mode=='dictionary':report[mode]['unique_parts']=db.execute('SELECT count(*) FROM parts').fetchone()[0]
  db.close()
-Path('/path/to/runtime-observation-real-tests-20260929/query-path-candidates.json').write_text(json.dumps(report));print(json.dumps(report))
+Path(observation)/'query-path-candidates.json'.write_text(json.dumps(report));print(json.dumps(report))

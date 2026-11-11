@@ -1,6 +1,6 @@
 # TypeScript重构构建记录 · 2026-10-28
 
-本记录承接已确认的v3方案与本轮实施授权。Next的TypeScript实现使用真实Cordis、SQLite原生SQL和Session能力，直接复用pi的模型与Agent循环。公共交付覆盖完整Core、基础插件与全部Social；私有工作台、经济机制及研究私库保持边界。
+本记录承接已确认的v3方案。Next的TypeScript实现使用真实Cordis、SQLite原生SQL和Session能力，直接复用pi的模型与Agent循环。公共交付覆盖完整Core、基础插件与全部Social。
 
 ## 实施与验收
 
@@ -14,9 +14,3 @@
 - Vendor按其原动态代码边界单独构建声明；第一方宿主和第三方TypeScript消费者保持严格检查。补丁未新增原始vendor的类型诊断。
 - SQLite流式回调可能包含整个大行；Session捕获中断阈值不等于硬内存上限。后续存储实现须组合内联行约束、正文对象引用、分段Session及原生预算。
 - SQLite硬内存限额作用于同进程同库实例全部连接；OOM后可能需要重建Session。失败事务和不健康Session不得推进完整点。
-
-## 执行边界
-
-构建、依赖、缓存、实验数据和日志均在独立simulation工作区；原工作台和模型网关保持不变。模型验证仅使用获准的本地LiteLLM路由及网关令牌，无付费供应商直连或自动回退。未经确认不切换已有服务或发布发行版。
-
-操作和原始实验结果保存在独立工作区的evidence与experiments目录；随对应生产实现迁入适用的验收测试与来源记录。

@@ -1273,7 +1273,7 @@
     "@society0/host/module-resolver/allowLinkedPackages": {
       "state": "dropped",
       "reason": "原生固定：包解析经 createRequire(baseURL).resolve.paths 找包并用 realpathSync 归一，可解析的 linked 目标照常接受；准入由 lock 的版本、gitCommit、patches、hostAbi 与 sidecar 身份负责，本轮没有按路径形态另设许可开关的需求。",
-      "design": "reviews/claude-fix-plan-20261029/A-release-evidence.md §6.3（运行时为准，plan 提出的字段按原生能力固定登记）；typescript/packages/host/src/module-resolver/package-files.ts:13-20（locate + realpathSync）、31-35（lockedModule 身份准入）"
+      "design": "运行时固定：typescript/packages/host/src/module-resolver/package-files.ts:13-20（locate + realpathSync）、31-35（lockedModule 身份准入）"
     },
     "@society0/core/proposal-events/leaseTimeoutMs": {
       "state": "deferred",

@@ -4,11 +4,11 @@ B0 引入 `/public` 与现状 VFS 的合成基准，供 B1/B10 与 C9 共用（D
 
 ## 运行
 
-经 `W/tools/run.py` 执行（需要构建产物 `.build/`）：
+需要构建产物 `.build/`：
 
 ```
-python3 tools/run.py wt/vfs/typescript evidence/logs/vfs-b0-bench.log \
-  bash -c 'node bench/public-vfs.mjs --actors 1000 --files 10000 --rows 20 --out /…/W/evidence/bench/public-vfs-baseline.json'
+node bench/public-vfs.mjs --actors 1000 --files 10000 --rows 20 \
+  --out /absolute/path/public-vfs-baseline.json
 ```
 
 参数：`--actors`、`--files`、`--rows`（每文件行数）、`--concurrency`（默认 200）、`--samples`（统一覆盖采样数）、`--scope-files`（find/grep 的取样文件数，默认 2000，见下）、`--out`（JSON 报告路径）。数据由 `(files, rows, bucketSize)` 唯一决定，目录与文件行内容可重复生成。
@@ -31,7 +31,7 @@ B10 增加 `mode: "public"` 路径：同一生成器写入 public-store（`/publ
 node bench/public-vfs.mjs --mode public --actors 1000 --files 10000 --rows 20 \
   --concurrency 200 --moments 100 --change-percent 1 --checkpoints 1,10,100 \
   --directory /var/tmp/society0-next-b10-<时间> \
-  --out ../evidence/bench/public-vfs-final.json
+  --out /absolute/path/public-vfs-final.json
 ```
 
 最终报告在原字段之外增加：
@@ -52,7 +52,7 @@ node bench/public-vfs.mjs --mode public --actors 1000 --files 10000 --rows 20 \
 
 ```
 node bench/public-vfs.mjs --mode public --expiry-probe --shell-timeout-ms 120000 \
-  --out ../evidence/bench/public-vfs-snapshot-expiry-120000.json
+  --out /absolute/path/public-vfs-snapshot-expiry-120000.json
 ```
 
 执行 `sleep 32; cat /public/...`，并在 session 上记录 RPC 错误。B10 r1 起会话租约读 `database.maxSnapshotAgeMs`，shell 以该值的 95% 作为命令超时并在取到 worker 后才开视图，因此长命令稳定以 `SHELL_TIMEOUT` 结束，不会出现 `SQLITE_SNAPSHOT_EXPIRED`；r0 的旧探针结果保留在 `public-vfs-snapshot-expiry-120000.json`。租约取值来源见 `snapshotLeaseSource`。
@@ -61,7 +61,7 @@ node bench/public-vfs.mjs --mode public --expiry-probe --shell-timeout-ms 120000
 
 与 B0 的 `bench/public-vfs.mjs` 共用目录与 JSON 报告字段约定：每份报告都有
 `schemaVersion / mode / generatedAt / scale / operations / counters / durationMs`，
-结果写到 `W/evidence/bench/`。所有基准只做本地合成数据，不调用 LLM，也不改资源上限。
+结果写到 `--out` 指定的文件。所有基准只做本地合成数据，不调用 LLM，也不改资源上限。
 
 | 脚本 | 内容 | 默认规模 |
 |---|---|---|
@@ -74,9 +74,9 @@ node bench/public-vfs.mjs --mode public --expiry-probe --shell-timeout-ms 120000
 运行：
 
 ```sh
-node bench/rule-1k.mjs --out ../evidence/bench/b1.json
-node bench/fake-llm-1k.mjs --out ../evidence/bench/b2.json
-node bench/history.mjs --lengths 200,1000 --out ../evidence/bench/b3.json
+node bench/rule-1k.mjs --out /absolute/path/b1.json
+node bench/fake-llm-1k.mjs --out /absolute/path/b2.json
+node bench/history.mjs --lengths 200,1000 --out /absolute/path/b3.json
 node bench/perf-curve.mjs <metrics.jsonl> --out curve.json
 ```
 

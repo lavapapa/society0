@@ -14,7 +14,8 @@ import { estimateSlots } from './support.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const W = join(here, '..', '..', '..', '..', '..');
 const evidence = join(W, 'evidence', 'l1');
-const gatewayEnv = process.env.L1_GATEWAY_ENV || join(W, '..', '..', 'services', 'litellm', '.env');
+const gatewayEnv = process.env.L1_GATEWAY_ENV;
+if (!gatewayEnv) { console.error('L1_GATEWAY_ENV must point to the local LiteLLM gateway .env file'); process.exit(2); }
 const modelId = 'Qwen3.6-35B-A3B-FP8';
 const maxCalls = 20;
 const mainCalls = 10;
@@ -121,7 +122,7 @@ try {
   assert.ok(line, 'LITELLM_MASTER_KEY missing in gateway env');
   secret = line.slice('LITELLM_MASTER_KEY='.length).trim();
   assert.ok(secret.length > 0, 'LITELLM_MASTER_KEY empty');
-  assert.ok(process.env.TMPDIR, 'TMPDIR required (run through tools/run.py)');
+  assert.ok(process.env.TMPDIR, 'TMPDIR required');
   credentialsPath = join(process.env.TMPDIR, `l1-gateway-credentials-${process.pid}.json`);
   await writeFile(credentialsPath, JSON.stringify({ 'local-gateway': { type: 'api_key', key: secret } }), { mode: 0o600 });
   await chmod(credentialsPath, 0o600);

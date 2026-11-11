@@ -1,5 +1,7 @@
-import sqlite3,json,time,heapq
+import sqlite3,json,time,heapq,os,sys
 from pathlib import Path
+observation=os.environ.get('SOCIETY0_OBSERVATION_ROOT')
+if not observation:print('SOCIETY0_OBSERVATION_ROOT must point to the observation workspace',file=sys.stderr);sys.exit(2)
 base=Path('/tmp/society0-real-query-review-20260929');db=sqlite3.connect(base/'observation.sqlite');db.execute('PRAGMA cache_size=-4096')
 out={'entry_count':db.execute('SELECT count(*) FROM entries').fetchone()[0],'memberships':db.execute('SELECT count(*) FROM scopes').fetchone()[0],'direct_scopes':db.execute('SELECT count(DISTINCT parent) FROM paths JOIN entries ON entries.path_id=paths.id').fetchone()[0]}
 dst=sqlite3.connect(base/'direct-members.sqlite');dst.execute('PRAGMA journal_mode=OFF');dst.execute('PRAGMA synchronous=OFF');dst.execute('CREATE TABLE direct(scope INTEGER,ordinal INTEGER,start INTEGER,end INTEGER,entry_id INTEGER,PRIMARY KEY(scope,ordinal,start)) WITHOUT ROWID');dst.execute('CREATE INDEX direct_current ON direct(scope,ordinal) WHERE end IS NULL');dst.execute('ATTACH DATABASE ? AS original',(str(base/'observation.sqlite'),));t=time.perf_counter()
@@ -23,4 +25,4 @@ for item in heapq.merge(*streams):
  if len(page)==101:break
 out['page_seconds']=time.perf_counter()-t;out['page_vm']=vm
 old=list(db.execute('SELECT ordinal,entry_id FROM scopes INDEXED BY scopes_current WHERE scope=? AND end IS NULL ORDER BY ordinal LIMIT 101',(node,)));out['same_order_and_entries']=old==page
-Path('/path/to/runtime-observation-real-tests-20260929/query-direct-scope-prototype.json').write_text(json.dumps(out));print(json.dumps(out))
+Path(observation)/'query-direct-scope-prototype.json'.write_text(json.dumps(out));print(json.dumps(out))

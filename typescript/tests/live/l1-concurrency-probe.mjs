@@ -9,7 +9,8 @@ import {performance} from 'node:perf_hooks';
 const here = dirname(fileURLToPath(import.meta.url));
 const W = join(here, '..', '..', '..', '..', '..');
 const evidence = join(W, 'evidence', 'l1', 'concurrency');
-const gatewayEnv = process.env.L1_GATEWAY_ENV || join(W, '..', '..', 'services', 'litellm', '.env');
+const gatewayEnv = process.env.L1_GATEWAY_ENV;
+if (!gatewayEnv) { console.error('L1_GATEWAY_ENV must point to the local LiteLLM gateway .env file'); process.exit(2); }
 const modelId = 'Qwen3.6-35B-A3B-FP8';
 const concurrency = 20;
 const waves = 3;

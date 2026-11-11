@@ -18,7 +18,7 @@ import {DriverLlm} from '../.build/core/dist/driver-llm/index.js';
 import {PiModelProvider} from '../.build/core/dist/model-pi/provider.js';
 import {INFERENCE_REQUEST} from '../.build/core/dist/contracts/inference.js';
 
-// 核对值见 docs/model-context.md：2026-11-09 读取 本地 LiteLLM 网关 的 /v1/models 与 /model/info。
+// 核对值见 docs/model-context.md：2026-11-09 读取本地 LiteLLM 网关的 /v1/models 与 /model/info。
 export const VERIFIED_CONTEXT_WINDOW=262144;
 const OUTPUT_SLOT=512;
 // 14500 个 ASCII 字符约 4100-4300 token；加上 header 规则与输入，估算约 4.2k。
