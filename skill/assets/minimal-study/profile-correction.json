@@ -1,0 +1,362 @@
+{
+  "format": "society-profile/v2",
+  "bundles": [],
+  "patches": [
+    {
+      "insert": [
+        {
+          "id": "run",
+          "name": "run",
+          "group": true,
+          "lifetime": "run",
+          "config": [
+            {
+              "id": "slots",
+              "name": "@society0/host/slots",
+              "config": {}
+            },
+            {
+              "id": "execution-fence",
+              "name": "@society0/core/execution-fence",
+              "config": {}
+            },
+            {
+              "id": "sqlite",
+              "name": "@society0/core/sqlite",
+              "config": {
+                "directory": "./run",
+                "runId": "example",
+                "generation": "g1",
+                "maxTransactionMs": 20000
+              }
+            },
+            {
+              "id": "artifacts-local",
+              "name": "@society0/core/artifacts-local",
+              "config": {
+                "directory": "./run/artifacts"
+              }
+            },
+            {
+              "id": "initializers",
+              "name": "@society0/core/initializers",
+              "config": {}
+            },
+            {
+              "id": "sqlite-bootstrap",
+              "name": "@society0/core/sqlite-bootstrap",
+              "config": {
+                "maxTransactionMs": 15000
+              }
+            },
+            {
+              "id": "sqlite-history",
+              "name": "@society0/core/sqlite-history",
+              "config": {
+                "directory": "./run",
+                "runId": "example",
+                "generation": "g1",
+                "controlSequence": "0"
+              }
+            },
+            {
+              "id": "attempts",
+              "name": "@society0/core/attempts",
+              "config": {
+                "directory": "./attempts",
+                "lineage": "example"
+              }
+            },
+            {
+              "id": "actors",
+              "name": "@society0/core/actors",
+              "config": {}
+            },
+            {
+              "id": "results",
+              "name": "@society0/core/results",
+              "config": {}
+            },
+            {
+              "id": "thread",
+              "name": "@society0/core/thread",
+              "config": {}
+            },
+            {
+              "id": "generation-views",
+              "name": "@society0/core/generation-views",
+              "config": {}
+            },
+            {
+              "id": "run-controller",
+              "name": "@society0/core/run-controller",
+              "config": {}
+            },
+            {
+              "id": "observation",
+              "name": "@society0/core/observation",
+              "config": {}
+            },
+            {
+              "id": "bootstrap",
+              "name": "bootstrap",
+              "group": true,
+              "lifetime": "bootstrap",
+              "config": [
+                {
+                  "id": "plain-init",
+                  "name": "@society0/core/plain-init",
+                  "config": {
+                    "initialActors": [
+                      {
+                        "id": "alice",
+                        "attributes": {
+                          "name": "Alice"
+                        }
+                      },
+                      {
+                        "id": "bob",
+                        "attributes": {
+                          "name": "Bob"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "id": "generation",
+              "name": "generation",
+              "group": true,
+              "lifetime": "generation",
+              "config": [
+                {
+                  "id": "random",
+                  "name": "@society0/core/random",
+                  "config": {
+                    "seed": "public-example-1"
+                  }
+                },
+                {
+                  "id": "actor-eligibility",
+                  "name": "@society0/core/actor-eligibility",
+                  "config": {}
+                },
+                {
+                  "id": "drivers",
+                  "name": "@society0/core/drivers",
+                  "config": {}
+                },
+                {
+                  "id": "activation-mailbox",
+                  "name": "@society0/core/activation-mailbox",
+                  "config": {}
+                },
+                {
+                  "id": "activation",
+                  "name": "@society0/core/activation",
+                  "config": {}
+                },
+                {
+                  "id": "information",
+                  "name": "@society0/core/information",
+                  "config": {}
+                },
+                {
+                  "id": "moment-views",
+                  "name": "@society0/core/moment-views",
+                  "config": {}
+                },
+                {
+                  "id": "exploration",
+                  "name": "@society0/core/exploration",
+                  "config": {}
+                },
+                {
+                  "id": "public",
+                  "name": "@society0/core/public",
+                  "config": {}
+                },
+                {
+                  "id": "public-self",
+                  "name": "@society0/core/public-self",
+                  "config": {}
+                },
+                {
+                  "id": "actions",
+                  "name": "@society0/core/actions",
+                  "config": {}
+                },
+                {
+                  "id": "perception",
+                  "name": "@society0/core/perception",
+                  "config": {}
+                },
+                {
+                  "id": "perception-actor",
+                  "name": "@society0/core/perception-actor",
+                  "config": {}
+                },
+                {
+                  "id": "driver-rule",
+                  "name": "@society0/core/driver-rule",
+                  "config": {
+                    "handler": "plain/update"
+                  }
+                },
+                {
+                  "id": "rule-passive",
+                  "name": "@society0/core/rule-passive",
+                  "config": {}
+                },
+                {
+                  "id": "completion-strict",
+                  "name": "@society0/core/completion-strict",
+                  "config": {}
+                },
+                {
+                  "id": "checkpoint-policy",
+                  "name": "@society0/core/checkpoint-policy",
+                  "config": {}
+                },
+                {
+                  "id": "termination",
+                  "name": "@society0/core/termination",
+                  "config": {}
+                },
+                {
+                  "id": "generation-binding",
+                  "name": "@society0/core/generation-binding",
+                  "config": {
+                    "generation": "g1"
+                  }
+                },
+                {
+                  "id": "clock-ticks",
+                  "name": "@society0/core/clock-ticks",
+                  "config": {}
+                },
+                {
+                  "id": "proposal-sequence",
+                  "name": "@society0/core/proposal-sequence",
+                  "config": {
+                    "proposals": [
+                      {
+                        "id": "p1",
+                        "planKind": "staged/1",
+                        "payload": {
+                          "phases": [
+                            {
+                              "id": "tick-1",
+                              "activations": [
+                                {
+                                  "id": "p1",
+                                  "actorId": "alice",
+                                  "momentId": "1",
+                                  "source": "agenda",
+                                  "driver": "rule",
+                                  "input": {
+                                    "actorId": "alice",
+                                    "attributes": {
+                                      "name": "Alice",
+                                      "belief": "fare-rise",
+                                      "heard": "official-notice",
+                                      "round": 1
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          ],
+                          "nextCursor": "1"
+                        }
+                      },
+                      {
+                        "id": "p2",
+                        "planKind": "staged/1",
+                        "payload": {
+                          "phases": [
+                            {
+                              "id": "tick-2",
+                              "activations": [
+                                {
+                                  "id": "p2",
+                                  "actorId": "bob",
+                                  "momentId": "2",
+                                  "source": "agenda",
+                                  "driver": "rule",
+                                  "input": {
+                                    "actorId": "bob",
+                                    "attributes": {
+                                      "name": "Bob",
+                                      "belief": "no-fare-change",
+                                      "heard": "correction",
+                                      "round": 2
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          ],
+                          "nextCursor": "2"
+                        }
+                      },
+                      {
+                        "id": "p3",
+                        "planKind": "staged/1",
+                        "payload": {
+                          "phases": [
+                            {
+                              "id": "tick-3",
+                              "activations": [
+                                {
+                                  "id": "p3",
+                                  "actorId": "alice",
+                                  "momentId": "3",
+                                  "source": "agenda",
+                                  "driver": "rule",
+                                  "input": {
+                                    "actorId": "alice",
+                                    "attributes": {
+                                      "name": "Alice",
+                                      "belief": "fare-rise",
+                                      "heard": "neighbor-bob",
+                                      "round": 3
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          ],
+                          "nextCursor": "3"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "runtime-staged",
+                  "name": "@society0/core/runtime-staged",
+                  "config": {}
+                },
+                {
+                  "id": "plain",
+                  "name": "@society0/core/plain",
+                  "config": {}
+                }
+              ]
+            },
+            {
+              "id": "metrics",
+              "name": "@society0/core/metrics",
+              "config": {}
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "configSources": [],
+  "lockfile": "./module-lock.json"
+}
