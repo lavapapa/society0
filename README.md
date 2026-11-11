@@ -56,7 +56,7 @@ node .build/cli/dist/main.js run resume --dir runs/event \
 - [数据与数据集](docs/datasets.md)
 - [把问题变成实验](docs/experiments.md)
 - [因果分支](docs/causal-branches.md)：控制变量、平行世界与可信边界
-- [TypeScript 构建记录](docs/typescript-build.md)
+- [构建与验收](docs/build.md)
 
 已有的公开接口说明保留在 `typescript/docs/`： [公开 SDK 使用](typescript/docs/public-usage.md)、[插件配置](typescript/docs/plugin-config.md)、[模型上下文](typescript/docs/model-context.md)、[平台入口](typescript/docs/platform-entry.md)。
 

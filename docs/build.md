@@ -1,4 +1,4 @@
-# TypeScript 构建记录
+# 构建与验收
 
 Society0 的当前实现位于 `typescript/`，使用真实 Cordis、SQLite 原生 SQL 和 Session，直接复用 pi 的模型与 Agent 循环。公共交付覆盖完整 Core、基础插件与全部 Social。
 

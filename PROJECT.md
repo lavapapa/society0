@@ -2,7 +2,7 @@
 
 Society0 提供通用多主体仿真的运行内核与可组合机制。本文定义公开项目的职责和版本路线；具体接口由[技术文档站](docs/site/README.md)维护。
 
-**TypeScript重构实施（2026-10-28）**：TS 实现位于 `typescript/`，范围见[构建记录](docs/typescript-build.md)。
+**TypeScript重构实施（2026-10-28）**：TS 实现位于 `typescript/`，范围见[构建与验收](docs/build.md)。
 
 ## 一、范围
 
