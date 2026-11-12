@@ -1,4 +1,4 @@
-# Society0 Next TypeScript
+# Society0 源码与构建
 
 这个目录提供 Society0 Next 的原生 Cordis 宿主、CLI、完整 Core、Extras 与 Social，以及 SQLite 原生存储、完整点恢复和分叉能力。生产入口输出 ESM JavaScript 和声明；包名采用项目自己的 `@society0` scope，发布操作由项目单独授权。
 

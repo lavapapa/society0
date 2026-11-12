@@ -1,33 +1,19 @@
-# Society0 Core Development Principles
+# Society0 开发原则
 
-This repository contains the standalone `society0` simulation library. Keep research mechanisms domain independent and preserve the information, actions and recorded facts needed for each study.
+本仓库是通用多主体社会仿真库 Society0，源码在 `typescript/`。研究机制保持领域无关，同时保留每项研究需要的信息、行动和记录事实。
 
-## Version lines
+## 公开运行接口
 
-This working tree belongs to Next (猎龙), the independent redesign intended for Society0 V2. Its integration branch is `next`. Keep the official `stable/4.1` architecture, releases and industry consumers unchanged during Next work; do not merge Next into the stable line or rewrite `main` history. Branch roles are defined in PROJECT.md. Legacy transparent-proxy requirements apply to the stable architecture; Next uses the native SQL contract below. Basic-environment migration covers plain, round-robin and social-network; industry migration is a separate task.
+插件通过宿主 ABI 声明数据先决条件、服务依赖和资源归属；数据结构初始化先于服务安装。所有主体共享一个世界，机制插件是世界的内部组件。规则运行保持轻量；模型、记忆、Social、数据集等可选依赖只由实际使用者加载。公开包不绑定任何模型提供方，凭据和服务地址只来自运行环境，不写入源码和公开产物。
 
-## Public runtime
+## 主体行为
 
-Use Plugin, compose, Actor/Driver, Information/Actions and Schedule through RunPlan/run_plan. All actors share an environment; mechanism plugins are internal components of that environment. Schema initialization precedes service installation. Declare actual service dependencies and resource ownership explicitly; data schema prerequisites and service installation order have distinct meanings.
+模型驱动使用完整的主体循环：保留行动发现、参数 schema、必需行动、按成功判定完成、行动预算和提供方原始字段。已接受、已完成、等待和未完成的激活要区分清楚；预算耗尽或输出截断记为未完成，并保留原始诊断。保留完整 Thread；同一时刻的重复激活沿用交互身份和增量感知游标。
 
-Rule runs should remain a lightweight path. Optional LLM, memory, social, datasets and shell dependencies are imported by their actual consumers. The public package stays provider neutral; credentials and service addresses belong to the explicit runtime environment, never source or public artifacts.
+## 状态与并发
 
-## Agent integrity
+可信的机制写入器在原生 SQL 事务里同时更新事实、当前投影和必要索引。不可变数据和 workspace 文件通过显式引用纳入完整步骤。热查询走当前索引，不重算历史。串行阶段保持业务顺序；独立阶段的并发和外部请求并发分别配置。清理资源前先结束自己持有的任务。完整步骤在必需工作和工件都已完成后发布；恢复和分叉都从可信的完整点开始。
 
-LLM behavior uses the complete LLMDriver loop. Retain action discovery, parameter schemas, required actions, success-based completion, action budgets, reasoning guidance and original provider fields. Interview mode is a structured measurement path. Accepted actions, completed actions, waiting and incomplete activations remain distinct. Budget exhaustion or length truncation is incomplete, with original diagnostics preserved.
+## 变更与验证
 
-Keep the full Thread. Repeated activation in one Moment retains its interaction identity and incremental perception cursor. Paging improves discovery while preserving totals and access to all original content. Memory writing, recall and active tools are independent activation policies. Preserve explicit experience extraction when the research protocol requires it, within the original Thread lifecycle.
-
-## State and concurrency
-
-Trusted mechanism writers update authority, current projection and necessary indexes together using native SQL transactions. Immutable data and workspace files have explicit references covered by complete steps. Hot queries use current indexes rather than replaying history. Large bodies use range reads and declared references; requesting a full object retains its actual materialization cost.
-
-Serial phases preserve business order. Independent phases use explicit Phase.capacity or Runtime.capacity; endpoint and shared external-request limits separately control physical requests. Resource cleanup must drain owned tasks before closing dependencies. Complete steps publish after required work and artifacts have settled; recovery creates a new run from a trustworthy complete point.
-
-## Changes and evidence
-
-Use specifications and failure-first tests for substantial work, reuse mature libraries and existing code, and keep interfaces tied to real consumers. Breaking interface changes do not require compatibility layers. Validate Next's current contracts with explicit expectations and actual public consumers. Retire legacy implementations, algorithm copies, source launchers and old-version comparison tests from Next; Git history and stable/4.1 retain their version context. The engine supplies runtime mechanisms; study design and scientific validity belong to its consumers.
-
-Run focused deterministic tests followed by the full deterministic suite. Independent review must challenge actual consumers and failure boundaries. Performance evidence should separate compute, service waiting, encoding, storage, Python/native memory and cold/hot behavior. Compare identical information and business semantics; fewer messages or tools are not sufficient evidence of improvement.
-
-Real endpoint tests use the explicit SOCIETY0_REAL_* environment contract in tests/e2e/core_next_real_support.py. They validate provider parameters, tool execution, memory and process recovery; deterministic fixtures do not substitute for live evidence. Maintain the capability matrix and task checklist with actual evidence and remaining scope. Publish only when release metadata, source identity, dependencies and validation agree.
+较大的改动先写规范和先失败的测试，复用成熟库和已有代码，接口以真实使用者为准。先跑相关测试，再跑完整确定性测试集（见 [构建与验收](docs/build.md)）。性能证据要把计算、服务等待、编码、存储、内存和冷热路径分开；比较时信息和业务语义必须相同。真实模型端点测试通过环境变量指定网关，不在仓库里写地址和凭据。
