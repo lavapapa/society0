@@ -142,10 +142,23 @@ test('run branch forks a complete point into resumable paused runs', { skip, tim
     assert.notEqual(targets[0].output.runId, targets[1].output.runId);
     assert.notEqual(targets[0].output.targetPointId, targets[1].output.targetPointId);
 
-    // Chained branch (g2 -> g3) increments generation cleanly.
-    const grandChild = join(directory, 'branch-a-sub');
-    const grandOutput = json(call(['run', 'branch', '--dir', first, '--target-dir', grandChild, '--json']));
+    // Chained branch (g2 -> g3) increments generation cleanly and stacks parent patches.
+    const grandPatch = join(directory, 'grand-patches.json');
+    await writeFile(grandPatch, JSON.stringify([{ id: 'termination', config: { onIncomplete: 'fail' } }]));
+    const grandChild = join(directory, 'branch-b-sub');
+    const grandOutput = json(call(['run', 'branch', '--dir', second, '--target-dir', grandChild, '--patches', grandPatch, '--json']));
     assert.equal(grandOutput.generation, 'g3');
+    const grandProfile = JSON.parse(await readFile(join(grandChild, 'profile.json'), 'utf8'));
+    assert.ok(grandProfile.patches.some(p => p.id === sqlite.id && p.config?.maxTransactionMs === 31000), 'parent patch preserved');
+    assert.ok(grandProfile.patches.some(p => p.id === 'termination'), 'child patch stacked');
+
+    // Guard rails: same target-dir and non-empty target-dir are rejected.
+    const sameRes = call(['run', 'branch', '--dir', source, '--target-dir', source, '--json']);
+    assert.notEqual(sameRes.status, 0);
+    assert.match(sameRes.stderr, /BRANCH_TARGET_CONFLICT/);
+    const existingRes = call(['run', 'branch', '--dir', source, '--target-dir', first, '--json']);
+    assert.notEqual(existingRes.status, 0);
+    assert.match(existingRes.stderr, /FRESH_RUN_EXISTS/);
 });
 
 test('run branch supports profiles with model-pi mounted in run group', { skip, timeout: 600_000 }, async () => {

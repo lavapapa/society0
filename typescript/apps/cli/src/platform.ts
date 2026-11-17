@@ -1148,12 +1148,12 @@ function effectiveLock(profile: ProfileDocument, profilePath: string, explicit?:
     return profile.lockfile.startsWith('file:') ? fileURLToPath(profile.lockfile) : resolve(dirname(profilePath), profile.lockfile);
 }
 
-function findEntry(entries: readonly { id?: string; group?: boolean; config?: unknown }[], id: string): { id?: string; group?: boolean; config?: unknown } | undefined {
+function findEntry(entries: readonly { id?: string; name?: string; group?: boolean; config?: unknown }[], id: string): { id?: string; name?: string; group?: boolean; config?: unknown } | undefined {
     for (const entry of entries) {
         if (entry.id === id)
             return entry;
         if (entry.group && Array.isArray(entry.config)) {
-            const nested = findEntry(entry.config as readonly { id?: string; group?: boolean; config?: unknown }[], id);
+            const nested = findEntry(entry.config as readonly { id?: string; name?: string; group?: boolean; config?: unknown }[], id);
             if (nested)
                 return nested;
         }
@@ -1161,9 +1161,49 @@ function findEntry(entries: readonly { id?: string; group?: boolean; config?: un
     return undefined;
 }
 
-function entryConfig(entries: readonly { id?: string; group?: boolean; config?: unknown }[], id: string): Record<string, unknown> {
-    const config = findEntry(entries, id)?.config;
-    return config && typeof config === 'object' && !Array.isArray(config) ? { ...(config as Record<string, unknown>) } : {};
+function findEntryByName(entries: readonly { id?: string; name?: string; group?: boolean; config?: unknown }[], pluginName: string, fallbackId: string): { id: string; config: Record<string, unknown> } {
+    const search = (items: readonly { id?: string; name?: string; group?: boolean; config?: unknown }[]): { id?: string; config?: unknown } | undefined => {
+        for (const entry of items) {
+            if (!entry.group && entry.name === pluginName)
+                return entry;
+            if (entry.group && Array.isArray(entry.config)) {
+                const nested = search(entry.config as readonly { id?: string; name?: string; group?: boolean; config?: unknown }[]);
+                if (nested)
+                    return nested;
+            }
+        }
+        return undefined;
+    };
+    const found = search(entries) ?? findEntry(entries, fallbackId);
+    const id = typeof found?.id === 'string' && found.id ? found.id : fallbackId;
+    const config = found?.config && typeof found.config === 'object' && !Array.isArray(found.config)
+        ? { ...(found.config as Record<string, unknown>) }
+        : {};
+    return { id, config };
+}
+
+function resolveProfileSpecifiers(profile: ProfileDocument, sourceDir: string): void {
+    const toAbsUrl = (raw: string): string => {
+        if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(raw) || (!raw.startsWith('./') && !raw.startsWith('../') && !raw.startsWith('/')))
+            return raw;
+        return pathToFileURL(resolve(sourceDir, raw)).href;
+    };
+    const record = profile as unknown as Record<string, unknown>;
+    if (Array.isArray(record.bundles)) {
+        record.bundles = record.bundles.map(item => {
+            if (typeof item === 'string') return toAbsUrl(item);
+            if (item && typeof item === 'object' && typeof (item as { specifier?: unknown }).specifier === 'string')
+                return { ...(item as Record<string, unknown>), specifier: toAbsUrl((item as { specifier: string }).specifier) };
+            return item;
+        });
+    }
+    if (Array.isArray(record.configSources)) {
+        record.configSources = record.configSources.map(item => {
+            if (item && typeof item === 'object' && typeof (item as { path?: unknown }).path === 'string')
+                return { ...(item as Record<string, unknown>), path: resolve(sourceDir, (item as { path: string }).path) };
+            return item;
+        });
+    }
 }
 
 function countValue(value: unknown): number {
@@ -1183,7 +1223,24 @@ function countValue(value: unknown): number {
 export async function runBranch(options: BranchOptions): Promise<Record<string, unknown>> {
     const sourceDir = resolve(options.sourceDir);
     const targetDir = resolve(options.targetDir);
+    if (targetDir === sourceDir)
+        throw new PlatformError('BRANCH_TARGET_CONFLICT', 'target-dir 不能与源 run 目录相同', '指定一个新的空目录作为 --target-dir');
+    try {
+        const existing = await readdir(targetDir);
+        if (existing.length > 0)
+            throw new PlatformError('FRESH_RUN_EXISTS', `目标目录已存在且非空：${targetDir}`, '指定一个新的空目录作为 --target-dir');
+    }
+    catch (error) {
+        if (error instanceof PlatformError)
+            throw error;
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+            throw error;
+    }
     const status = await readStatus(sourceDir);
+    if (status.state === 'running' && alive(status.pid))
+        throw new PlatformError('RUN_ALREADY_RUNNING', `源 run 仍在运行（pid ${status.pid}）`, '先等待源 run 结束或暂停后再执行 run branch');
+    if (!options.pointId && status.state !== 'completed' && status.state !== 'paused')
+        throw new PlatformError('BRANCH_SOURCE_NOT_SETTLED', `源 run 状态为 ${status.state}，不处于可分叉的完整点`, '确认源 run 已 completed/paused，或显式传入 --point-id');
     const sourceProfilePath = resolve(status.profile);
     const sourceProfile = await readJson<ProfileDocument>(sourceProfilePath);
     const sourceLock = effectiveLock(sourceProfile, sourceProfilePath, status.lock);
@@ -1240,30 +1297,42 @@ export async function runBranch(options: BranchOptions): Promise<Record<string, 
         const targetRunId = basename(targetDir);
         const targetProfilePath = resolve(options.targetProfile ?? sourceProfilePath);
         const targetProfile = structuredClone(await readJson<ProfileDocument>(targetProfilePath));
+        resolveProfileSpecifiers(targetProfile, dirname(targetProfilePath));
         const lock = effectiveLock(targetProfile, targetProfilePath, options.lock ?? sourceLock);
         if (lock)
             targetProfile.lockfile = pathToFileURL(lock).href;
         else
             delete targetProfile.lockfile;
         const patches = Array.isArray(targetProfile.patches) ? [...targetProfile.patches] : [];
-        const patchPath = options.patches ?? status.patches;
-        if (patchPath) {
+        const patchPaths: string[] = [];
+        if (!options.targetProfile && status.patches)
+            patchPaths.push(status.patches);
+        if (options.patches && options.patches !== status.patches)
+            patchPaths.push(options.patches);
+        for (const patchPath of patchPaths) {
             const extra = await readJson<EntryPatch[]>(resolve(patchPath));
             if (!Array.isArray(extra))
                 throw new PlatformError('PATCHES_ARRAY', '--patches 必须是 EntryPatch 数组', '传入 JSON 数组');
             patches.push(...extra);
         }
-        const entries = applyEntryPatches([] as never[], patches as never, message => { throw new PlatformError('PROFILE_PATCH', message, '检查目标 profile 的 patches'); }) as { id?: string; config?: unknown }[];
-        const prevGen = String(entryConfig(entries, 'generation-binding').generation ?? entryConfig(entries, 'sqlite').generation ?? 'g1');
-        const genMatch = /^g(\d+)$/.exec(prevGen);
-        const generation = genMatch ? 'g' + String(Number(genMatch[1]) + 1) : prevGen + '_b';
+        const entries = applyEntryPatches([] as never[], patches as never, message => { throw new PlatformError('PROFILE_PATCH', message, '检查目标 profile 的 patches'); }) as { id?: string; name?: string; group?: boolean; config?: unknown }[];
         const controlSequence = String(BigInt(point.controlSequence) + 1n);
+        const pointGen = typeof (point as { generation?: unknown }).generation === 'string' && (point as { generation: string }).generation
+            ? (point as { generation: string }).generation
+            : String(findEntryByName(entries, '@society0/core/generation-binding', 'generation-binding').config.generation ?? 'g1');
+        const genMatch = /^g(\d+)$/.exec(pointGen);
+        const generation = genMatch ? 'g' + String(Number(genMatch[1]) + 1) : `${pointGen}_c${controlSequence}`;
+        const sqliteEntry = findEntryByName(entries, '@society0/core/sqlite', 'sqlite');
+        const artifactsEntry = findEntryByName(entries, '@society0/core/artifacts-local', 'artifacts-local');
+        const historyEntry = findEntryByName(entries, '@society0/core/sqlite-history', 'sqlite-history');
+        const attemptsEntry = findEntryByName(entries, '@society0/core/attempts', 'attempts');
+        const genBindingEntry = findEntryByName(entries, '@society0/core/generation-binding', 'generation-binding');
         patches.push(
-            { id: 'sqlite', config: { ...entryConfig(entries, 'sqlite'), directory: targetDir, runId: targetRunId, generation } },
-            { id: 'artifacts-local', config: { ...entryConfig(entries, 'artifacts-local'), directory: join(targetDir, 'artifacts') } },
-            { id: 'sqlite-history', config: { ...entryConfig(entries, 'sqlite-history'), directory: targetDir, runId: targetRunId, generation, controlSequence } },
-            { id: 'attempts', config: { ...entryConfig(entries, 'attempts'), directory: targetLineage, lineage: basename(targetLineage) } },
-            { id: 'generation-binding', config: { ...entryConfig(entries, 'generation-binding'), generation, controlSequence } }
+            { id: sqliteEntry.id, config: { ...sqliteEntry.config, directory: targetDir, runId: targetRunId, generation } },
+            { id: artifactsEntry.id, config: { ...artifactsEntry.config, directory: join(targetDir, 'artifacts') } },
+            { id: historyEntry.id, config: { ...historyEntry.config, directory: targetDir, runId: targetRunId, generation, controlSequence } },
+            { id: attemptsEntry.id, config: { ...attemptsEntry.config, directory: targetLineage, lineage: basename(targetLineage) } },
+            { id: genBindingEntry.id, config: { ...genBindingEntry.config, generation, controlSequence } }
         );
         targetProfile.patches = patches;
         const targetURL = pathToFileURL(join(targetDir, 'profile.json'));
@@ -1308,8 +1377,12 @@ export async function runBranch(options: BranchOptions): Promise<Record<string, 
         };
     }
     finally {
-        await lease?.release();
-        await host.close();
+        try {
+            await lease?.release();
+        }
+        finally {
+            await host.close();
+        }
     }
 }
 
