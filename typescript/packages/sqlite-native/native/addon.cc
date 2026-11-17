@@ -418,7 +418,13 @@ static napi_value open(napi_env e,napi_callback_info info){DB*d=nullptr;try{size
  }catch(const Failure&x){if(d)finalize(e,d,nullptr);napi_throw_error(e,x.code.c_str(),x.message.c_str());return nullptr;}catch(const std::exception&x){if(d)finalize(e,d,nullptr);napi_throw_error(e,"SQLITE_NATIVE",x.what());return nullptr;}}
 static napi_value memory(napi_env e,napi_callback_info){try{auto r=object(e);put(e,r,"used",number(e,p_sqlite3_memory_used()));put(e,r,"peak",number(e,p_sqlite3_memory_highwater(0)));put(e,r,"heapLimit",number(e,p_sqlite3_hard_heap_limit64(-1)));put(e,r,"sqliteVersion",string(e,p_sqlite3_libversion()));put(e,r,"sourceIdentity",string(e,p_sqlite3_sourceid()));return r;}catch(...){napi_throw_error(e,"SQLITE_NAPI","Memory diagnostics failed");return nullptr;}}
 static napi_value heap(napi_env e,napi_callback_info info){try{size_t argc=1;napi_value a[1];js(napi_get_cb_info(e,info,&argc,a,nullptr,nullptr));return number(e,p_sqlite3_hard_heap_limit64(integer(e,a[0])));}catch(const Failure&x){napi_throw_error(e,x.code.c_str(),x.message.c_str());return nullptr;}}
-static napi_value init(napi_env e,napi_value exports){try{static std::once_flag once;std::call_once(once,[]{Dl_info here;need(dladdr((void*)&init,&here)!=0,"Cannot locate native module");auto lib=std::filesystem::path(here.dli_fname).parent_path().parent_path()/"vendor/libsqlite3.so";void*h=dlopen(lib.c_str(),RTLD_NOW|RTLD_LOCAL|RTLD_DEEPBIND);if(!h)throw Failure("SQLITE_LOAD",dlerror());
+static napi_value init(napi_env e,napi_value exports){try{static std::once_flag once;std::call_once(once,[]{Dl_info here;need(dladdr((void*)&init,&here)!=0,"Cannot locate native module");auto lib=std::filesystem::path(here.dli_fname).parent_path().parent_path()/"vendor/libsqlite3.so";
+#ifdef RTLD_DEEPBIND
+ int loadFlags=RTLD_NOW|RTLD_LOCAL|RTLD_DEEPBIND;
+#else
+ int loadFlags=RTLD_NOW|RTLD_LOCAL;
+#endif
+ void*h=dlopen(lib.c_str(),loadFlags);if(!h)throw Failure("SQLITE_LOAD",dlerror());
 #define LOAD(n) p_##n=(decltype(p_##n))dlsym(h,#n);need(p_##n,#n " unavailable");
  APIS(LOAD)
  need(std::string(p_sqlite3_libversion())=="3.49.1","Unexpected SQLite version");need(std::string(p_sqlite3_sourceid())=="2025-02-18 13:38:58 873d4e274b4988d260ba8354a9718324a1c26187a4ab4c1cc0227c03d0f10e70","Unexpected SQLite source identity");p_sqlite3_hard_heap_limit64(64LL*1024*1024);});

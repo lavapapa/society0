@@ -70,7 +70,8 @@ capture_acceptance(root,build/'acceptance')
 names={package['package']:'@society0/'+package['directory'] for package in manifest['packages']}
 versions={names[package['package']]:package['source_manifest_version']+'-society0.1' for package in manifest['packages']}
 source={'repository':manifest['repository'],'commit':manifest['commit'],'license':manifest['license'],'packages':[{key:package[key] for key in ['directory','package','source_manifest_version']} for package in manifest['packages']], 'patches':series['patches'],'distributionTransform':'Map @deepseek-ai cohort imports and augmentation targets to @society0; tsc rewrites relative .ts imports to .js, preserves runtime enums and removes const from emitted enum declarations; no runtime hooks.', 'dependencyLock':'BUILD-LOCK.json'}
-for name in ['@standard-schema/spec','js-yaml','argparse','p-limit','yocto-queue','resolve.exports','ajv','fast-deep-equal','fast-uri','json-schema-traverse','require-from-string','@vscode/ripgrep','@vscode/ripgrep-linux-x64','@earendil-works/pi-ai','@earendil-works/pi-agent-core','just-bash','@modelcontextprotocol/sdk']:
+ripgrep=[f'@vscode/{path.name}' for path in sorted((root/'node_modules/@vscode').glob('ripgrep-*')) if path.is_dir()]
+for name in ['@standard-schema/spec','js-yaml','argparse','p-limit','yocto-queue','resolve.exports','ajv','fast-deep-equal','fast-uri','json-schema-traverse','require-from-string','@vscode/ripgrep',*ripgrep,'@earendil-works/pi-ai','@earendil-works/pi-agent-core','just-bash','@modelcontextprotocol/sdk']:
     link(name,root/'node_modules'/name)
 for folder in cohort:
     if folder not in selected: continue
@@ -83,7 +84,7 @@ for folder in cohort:
         package[key]={names.get(name,name):versions[names[name]] if name in names else version for name,version in package.get(key,{}).items()}
     package['peerDependenciesMeta']={names.get(name,name):value for name,value in package.get('peerDependenciesMeta',{}).items()}
     for key in ['bin','module','publishConfig']: package.pop(key,None)
-    package.update(main='./dist/index.js',types='./dist/index.d.ts',exports={'.':{'types':'./dist/index.d.ts','default':'./dist/index.js'},'./package.json':'./package.json'},files=['dist','LICENSE','SOURCE.json','BUILD-LOCK.json','PATCHES','upstream-package.json'],engines={'node':'>=24.16.0'})
+    package.update(main='./dist/index.js',types='./dist/index.d.ts',exports={'.':{'types':'./dist/index.d.ts','default':'./dist/index.js'},'./package.json':'./package.json'},files=['dist','LICENSE','SOURCE.json','BUILD-LOCK.json','PATCHES','upstream-package.json'],engines={'node':'>=24.4.0'})
     for file in (dest/'src').rglob('*.ts'):
         text=file.read_text()
         for old,new in names.items(): text=text.replace("'"+old+"'","'"+new+"'").replace('"'+old+'"','"'+new+'"')

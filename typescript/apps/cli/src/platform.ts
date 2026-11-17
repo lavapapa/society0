@@ -3,9 +3,11 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { basename, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHost, type BootEntry } from '@society0/host';
 import { compareCodePoints } from '@society0/host/order';
+import { applyEntryPatches } from '@society0/include';
+import type {} from '@society0/host/run-branch';
 import type { CompositionPlan, EntryPatch, PlannedEntry, ProfileProblem } from '@society0/host/profile-loader';
 import type { Context } from '@society0/host';
 import type { RunHandle } from '@society0/host/run-directory';
@@ -23,6 +25,7 @@ export const RUN_SCHEMA = 'society0.run/1';
 export const STATUS_SCHEMA = 'society0.run-status/1';
 export const RESULT_SCHEMA = 'society0.run-result/1';
 export const LOCK_SCHEMA = 'society0.lock/1';
+export const BRANCH_SCHEMA = 'society0.run-branch/1';
 export const ERROR_SCHEMA = 'society0.error/1';
 const STATUS_FILE = 'entry-status.json';
 const RESULT_FILE = 'entry-result.json';
@@ -816,6 +819,17 @@ export interface StartOptions {
     mode: 'start' | 'resume';
 }
 
+export interface BranchOptions {
+    sourceDir: string;
+    targetDir: string;
+    targetProfile?: string;
+    patches?: string;
+    pointId?: string;
+    base?: string;
+    lock?: string;
+    lineage?: string;
+}
+
 interface PreparedPlan {
     plan: CompositionPlan;
     profileUrl: string;
@@ -1116,6 +1130,170 @@ export async function runResult(dir: string): Promise<Record<string, unknown>> {
     if (status.state === 'completed')
         throw new PlatformError('RESULT_MISSING', `run 已完成但没有 ${RESULT_FILE}`, '检查 run 目录是否被外部清理');
     throw new PlatformError('RUN_NOT_COMPLETED', `run 当前状态是 ${status.state}，没有可用结果`, '先用 run status 查看进度，必要时 run resume');
+}
+
+function mountGroups(plan: CompositionPlan): { runEntryId: string; bootstrapEntryId: string } {
+    const runGroup = plan.flat.find(entry => entry.group && entry.scope === 'run');
+    const bootstrapGroup = plan.flat.find(entry => entry.group && entry.scope === 'bootstrap');
+    if (!runGroup || !bootstrapGroup)
+        throw new PlatformError('MOUNT_GROUP_MISSING', 'profile 缺少 run 或 bootstrap 作用域组，无法挂载运行目录', '在 profile 里保留 run 组和 bootstrap 组');
+    return { runEntryId: runGroup.id, bootstrapEntryId: bootstrapGroup.id };
+}
+
+function effectiveLock(profile: ProfileDocument, profilePath: string, explicit?: string): string | undefined {
+    if (explicit)
+        return resolve(explicit);
+    if (typeof profile.lockfile !== 'string')
+        return undefined;
+    return profile.lockfile.startsWith('file:') ? fileURLToPath(profile.lockfile) : resolve(dirname(profilePath), profile.lockfile);
+}
+
+function entryConfig(entries: readonly { id?: string; config?: unknown }[], id: string): Record<string, unknown> {
+    const config = entries.find(entry => entry.id === id)?.config;
+    return config && typeof config === 'object' && !Array.isArray(config) ? { ...(config as Record<string, unknown>) } : {};
+}
+
+function countValue(value: unknown): number {
+    if (typeof value === 'number')
+        return value;
+    if (typeof value === 'bigint')
+        return Number(value);
+    if (value && typeof value === 'object' && 'integer' in value)
+        return Number(Reflect.get(value, 'integer'));
+    return Number(value ?? 0);
+}
+
+/**
+ * Create a first-class branch run from a source run's complete point and leave
+ * a resumable paused entry-status in the target directory.
+ */
+export async function runBranch(options: BranchOptions): Promise<Record<string, unknown>> {
+    const sourceDir = resolve(options.sourceDir);
+    const targetDir = resolve(options.targetDir);
+    const status = await readStatus(sourceDir);
+    const sourceProfilePath = resolve(status.profile);
+    const sourceProfile = await readJson<ProfileDocument>(sourceProfilePath);
+    const sourceLock = effectiveLock(sourceProfile, sourceProfilePath, status.lock);
+    const sourceLineage = resolve(status.lineage ?? options.lineage ?? join(dirname(sourceDir), 'lineages', basename(sourceDir)));
+    const targetLineage = resolve(options.lineage ?? sourceLineage);
+    const sourcePrepared = await prepareRunPlan({
+        profile: sourceProfilePath, dir: sourceDir, lineage: sourceLineage,
+        lock: sourceLock, patches: status.patches, base: options.base ?? status.base,
+        detach: false, mode: 'resume'
+    });
+    const host = await platformHost([
+        { specifier: '@society0/host/commands' },
+        { specifier: '@society0/host/run-branch', config: { directory: join(dirname(targetDir), 'branch-operations') } }
+    ], options.base ?? status.base);
+    const sourceRunId = status.runId ?? basename(sourceDir);
+    let lease: ReturnType<typeof host.ctx.runDirectory.acquire> | undefined;
+    try {
+        const groups = mountGroups(sourcePrepared.plan);
+        let sourceContext: Context | undefined;
+        await host.ctx.runDirectory.create({
+            runId: sourceRunId,
+            generation: sourcePrepared.plan,
+            mount: groups,
+            prepare: async (_bootstrap, phase) => {
+                if (!phase)
+                    throw new PlatformError('BRANCH_PHASE_REQUIRED', 'branch 源 run 缺少准备阶段', '确认 profile 保留 run 与 bootstrap 组');
+                const consumer = await phase.run.plugin({
+                    name: 'platform.branch-source',
+                    inject: ['attempts', 'history', 'database'],
+                    apply(value: Context) { sourceContext = value; }
+                });
+                await consumer.await();
+                const ctx = sourceContext!;
+                await ctx.attempts.verifyAuthority();
+                const root = await ctx.history.current();
+                const history = await ctx.history.status();
+                return { root, metadata: ctx.database.metadata, database: ctx.database, state: history.state };
+            }
+        });
+        lease = host.ctx.runDirectory.acquire(sourceRunId, 'read');
+        let source: Context | undefined;
+        const consumer = await lease.ctx.plugin({
+            name: 'platform.branch-point',
+            inject: ['history', 'observation'],
+            apply(value: Context) { source = value; }
+        });
+        await consumer.await();
+        const point = options.pointId ? await source!.history.describe(options.pointId) : await source!.history.current();
+        const actors = await source!.observation.query({ sql: 'SELECT COUNT(*) AS count FROM s0_actors' });
+        const actorCount = countValue(actors.rows[0]?.count);
+
+        const targetRunId = basename(targetDir);
+        const targetProfilePath = resolve(options.targetProfile ?? sourceProfilePath);
+        const targetProfile = structuredClone(await readJson<ProfileDocument>(targetProfilePath));
+        const lock = effectiveLock(targetProfile, targetProfilePath, options.lock ?? sourceLock);
+        if (lock)
+            targetProfile.lockfile = pathToFileURL(lock).href;
+        else
+            delete targetProfile.lockfile;
+        const patches = Array.isArray(targetProfile.patches) ? [...targetProfile.patches] : [];
+        const patchPath = options.patches ?? status.patches;
+        if (patchPath) {
+            const extra = await readJson<EntryPatch[]>(resolve(patchPath));
+            if (!Array.isArray(extra))
+                throw new PlatformError('PATCHES_ARRAY', '--patches 必须是 EntryPatch 数组', '传入 JSON 数组');
+            patches.push(...extra);
+        }
+        const entries = applyEntryPatches([] as never[], patches as never, message => { throw new PlatformError('PROFILE_PATCH', message, '检查目标 profile 的 patches'); }) as { id?: string; config?: unknown }[];
+        const generation = 'g2';
+        const controlSequence = String(BigInt(point.controlSequence) + 1n);
+        patches.push(
+            { id: 'sqlite', config: { ...entryConfig(entries, 'sqlite'), directory: targetDir, runId: targetRunId, generation } },
+            { id: 'artifacts-local', config: { ...entryConfig(entries, 'artifacts-local'), directory: join(targetDir, 'artifacts') } },
+            { id: 'sqlite-history', config: { ...entryConfig(entries, 'sqlite-history'), directory: targetDir, runId: targetRunId, generation, controlSequence } },
+            { id: 'attempts', config: { ...entryConfig(entries, 'attempts'), directory: targetLineage, lineage: basename(targetLineage) } },
+            { id: 'generation-binding', config: { ...entryConfig(entries, 'generation-binding'), generation, controlSequence } }
+        );
+        targetProfile.patches = patches;
+        const targetURL = pathToFileURL(join(targetDir, 'profile.json'));
+        const plan = await host.ctx.runBranch.plan(sourceRunId, point.id, {
+            targetRunId, targetDirectory: targetDir, generation, controlSequence,
+            mount: groups, profile: targetProfile, baseURL: targetURL.href, migrations: [],
+            seedPolicy: 'preserve-seed-new-run-address'
+        } as never);
+        const receipt = await host.ctx.runBranch.create(plan);
+        await mkdir(targetDir, { recursive: true });
+        await writeJsonAtomic(join(targetDir, 'profile.json'), targetProfile);
+        const targetStatus: RunStatus = {
+            schema: STATUS_SCHEMA,
+            runId: targetRunId,
+            dir: targetDir,
+            state: 'paused',
+            completedTicks: countValue((point.frontier as { completedCount?: unknown } | null)?.completedCount),
+            frontier: point.frontier,
+            lastReason: null,
+            updatedAt: new Date().toISOString(),
+            profile: join(targetDir, 'profile.json'),
+            lock,
+            lineage: targetLineage,
+            ticks: status.ticks,
+            base: options.base ?? status.base,
+            world: status.world,
+            credentialsEnv: status.credentialsEnv
+        };
+        await writeJsonAtomic(statusPath(targetDir), targetStatus);
+        return {
+            schema: BRANCH_SCHEMA,
+            runId: targetRunId,
+            dir: targetDir,
+            sourceDir,
+            operationId: plan.operationId,
+            sourcePointId: point.id,
+            targetPointId: receipt.point.id,
+            generation,
+            controlSequence,
+            actorCount,
+            state: 'paused'
+        };
+    }
+    finally {
+        await lease?.release();
+        await host.close();
+    }
 }
 
 export function spawnWorker(main: string, options: StartOptions): Promise<number> {

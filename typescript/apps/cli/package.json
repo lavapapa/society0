@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "engines": {
-    "node": ">=24.16.0"
+    "node": ">=24.4.0"
   },
   "files": [
     "dist",
@@ -15,6 +15,7 @@
     "society0": "./dist/main.js"
   },
   "dependencies": {
+    "@society0/include": "1.0.10-society0.1",
     "@society0/host": "0.1.0",
     "@society0/core": "0.1.0",
     "@society0/extras": "0.1.0",

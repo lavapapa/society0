@@ -1,7 +1,7 @@
 """把 .build 生产包与第三方依赖打成安装态 tarball；acceptance.py 与 host-quality-consumer.py 共用。"""
 from pathlib import Path
 import json, subprocess
-THIRD_PARTY = ['@standard-schema/spec', 'js-yaml', 'argparse', 'p-limit', 'yocto-queue', 'resolve.exports', 'ajv', 'fast-deep-equal', 'fast-uri', 'json-schema-traverse', 'require-from-string', '@vscode/ripgrep', '@vscode/ripgrep-linux-x64', '@earendil-works/pi-ai', '@earendil-works/pi-agent-core', 'just-bash', '@modelcontextprotocol/sdk']
+THIRD_PARTY = ['@standard-schema/spec', 'js-yaml', 'argparse', 'p-limit', 'yocto-queue', 'resolve.exports', 'ajv', 'fast-deep-equal', 'fast-uri', 'json-schema-traverse', 'require-from-string', '@vscode/ripgrep', '@earendil-works/pi-ai', '@earendil-works/pi-agent-core', 'just-bash', '@modelcontextprotocol/sdk']
 TYPED = ['semver', '@types/node', '@types/js-yaml', '@types/semver', 'undici-types']
 def pack(root, path, tar):
     result = subprocess.run(['npm', 'pack', '--ignore-scripts', '--json', '--pack-destination', str(tar)], cwd=path, check=True, text=True, capture_output=True)
@@ -16,5 +16,6 @@ def pack(root, path, tar):
     print('packed', record['filename'], flush=True)
     return tar / record['filename']
 def dependencies(root, tar):
-    names = [*THIRD_PARTY, *TYPED]
+    ripgrep = [f'@vscode/{path.name}' for path in sorted((root / 'node_modules/@vscode').glob('ripgrep-*')) if path.is_dir()]
+    names = [*THIRD_PARTY, *ripgrep, *TYPED]
     return [pack(root, root / 'node_modules' / name, tar) for name in names]
