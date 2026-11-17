@@ -1148,8 +1148,21 @@ function effectiveLock(profile: ProfileDocument, profilePath: string, explicit?:
     return profile.lockfile.startsWith('file:') ? fileURLToPath(profile.lockfile) : resolve(dirname(profilePath), profile.lockfile);
 }
 
-function entryConfig(entries: readonly { id?: string; config?: unknown }[], id: string): Record<string, unknown> {
-    const config = entries.find(entry => entry.id === id)?.config;
+function findEntry(entries: readonly { id?: string; group?: boolean; config?: unknown }[], id: string): { id?: string; group?: boolean; config?: unknown } | undefined {
+    for (const entry of entries) {
+        if (entry.id === id)
+            return entry;
+        if (entry.group && Array.isArray(entry.config)) {
+            const nested = findEntry(entry.config as readonly { id?: string; group?: boolean; config?: unknown }[], id);
+            if (nested)
+                return nested;
+        }
+    }
+    return undefined;
+}
+
+function entryConfig(entries: readonly { id?: string; group?: boolean; config?: unknown }[], id: string): Record<string, unknown> {
+    const config = findEntry(entries, id)?.config;
     return config && typeof config === 'object' && !Array.isArray(config) ? { ...(config as Record<string, unknown>) } : {};
 }
 
@@ -1181,7 +1194,9 @@ export async function runBranch(options: BranchOptions): Promise<Record<string, 
         lock: sourceLock, patches: status.patches, base: options.base ?? status.base,
         detach: false, mode: 'resume'
     });
+    const targetProfileCandidate = options.targetProfile ? await readJson<ProfileDocument>(resolve(options.targetProfile)) : undefined;
     const host = await platformHost([
+        ...modelSeeds([sourceProfile, targetProfileCandidate]),
         { specifier: '@society0/host/commands' },
         { specifier: '@society0/host/run-branch', config: { directory: join(dirname(targetDir), 'branch-operations') } }
     ], options.base ?? status.base);
@@ -1239,7 +1254,9 @@ export async function runBranch(options: BranchOptions): Promise<Record<string, 
             patches.push(...extra);
         }
         const entries = applyEntryPatches([] as never[], patches as never, message => { throw new PlatformError('PROFILE_PATCH', message, '检查目标 profile 的 patches'); }) as { id?: string; config?: unknown }[];
-        const generation = 'g2';
+        const prevGen = String(entryConfig(entries, 'generation-binding').generation ?? entryConfig(entries, 'sqlite').generation ?? 'g1');
+        const genMatch = /^g(\d+)$/.exec(prevGen);
+        const generation = genMatch ? 'g' + String(Number(genMatch[1]) + 1) : prevGen + '_b';
         const controlSequence = String(BigInt(point.controlSequence) + 1n);
         patches.push(
             { id: 'sqlite', config: { ...entryConfig(entries, 'sqlite'), directory: targetDir, runId: targetRunId, generation } },

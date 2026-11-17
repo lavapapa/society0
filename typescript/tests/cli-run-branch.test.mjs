@@ -141,4 +141,54 @@ test('run branch forks a complete point into resumable paused runs', { skip, tim
     }
     assert.notEqual(targets[0].output.runId, targets[1].output.runId);
     assert.notEqual(targets[0].output.targetPointId, targets[1].output.targetPointId);
+
+    // Chained branch (g2 -> g3) increments generation cleanly.
+    const grandChild = join(directory, 'branch-a-sub');
+    const grandOutput = json(call(['run', 'branch', '--dir', first, '--target-dir', grandChild, '--json']));
+    assert.equal(grandOutput.generation, 'g3');
+});
+
+test('run branch supports profiles with model-pi mounted in run group', { skip, timeout: 600_000 }, async () => {
+    const { directory, profile, document } = await fixture();
+    const runGroup = document.patches[0].insert.find(entry => entry.id === 'run');
+    if (!runGroup.config.some(entry => entry.id === 'slots'))
+        runGroup.config.unshift({ id: 'slots', name: '@society0/host/slots', config: {} });
+    runGroup.config.unshift(
+        { id: 'model-providers', name: '@society0/core/model-providers', config: {} },
+        {
+            id: 'model-pi',
+            name: '@society0/core/model-pi',
+            config: {
+                name: 'pi/v1',
+                providerId: 'fixture-provider',
+                credential: 'fixture-cred',
+                models: [{
+                    id: 'fixture-model',
+                    name: 'Fixture',
+                    provider: 'fixture-provider',
+                    api: 'openai-completions',
+                    baseUrl: 'http://127.0.0.1:9/v1',
+                    reasoning: false,
+                    input: ['text'],
+                    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                    contextWindow: 8192,
+                    maxTokens: 256,
+                }],
+                maxTokens: 256,
+            },
+        },
+    );
+    await writeFile(profile, JSON.stringify(document));
+
+    const source = join(directory, 'llm-source');
+    const env = { ...process.env, SOCIETY0_CREDENTIALS_JSON: JSON.stringify({ 'fixture-provider': { type: 'api_key', key: 'dummy' } }) };
+    const startRes = spawnSync(process.execPath, [cli, 'run', 'start', '--profile', profile, '--dir', source, '--ticks', '1', '--credentials-env', 'SOCIETY0_CREDENTIALS_JSON', '--detach', '--json'], { encoding: 'utf8', env, timeout: 240_000 });
+    json(startRes);
+    const sourceStatus = await waitFor(source, value => value.state === 'completed' || value.state === 'failed');
+    assert.equal(sourceStatus.state, 'completed', JSON.stringify(sourceStatus));
+
+    const forked = join(directory, 'llm-fork');
+    const forkOutput = json(call(['run', 'branch', '--dir', source, '--target-dir', forked, '--json']));
+    assert.equal(forkOutput.generation, 'g2');
+    assert.equal(forkOutput.state, 'paused');
 });
