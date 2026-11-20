@@ -25,7 +25,7 @@ export class SqliteConnection {
   if(maxInlineBytes<1024)throw fault('SQLITE_ARGUMENT','maxInlineBytes must be at least 1024');if(synchronous!=='full'&&synchronous!=='normal')throw fault('SQLITE_ARGUMENT','synchronous must be full or normal');if(!Number.isSafeInteger(cacheSize)||!cacheSize)throw fault('SQLITE_ARGUMENT','cacheSize must be a non-zero safe integer');
   if(!(control instanceof Int32Array)||!(control.buffer instanceof SharedArrayBuffer)||control.length!==1)throw fault('SQLITE_ARGUMENT','control must be a shared Int32Array of length 1');
   this.#control=control;this.#readOnly=readOnly;this.#timeout=timeoutMs;this.#maxCaptured=maxCapturedBytes;this.#maxInput=maxInputBytes;
-  this.#handle=native.open(path,readOnly,maxInlineBytes,control,{synchronous,cacheSize});
+  this.#handle=native.open(path,readOnly,maxInlineBytes,control,{synchronous,cacheSize,busyTimeoutMs:timeoutMs});
  }
  get control(){return this.#control;}
  setControl(control){if(this.#closed)throw fault('SQLITE_CLOSED','Connection is closed');if(!(control instanceof Int32Array)||!(control.buffer instanceof SharedArrayBuffer)||control.length!==1)throw fault('SQLITE_ARGUMENT','control must be a shared Int32Array of length 1');native.dispatch(this.#handle,'setControl',{timeoutMs:this.#timeout,maxCapturedBytes:this.#maxCaptured},control);this.#control=control;}

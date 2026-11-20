@@ -75,11 +75,24 @@ interface RunStatus {
     credentialsEnv?: string;
 }
 
-export function platformHost(extra: BootEntry[] = [], base?: string) {
-    const boot = HOST_BOOT.map(specifier => specifier === 'module-resolver' && base
+/**
+ * Host 启动表。tasks 的 concurrency 是每个插件 owner 的物理任务并发（model-pi 的模型请求、activation 的主体激活各占一个 owner），
+ * 属于不影响结果的本机资源调优，不进 profile；由 SOCIETY0_HOST_CONCURRENCY 指定，缺省用 tasks 默认值。
+ */
+export function hostBoot(base?: string, env: NodeJS.ProcessEnv = process.env): BootEntry[] {
+    const raw = env.SOCIETY0_HOST_CONCURRENCY;
+    const concurrency = raw === undefined ? undefined : Number(raw);
+    if (concurrency !== undefined && !(Number.isSafeInteger(concurrency) && concurrency >= 1))
+        throw new PlatformError('HOST_CONCURRENCY_INVALID', `SOCIETY0_HOST_CONCURRENCY 须为正整数，实际 ${raw}`, '设为如 16 的正整数或删除该变量');
+    return HOST_BOOT.map((specifier): BootEntry => specifier === 'module-resolver' && base
         ? { specifier: '@society0/host/module-resolver', config: { baseURL: baseURLOf(base) } }
-        : { specifier: '@society0/host/' + specifier });
-    return createHost({ baseURL: import.meta.url, boot: [...boot, ...extra] });
+        : specifier === 'tasks' && concurrency !== undefined
+            ? { specifier: '@society0/host/tasks', config: { concurrency } }
+            : { specifier: '@society0/host/' + specifier });
+}
+
+export function platformHost(extra: BootEntry[] = [], base?: string) {
+    return createHost({ baseURL: import.meta.url, boot: [...hostBoot(base), ...extra] });
 }
 
 export function baseURLOf(base: string): string {
@@ -899,9 +912,7 @@ interface RunRoot {
 
 /** Boot the run host and publish the authoritative root: migrations, actors.seed and every initializer. */
 async function createRunRoot(prepared: PreparedPlan, options: StartOptions): Promise<RunRoot> {
-    const seed: BootEntry[] = HOST_BOOT.map(specifier => specifier === 'module-resolver' && options.base
-        ? { specifier: '@society0/host/module-resolver', config: { baseURL: baseURLOf(options.base) } }
-        : { specifier: '@society0/host/' + specifier });
+    const seed: BootEntry[] = hostBoot(options.base);
     const modelEnabled = prepared.plan.flat.some(entry => !entry.disabled && entry.binding?.api.requires.some(required => required.service.key === 'modelCredentials' && !required.optional && required.phase === 'module'));
     if (modelEnabled || options.credentialsEnv)
         seed.push({ specifier: '@society0/host/slots' }, { specifier: '@society0/core/model-credentials', config: { stores: [] } });

@@ -47,6 +47,24 @@ test('RV3-04-T02 sqlite commit unknown from sink is persistence_unknown',async()
   } finally {await prepared?.release().catch(()=>{});await provider?.close();await run.close()}
 });
 
+// driver-llm 把 sink 的 abort 回调接到激活自身的 AbortController：sink 失败先中止信号，随后 emit 的拒绝才进入 failSave。
+// 中止原因若就是原错误，failSave 会把它当成外部取消，真实持久化故障被误报为 cancelled。
+test('RV3-04-T02 sink failure that aborts the activation signal stays persistence_error',async()=>{
+  const run=await fixture();let provider,prepared;
+  try {
+    provider=new ReplayProvider({sum:[assistant([{type:'text',text:'ok'}])]});
+    const controller=new AbortController(),base=run.context('rv304-sink-abort'),context={...base,signal:AbortSignal.any([base.signal,controller.signal])};
+    prepared=await provider.prepare({provider:'replay/v1',model:'sum'},context);
+    const sink=new OrderedInferenceSink({maxPendingEvents:16,maxPendingBytes:65536},async()=>{throw Object.assign(Error('artifact store busy'),{code:'ARTIFACT_BUSY'})},async()=>{},error=>controller.abort(error));
+    const runtime=new PiRuntime();
+    const outcome=await runtime.run(body(prepared.value),context,sink,extensions());
+    assert.equal(outcome.reason,'persistence_error');
+    assert.equal(controller.signal.reason.code,'INFERENCE_SINK_FAILED');
+    assert.equal(controller.signal.reason.cause.code,'ARTIFACT_BUSY');
+    await runtime.drain('done');
+  } finally {await prepared?.release().catch(()=>{});await provider?.close();await run.close()}
+});
+
 test('RV3-04-T01 native stream rejection settles unknown',async()=>{
   const run=await fixture();let provider,prepared;
   try {

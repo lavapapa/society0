@@ -25,7 +25,7 @@ for(const failWrite of [false,true])test('PR08-T25 fast model waits for slow phy
   const slow=frame.event.type==='message_start'&&frame.event.message.role==='assistant';
   if(slow){entered.resolve();await gate.promise}
   await appendFile(failWrite&&slow?directory:log,JSON.stringify(frame)+'\n');
- },async()=>{},error=>errors.push(error.code??String(error)));
+ },async()=>{},error=>errors.push(error.code??String(error),error.cause?.code));
  try{
   work=runtime.value.run({threadId:'slow',interactionId:'slow',history:[],prompts:[{role:'user',content:'answer',timestamp:0}],tools:[],actionReceipts:{read:async()=>[]},selection:selected,budget:{maxRequests:1,maxToolCalls:0},requiredActions:[]},context,sink,extensions);
   void work.then(()=>{finished=true},()=>{finished=true});
@@ -35,7 +35,7 @@ for(const failWrite of [false,true])test('PR08-T25 fast model waits for slow phy
   assert.equal(outcome.status,failWrite?'incomplete':'completed');if(failWrite)assert.equal(outcome.reason,'persistence_error');
   const drained=sink.diagnostics();assert.equal(drained.pending,0);assert.equal(drained.bytes,0);assert.equal(drained.failed,failWrite);
   const frames=(await readFile(log,'utf8')).trim().split('\n').map(line=>JSON.parse(line));assert(frames.length>0);assert.deepEqual(frames.map(frame=>frame.sequence),frames.map((_,index)=>index+1));
-  if(failWrite)assert(errors.includes('EISDIR'));else{assert.deepEqual(errors,[]);assert.equal(frames.at(-1).event.type,'agent_end')}
+  if(failWrite)assert.deepEqual(errors,['INFERENCE_SINK_FAILED','EISDIR']);else{assert.deepEqual(errors,[]);assert.equal(frames.at(-1).event.type,'agent_end')}
   t.diagnostic(JSON.stringify({directory,failWrite,modelCompleteBeforeRelease:true,held,drained,reason:outcome.reason,persisted:frames.length,errors}));
  }finally{
   gate.resolve();await work?.catch(()=>{});await extensions.release();await runtime.release();await prepared.release();
