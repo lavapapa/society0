@@ -6,6 +6,7 @@ import {createModels,createProvider,InMemoryCredentialStore,envApiKeyAuth} from 
 import * as completions from '@earendil-works/pi-ai/api/openai-completions';
 import {PiModelProvider} from '../.build/core/dist/model-pi/provider.js';
 import {fixture} from './pr08-support.mjs';
+import {modelOperationId} from '../.build/core/dist/model-pi/selection.js';
 
 const arg=name=>{const index=process.argv.indexOf(name);return index>0?process.argv[index+1]:undefined};
 const evidenceDir=arg('--evidence-dir'),gatewayEnv=arg('--gateway-env');
@@ -27,7 +28,7 @@ async function exercise(run,provider,modelId,name){
     } catch {}
     await selected.value.drain();
     const settlements=[...(selected.value.attemptSettlements??[])].map(item=>({status:item.status,httpStatus:item.httpStatus,cause:item.cause}));
-    const probe=await run.ctx.attempts.probe({lineage:run.ctx.attempts.authority().lineage,operationId:context.operationId+'/model/1',attempt:0});
+    const probe=await run.ctx.attempts.probe({lineage:run.ctx.attempts.authority().lineage,operationId:modelOperationId(context,1),attempt:0});
     const record=probe.status==='found'?probe.record:undefined;
     return {model:modelId,settlements,probe:probe.status,recordStatus:record?.status??null,reason:record?.reason??null,result:record?.result??null};
   } finally {

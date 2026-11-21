@@ -7,6 +7,7 @@ import {PiModelProvider} from '../.build/core/dist/model-pi/provider.js';
 import {PiRuntime} from '../.build/core/dist/agent-runtime-pi/runtime.js';
 import {OrderedInferenceSink} from '../.build/core/dist/agent-runtime-pi/sink.js';
 import {fixture,extensions} from './pr08-support.mjs';
+import {modelOperationId} from '../.build/core/dist/model-pi/selection.js';
 
 const modelFor = port => ({id: 'offline', name: 'offline', api: 'openai-completions', provider: 'offline', baseUrl: 'http://127.0.0.1:' + port + '/v1', reasoning: false, input: ['text'], cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}, contextWindow: 8192, maxTokens: 256});
 
@@ -26,7 +27,7 @@ async function exercise(run, port, name) {
     } catch {}
     await selected.value.drain();
     const settlements = [...(selected.value.attemptSettlements ?? [])];
-    const probe = await run.ctx.attempts.probe({lineage: run.ctx.attempts.authority().lineage, operationId: context.operationId + '/model/1', attempt: 0});
+    const probe = await run.ctx.attempts.probe({lineage: run.ctx.attempts.authority().lineage, operationId: modelOperationId(context, 1), attempt: 0});
     return {settlements, probe};
   } finally {
     await selected?.release().catch(() => {});

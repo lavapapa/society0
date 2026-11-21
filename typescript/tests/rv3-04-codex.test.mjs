@@ -5,6 +5,7 @@ import {createModels,createProvider,InMemoryCredentialStore} from '@earendil-wor
 import * as codex from '@earendil-works/pi-ai/api/openai-codex-responses';
 import {PiModelProvider} from '../.build/core/dist/model-pi/provider.js';
 import {fixture} from './pr08-support.mjs';
+import {modelOperationId} from '../.build/core/dist/model-pi/selection.js';
 
 const encode=value=>Buffer.from(JSON.stringify(value)).toString('base64url');
 const token=()=>encode({alg:'none',typ:'JWT'})+'.'+encode({'https://api.openai.com/auth':{chatgpt_account_id:'fixture-account'}})+'.fixture';
@@ -26,7 +27,7 @@ async function exercise(run,port,name){
     } catch {}
     await selected.value.drain();
     const settlements=[...(selected.value.attemptSettlements??[])];
-    const probe=await run.ctx.attempts.probe({lineage:run.ctx.attempts.authority().lineage,operationId:context.operationId+'/model/1',attempt:0});
+    const probe=await run.ctx.attempts.probe({lineage:run.ctx.attempts.authority().lineage,operationId:modelOperationId(context,1),attempt:0});
     return {settlements,probe};
   } finally {
     await selected?.release().catch(()=>{});

@@ -5,6 +5,7 @@ import {createModels,createProvider,envApiKeyAuth,InMemoryCredentialStore} from 
 import * as completions from '@earendil-works/pi-ai/api/openai-completions';
 import {PiModelProvider} from '../.build/core/dist/model-pi/provider.js';
 import {fixture} from './pr08-support.mjs';
+import {modelOperationId} from '../.build/core/dist/model-pi/selection.js';
 
 const completion = (model) => JSON.stringify({
   id: 'completion', object: 'chat.completion', created: 1, model: model.id,
@@ -57,13 +58,13 @@ async function run(retry, statuses, operationId) {
 
 test('D3-P3A upstream 500 retries with growing backoff and records each attempt', async () => {
   const retry = {baseMs: 5, maxMs: 20, jitter: 0};
-  const {env, calls, selected} = await run(retry, [500, 500, 200], 'd3-retry-upstream');
+  const {env, calls, selected, context} = await run(retry, [500, 500, 200], 'd3-retry-upstream');
   try {
     assert.equal(calls(), 3);
     const lineage = env.ctx.attempts.authority().lineage;
     const records = [];
     for (const attempt of [0, 1, 2]) {
-      const found = await env.ctx.attempts.probe({lineage, operationId: 'd3-retry-upstream/model/1', attempt});
+      const found = await env.ctx.attempts.probe({lineage, operationId: modelOperationId(context, 1), attempt});
       assert.equal(found.status, 'found');
       records.push(found.record);
     }
@@ -82,10 +83,10 @@ test('D3-P3A upstream 500 retries with growing backoff and records each attempt'
 });
 
 test('D3-P3A 4xx is not retried', async () => {
-  const {env, calls} = await run({baseMs: 1, maxMs: 2, jitter: 0}, [400], 'd3-retry-client');
+  const {env, calls, context} = await run({baseMs: 1, maxMs: 2, jitter: 0}, [400], 'd3-retry-client');
   try {
     assert.equal(calls(), 1);
-    const found = await env.ctx.attempts.probe({lineage: env.ctx.attempts.authority().lineage, operationId: 'd3-retry-client/model/1', attempt: 1});
+    const found = await env.ctx.attempts.probe({lineage: env.ctx.attempts.authority().lineage, operationId: modelOperationId(context, 1), attempt: 1});
     assert.equal(found.status, 'absent');
   } finally {
     await env.close();

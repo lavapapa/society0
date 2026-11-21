@@ -6,6 +6,7 @@ import * as completions from '@earendil-works/pi-ai/api/openai-completions';
 import {PiModelProvider} from '../.build/core/dist/model-pi/provider.js';
 import {resolveTransport,jsonTransport} from '../.build/core/dist/model-pi/json-transport.js';
 import {fixture} from './pr08-support.mjs';
+import {modelOperationId} from '../.build/core/dist/model-pi/selection.js';
 
 const model={id:'offline',name:'offline',api:'openai-completions',provider:'offline',baseUrl:'',reasoning:false,input:['text'],cost:{input:0,output:0,cacheRead:0,cacheWrite:0},contextWindow:8192,maxTokens:256};
 async function gateway(run,{transport='json',jsonTimeoutMs=180000,handler,ledger}={}){
@@ -28,7 +29,7 @@ async function call(run,provider,context,options={}){
   await selected.release();
   return {events,error,message};
 }
-async function attempt(run,context){return run.ctx.attempts.probe({lineage:run.ctx.attempts.authority().lineage,operationId:context.operationId+'/model/1',attempt:0})}
+async function attempt(run,context){return run.ctx.attempts.probe({lineage:run.ctx.attempts.authority().lineage,operationId:modelOperationId(context,1),attempt:0})}
 async function artifactText(run,ref){let text='';for await(const part of run.ctx.attempts.readArtifact(ref))text+=Buffer.from(part).toString();return text}
 
 test('D1 default transport is json and sse is per-model opt-in',()=>{

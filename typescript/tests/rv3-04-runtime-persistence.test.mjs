@@ -5,6 +5,7 @@ import {PiRuntime} from '../.build/core/dist/agent-runtime-pi/runtime.js';
 import {OrderedInferenceSink} from '../.build/core/dist/agent-runtime-pi/sink.js';
 import {ReplayProvider} from '../.build/core/dist/model-replay/provider.js';
 import {fixture,assistant,selection,extensions} from './pr08-support.mjs';
+import {modelOperationId} from '../.build/core/dist/model-pi/selection.js';
 
 const model={id:'offline',name:'offline',api:'openai-completions',provider:'offline',baseUrl:'http://127.0.0.1:1/v1',reasoning:false,input:['text'],cost:{input:0,output:0,cacheRead:0,cacheWrite:0},contextWindow:8192,maxTokens:256};
 const body=selectionValue=>({threadId:'t',interactionId:'i',history:[],prompts:[{role:'user',content:'x',timestamp:0}],tools:[],actionReceipts:{read:async()=>[]},selection:selectionValue,budget:{maxRequests:1,maxToolCalls:0},requiredActions:[]});
@@ -77,7 +78,7 @@ test('RV3-04-T01 native stream rejection settles unknown',async()=>{
     const settlements=[...(prepared.value.attemptSettlements??[])];
     assert.equal(settlements.length,1);
     assert.equal(settlements[0].status,'unknown');
-    const probe=await run.ctx.attempts.probe({lineage:run.ctx.attempts.authority().lineage,operationId:context.operationId+'/model/1',attempt:0});
+    const probe=await run.ctx.attempts.probe({lineage:run.ctx.attempts.authority().lineage,operationId:modelOperationId(context,1),attempt:0});
     assert.equal(probe.record.status,'unknown');
   } finally {await prepared?.release().catch(()=>{});await provider?.close();await run.close()}
 });
@@ -96,7 +97,7 @@ test('RV3-04-T01 settlement write failure is attempted once without settlement',
     assert.equal(unknowns,1);
     assert.equal(settles,0);
     assert.equal(prepared.value.attemptSettlements?.length??0,0);
-    const pending=await actual.probe({lineage:actual.authority().lineage,operationId:context.operationId+'/model/1',attempt:0});
+    const pending=await actual.probe({lineage:actual.authority().lineage,operationId:modelOperationId(context,1),attempt:0});
     assert.equal(pending.record.status,'pending');
   } finally {await prepared?.release().catch(()=>{});await provider?.close();await run.close()}
 });
@@ -113,7 +114,7 @@ test('RV3-04-T01 native rejection plus ledger failure classifies as persistence_
     const outcome=await runtime.run(body(prepared.value),context,sinkOf(),extensions());
     assert.equal(outcome.reason,'persistence_error');
     assert.deepEqual(outcome.modelAttempts,[]);
-    const pending=await actual.probe({lineage:actual.authority().lineage,operationId:context.operationId+'/model/1',attempt:0});
+    const pending=await actual.probe({lineage:actual.authority().lineage,operationId:modelOperationId(context,1),attempt:0});
     assert.equal(pending.record.status,'pending');
     await runtime.drain('done');
   } finally {await prepared?.release().catch(()=>{});await provider?.close();await run.close()}

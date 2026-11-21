@@ -5,6 +5,7 @@ import {createModels,createProvider,InMemoryCredentialStore,envApiKeyAuth} from 
 import * as completions from '@earendil-works/pi-ai/api/openai-completions';
 import {PiModelProvider} from '../.build/core/dist/model-pi/provider.js';
 import {fixture} from './pr08-support.mjs';
+import {modelOperationId} from '../.build/core/dist/model-pi/selection.js';
 
 for (const [status, code] of [[500, 'MODEL_UPSTREAM_ERROR'], [429, 'MODEL_RATE_LIMITED']]) {
   test(`L1 HTTP ${status} settles as ${code} after bounded retries`, async () => {
@@ -33,7 +34,7 @@ for (const [status, code] of [[500, 'MODEL_UPSTREAM_ERROR'], [429, 'MODEL_RATE_L
       for await (const event of stream) {}
       await selected.value.drain();
       assert.equal(requests, 3);
-      const found = await run.ctx.attempts.probe({lineage: run.ctx.attempts.authority().lineage, operationId: 'l1-upstream-' + status + '/model/1', attempt: 0});
+      const found = await run.ctx.attempts.probe({lineage: run.ctx.attempts.authority().lineage, operationId: modelOperationId(context, 1), attempt: 0});
       assert.equal(found.status, 'found');
       assert.equal(found.record.status, 'settled');
       assert.equal(found.record.result.status, 'failed');

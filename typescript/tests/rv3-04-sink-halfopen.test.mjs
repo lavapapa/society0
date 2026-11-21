@@ -16,6 +16,7 @@ import {PiModelProvider} from '../.build/core/dist/model-pi/provider.js';
 import {PiRuntime} from '../.build/core/dist/agent-runtime-pi/runtime.js';
 import {OrderedInferenceSink} from '../.build/core/dist/agent-runtime-pi/sink.js';
 import {fixture,extensions} from './pr08-support.mjs';
+import {modelOperationId} from '../.build/core/dist/model-pi/selection.js';
 
 const modelFor=port=>({id:'offline',name:'offline',api:'openai-completions',provider:'offline',baseUrl:'http://127.0.0.1:'+port+'/v1',reasoning:false,input:['text'],cost:{input:0,output:0,cacheRead:0,cacheWrite:0},contextWindow:8192,maxTokens:256});
 async function connect(port,ledger,fetchImpl) {
@@ -66,7 +67,7 @@ test('RV3-04-T02b real sink budget rejection and protocol abort on half-open SSE
     assert.equal(upstreamEnded,false);
     assert.equal(current.writableEnded,false);
     assert.equal(requests,1);
-    const identity={lineage:run.ctx.attempts.authority().lineage,operationId:context.operationId+'/model/1',attempt:0};
+    const identity={lineage:run.ctx.attempts.authority().lineage,operationId:modelOperationId(context,1),attempt:0};
     const probe=await run.ctx.attempts.probe(identity);
     assert.equal(probe.record.status,'unknown');
     await runtime.drain('done');runtime=undefined;

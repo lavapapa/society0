@@ -7,6 +7,7 @@ import {PiModelProvider} from '../.build/core/dist/model-pi/provider.js';
 import {PiRuntime} from '../.build/core/dist/agent-runtime-pi/runtime.js';
 import {OrderedInferenceSink} from '../.build/core/dist/agent-runtime-pi/sink.js';
 import {fixture,extensions} from './pr08-support.mjs';
+import {modelOperationId} from '../.build/core/dist/model-pi/selection.js';
 
 const modelFor=port=>({id:'offline',name:'offline',api:'openai-completions',provider:'offline',baseUrl:'http://127.0.0.1:'+port+'/v1',reasoning:false,input:['text'],cost:{input:0,output:0,cacheRead:0,cacheWrite:0},contextWindow:8192,maxTokens:256});
 async function connect(port,ledger) {
@@ -35,7 +36,7 @@ test('RV3-04-T01 normalized archive failure keeps ledger pending and reports per
     assert.equal(outcome.reason,'persistence_error');
     assert.equal(outcome.modelAttempts.length,0);
     assert.equal(prepared.value.attemptSettlements?.length??0,0);
-    const identity={lineage:actual.authority().lineage,operationId:context.operationId+'/model/1',attempt:0};
+    const identity={lineage:actual.authority().lineage,operationId:modelOperationId(context,1),attempt:0};
     const probe=await actual.probe(identity);
     assert.equal(probe.record.status,'pending');
     assert.equal(requests,1);
@@ -64,7 +65,7 @@ test('RV3-04-T01 payload archive failure does not dispatch and leaves ledger pen
     assert.equal(outcome.reason,'persistence_error');
     assert.equal(outcome.modelAttempts.length,0);
     assert.equal(prepared.value.attemptSettlements?.length??0,0);
-    const identity={lineage:actual.authority().lineage,operationId:context.operationId+'/model/1',attempt:0};
+    const identity={lineage:actual.authority().lineage,operationId:modelOperationId(context,1),attempt:0};
     const probe=await actual.probe(identity);
     assert.equal(probe.record.status,'pending');
     assert.equal(requests,0);
@@ -93,7 +94,7 @@ test('RV3-04-T01 payload archive failure keeps evidence wrapper in drain chain',
     await assert.rejects(prepared.value.drain(),error=>error.code==='MODEL_EVIDENCE_ERROR'&&(error.errors??[]).some(item=>item.code==='PAYLOAD_ARCHIVE_DOWN'));
     assert.equal(requests,0);
     assert.equal(prepared.value.attemptSettlements?.length??0,0);
-    const identity={lineage:actual.authority().lineage,operationId:context.operationId+'/model/1',attempt:0};
+    const identity={lineage:actual.authority().lineage,operationId:modelOperationId(context,1),attempt:0};
     const probe=await actual.probe(identity);
     assert.equal(probe.record.status,'pending');
   } finally {

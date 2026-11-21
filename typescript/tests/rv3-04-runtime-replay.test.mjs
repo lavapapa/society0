@@ -8,6 +8,7 @@ import {PiRuntime} from '../.build/core/dist/agent-runtime-pi/runtime.js';
 import {OrderedInferenceSink} from '../.build/core/dist/agent-runtime-pi/sink.js';
 import {ReplayProvider} from '../.build/core/dist/model-replay/provider.js';
 import {fixture,assistant,extensions} from './pr08-support.mjs';
+import {modelOperationId} from '../.build/core/dist/model-pi/selection.js';
 
 const modelFor=port=>({id:'offline',name:'offline',api:'openai-completions',provider:'offline',baseUrl:'http://127.0.0.1:'+port+'/v1',reasoning:false,input:['text'],cost:{input:0,output:0,cacheRead:0,cacheWrite:0},contextWindow:8192,maxTokens:256});
 async function connect(port,ledger='pr07') {
@@ -33,7 +34,7 @@ test('RV3-04-T03 replay of unknown physical request stays unknown without resend
     await selected.value.drain();
     const first=[...(selected.value.attemptSettlements??[])];
     assert.equal(first.length,1);assert.equal(first[0].status,'unknown');
-    const identity={lineage:run.ctx.attempts.authority().lineage,operationId:context.operationId+'/model/1',attempt:0};
+    const identity={lineage:run.ctx.attempts.authority().lineage,operationId:modelOperationId(context,1),attempt:0};
     const before=await run.ctx.attempts.probe(identity);
     assert.equal(before.record.status,'unknown');
 

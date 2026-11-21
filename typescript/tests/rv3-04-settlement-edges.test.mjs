@@ -6,6 +6,7 @@ import * as completions from '@earendil-works/pi-ai/api/openai-completions';
 import {PiActivation} from '../.build/core/dist/agent-runtime-pi/activation.js';
 import {PiModelProvider} from '../.build/core/dist/model-pi/provider.js';
 import {fixture} from './pr08-support.mjs';
+import {modelOperationId} from '../.build/core/dist/model-pi/selection.js';
 
 const modelFor=port=>({id:'offline',name:'offline',api:'openai-completions',provider:'offline',baseUrl:'http://127.0.0.1:'+port+'/v1',reasoning:false,input:['text'],cost:{input:0,output:0,cacheRead:0,cacheWrite:0},contextWindow:8192,maxTokens:256});
 async function connect(port,ledger,runId='pr07') {
@@ -50,7 +51,7 @@ test('RV3-04-T01 archive failure becomes evidence error without settlement',asyn
     provider=await connect(server.port,ledger);
     selected=await provider.prepare({provider:'pi/v1',model:'offline'},context);
     await assert.rejects(selected.value.streamFn(selected.value.model,{messages:[{role:'user',content:'hi',timestamp:0}]},{}).then(async stream=>{try{for await(const _ of stream){}}finally{await selected.value.drain()}}),cause=>cause.code==='MODEL_EVIDENCE_ERROR');
-    const probe=await actual.probe({lineage:actual.authority().lineage,operationId:context.operationId+'/model/1',attempt:0});
+    const probe=await actual.probe({lineage:actual.authority().lineage,operationId:modelOperationId(context,1),attempt:0});
     assert.equal(probe.record.status,'pending');
   } finally {
     await selected?.release().catch(()=>{});
