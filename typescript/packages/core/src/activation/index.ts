@@ -125,6 +125,10 @@ export class ActivationService extends Service {
         return b;
     }
     async submit(intent: ActivationIntent, context: ExecutionContext): Promise<ActivationAdmission> {
+        if (context.completedActivations?.has(intent.id))
+            return {
+                kind: 'rejected', reason: 'ACTIVATION_DUPLICATE'
+            };
         const b = this.batch(context);
         const encoded = JSON.stringify(intent);
         if (Buffer.byteLength(encoded) > this.config.maxQueuedBytes)

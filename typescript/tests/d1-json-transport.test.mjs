@@ -10,7 +10,7 @@ import {modelOperationId} from '../.build/core/dist/model-pi/selection.js';
 import {unpackText} from '../.build/core/dist/session-log/index.js';
 
 const model={id:'offline',name:'offline',api:'openai-completions',provider:'offline',baseUrl:'',reasoning:false,input:['text'],cost:{input:0,output:0,cacheRead:0,cacheWrite:0},contextWindow:8192,maxTokens:256};
-async function gateway(run,{transport='json',jsonTimeoutMs=180000,handler}={}){
+async function gateway(run,{transport='json',jsonTimeoutMs=180000,maxRetries=0,handler}={}){
   const received=[],sockets=new Set();
   const server=createServer(async(request,response)=>{const chunks=[];for await(const chunk of request)chunks.push(chunk);const body=Buffer.concat(chunks).toString();received.push(body);await handler(body,response)});
   server.on('connection',socket=>{sockets.add(socket);socket.on('close',()=>sockets.delete(socket))});
@@ -19,7 +19,7 @@ async function gateway(run,{transport='json',jsonTimeoutMs=180000,handler}={}){
   const selectedModel={...model,baseUrl:'http://127.0.0.1:'+server.address().port+'/v1'};
   const models=createModels({credentials,authContext:{env:async()=>undefined,fileExists:async()=>false}});
   models.setProvider(createProvider({id:'offline',models:[selectedModel],auth:{apiKey:envApiKeyAuth('explicit',[])},api:completions}));
-  const provider=new PiModelProvider(models,run.ctx.sessions.log,{runId:'pr07',providerId:'offline',maxEventBytes:65536,maxRawBytes:1048576,options:{maxTokens:256,maxRetries:0,transport:'sse'},timeoutMs:5000,jsonTimeoutMs,transport});
+  const provider=new PiModelProvider(models,run.ctx.sessions.log,{runId:'pr07',providerId:'offline',maxEventBytes:65536,maxRawBytes:1048576,options:{maxTokens:256,maxRetries,transport:'sse'},retry:{baseMs:10,maxMs:20,jitter:0},timeoutMs:5000,jsonTimeoutMs,transport});
   return {server,provider,received,close:async()=>{await provider.close();server.closeAllConnections();for(const socket of sockets)socket.destroy();await new Promise(resolve=>server.close(resolve))}};
 }
 async function call(run,provider,context,options={}){
@@ -130,4 +130,21 @@ test('D1 jsonTimeoutMs bounds the whole request',async t=>{
   const {error,message}=await call(run,gate.provider,run.context('json-timeout'));
   assert.ok(error||message?.stopReason==='error');
   assert.ok(Date.now()-started<30000,'timeout terminates well before the 180s json default');
+});
+
+test('D1 a timed-out attempt is retried with a fresh deadline',async t=>{
+  const run=await fixture();t.after(()=>run.close());
+  let calls=0;
+  const gate=await gateway(run,{jsonTimeoutMs:150,maxRetries:2,handler:async(_body,response)=>{
+    if(++calls===1)return;
+    response.writeHead(200,{'content-type':'application/json'});
+    response.end(JSON.stringify({id:'ok',object:'chat.completion',choices:[{index:0,message:{role:'assistant',content:'ok'},finish_reason:'stop'}]}));
+  }});
+  t.after(()=>gate.close());
+  const {error,message}=await call(run,gate.provider,run.context('json-timeout-retry'));
+  assert.equal(error,undefined);
+  assert.equal(message.stopReason,'stop');
+  assert.equal(gate.received.length,2);
+  const failed=await attempt(run,run.context('json-timeout-retry'));
+  assert.equal(failed?.cause??failed?.data?.cause,'MODEL_TIMEOUT');
 });

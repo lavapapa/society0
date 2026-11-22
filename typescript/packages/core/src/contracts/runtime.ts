@@ -74,6 +74,8 @@ export interface ExecutionContext extends Invocation {
     readonly logicalTime: Json;
     /** 自动恢复重跑序号；0 或省略表示首次执行。 */
     readonly recoveryAttempt?: number;
+    /** 同一提案先前执行中已完成的激活 id；ActivationService 对它们回 ACTIVATION_DUPLICATE，不再重跑。 */
+    readonly completedActivations?: ReadonlySet<string>;
     readonly selections: readonly {
         release(): Promise<void>;
     }[];
@@ -121,6 +123,8 @@ export interface AdvanceResult {
 }
 export interface RuntimeDriver {
     readonly planKinds: readonly string[];
+    /** 同一提案可原地重跑：已提交的写入幂等跳过、已完成的激活按 id 跳过（ACTIVATION_DUPLICATE 不算拒绝）。失败激活的自动重试与降级只对这类 runtime 生效。 */
+    readonly rerunnable?: boolean;
     execute(proposal: Proposal, context: ExecutionContext): Promise<AdvanceResult>;
     drain(reason: string): Promise<void>;
 }

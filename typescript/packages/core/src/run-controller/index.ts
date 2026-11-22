@@ -340,9 +340,9 @@ export class RunController extends Service {
         };
     }
     private completedActivations(result: AdvanceResult): string[] {
-        const activations = (result.evidence as { activations?: readonly { id?: unknown; status?: unknown }[] })?.activations;
+        const activations = (result.evidence as { activations?: readonly { activationId?: unknown; status?: unknown }[] })?.activations;
         if (!Array.isArray(activations)) return [];
-        return activations.filter(item => item?.status === 'completed' && typeof item.id === 'string').map(item => String(item.id));
+        return activations.filter(item => item?.status === 'completed' && typeof item.activationId === 'string').map(item => String(item.activationId));
     }
     private completedOperations(result: AdvanceResult): string[] {
         const activations = (result.evidence as { activations?: readonly { status?: unknown; requiredOperations?: readonly unknown[] }[] })?.activations;
@@ -358,22 +358,14 @@ export class RunController extends Service {
         }
         return settled;
     }
-    private filterRecovered(proposal: Proposal): Proposal {
-        const recovery = this.recovery;
-        if (!recovery || recovery.proposalId !== proposal.id || !recovery.completed.size) return proposal;
-        const payload = proposal.payload as { phases?: readonly { activations?: readonly { id?: unknown }[] }[] };
-        if (!Array.isArray(payload?.phases)) return proposal;
-        const phases = payload.phases.map(phase => ({ ...phase, activations: (phase.activations ?? []).filter((activation: { id?: unknown }) => typeof activation?.id !== 'string' || !recovery.completed.has(activation.id)) })).filter(phase => phase.activations.length);
-        return { ...proposal, payload: { ...(proposal.payload as object), phases } as Json };
-    }
     /**
      * 本步只因激活失败而未结算时返回这些失败激活；准入被拒或仍在等待的步不算。
-     * 只认 staged/1：filterRecovered 只会按 phases 剔除已完成激活；events/1 重跑会重复提交事件事务，且失败事件之后的事件尚未执行，不能降级跳过。
+     * 只认声明 rerunnable 的 runtime：events/1 重跑会重复提交事件事务，且失败事件之后的事件尚未执行，不能降级跳过。
      */
-    private failedActivations(result: AdvanceResult): Record<string, unknown>[] {
-        if (result.status !== 'incomplete' || result.frontier.codec !== 'staged/1') return [];
-        const evidence = result.evidence as { admissions?: readonly { kind?: unknown }[]; activations?: readonly Record<string, unknown>[] };
-        if (evidence?.admissions?.some(item => item?.kind === 'rejected') || !Array.isArray(evidence?.activations)) return [];
+    private failedActivations(result: AdvanceResult, runtime: GenerationView['runtime']): Record<string, unknown>[] {
+        if (result.status !== 'incomplete' || !runtime.rerunnable) return [];
+        const evidence = result.evidence as { admissions?: readonly { kind?: unknown; reason?: unknown }[]; activations?: readonly Record<string, unknown>[] };
+        if (evidence?.admissions?.some(item => item?.kind === 'rejected' && item.reason !== 'ACTIVATION_DUPLICATE') || !Array.isArray(evidence?.activations)) return [];
         if (evidence.activations.some(item => item?.status === 'waiting')) return [];
         return evidence.activations.filter(item => item?.status === 'incomplete');
     }
@@ -402,8 +394,8 @@ export class RunController extends Service {
             evidence: { ...evidence, activations: evidence.activations.map(item => failedSet.has(item) ? { ...item, status: 'failed', degraded: { reason: this.failureReason(item), attempts } } : item) } as unknown as Json
         };
     }
-    private async recover(session: RunSession, proposal: Proposal, advance: { advance: AdvanceResult; completed: string[] }): Promise<boolean> {
-        const failed = this.failedActivations(advance.advance);
+    private async recover(session: RunSession, proposal: Proposal, advance: { advance: AdvanceResult; completed: string[]; failed?: Record<string, unknown>[] }): Promise<boolean> {
+        const failed = advance.failed ?? [];
         if (!failed.length) return false;
         if (this.recovery?.proposalId !== proposal.id) this.recovery = { proposalId: proposal.id, attempts: 0, completed: new Set(), operations: new Set() };
         for (const id of advance.completed) this.recovery.completed.add(id);
@@ -420,6 +412,7 @@ export class RunController extends Service {
         result: RunResult;
         advance: AdvanceResult;
         completed: string[];
+        failed?: Record<string, unknown>[];
     } | {
         kind: 'advanced';
         result: AdvanceResult;
@@ -428,31 +421,30 @@ export class RunController extends Service {
         result: RunResult;
     }> {
         const proposal = session.proposal!;
-        // 同一提案的重试不清队列：已完成的激活会被 filterRecovered 剔除、不再重跑，它们入队的延后任务要留到成点时一起提交。
+        // 同一提案的重试不清队列：已完成的激活按 id 跳过、不再重跑，它们入队的延后任务要留到成点时一起提交。
         if (this.recovery?.proposalId !== proposal.id) this.deferred()?.begin();
-        const filtered = this.filterRecovered(proposal);
-        if (!view.runtime.planKinds.includes(filtered.planKind))
+        if (!view.runtime.planKinds.includes(proposal.planKind))
             throw Error('RUN_PLAN_KIND');
-        if (filtered.reservation && this.pending.length >= this.config.maxPendingAcknowledgements)
+        if (proposal.reservation && this.pending.length >= this.config.maxPendingAcknowledgements)
             session.cut = await this.publish(session.cut, [...session.required], view, signal);
-        const reservation = await this.busy(signal => this.ctx.executionFence.reserve(filtered, signal), signal);
+        const reservation = await this.busy(signal => this.ctx.executionFence.reserve(proposal, signal), signal);
         this.complete = false;
         try {
-            const trigger = (filtered.payload as {
+            const trigger = (proposal.payload as {
                 trigger?: Json;
             })?.trigger ?? null;
             const logicalTime = view.clock.advance(session.frontier.logicalTime as Json, trigger);
-            const raw = await this.executeRuntime(filtered, view, reservation, logicalTime, signal);
-            const completed = this.recovery?.proposalId === filtered.id ? this.completedOperations(raw) : [];
+            const raw = await this.executeRuntime(proposal, view, reservation, logicalTime, signal);
+            const completed = this.recovery?.proposalId === proposal.id ? this.completedOperations(raw) : [];
             for (const operation of completed) this.recovery!.operations.add(operation);
-            const merged = this.recovery?.proposalId === filtered.id && this.recovery.operations.size ? { ...raw, requiredOperations: [...new Set([...raw.requiredOperations, ...this.recovery.operations])] } : raw;
-            const failed = this.failedActivations(merged);
-            const retry = failed.length > 0 && (this.recovery?.proposalId === filtered.id ? this.recovery.attempts : 0) < this.config.autoRecover.maxAttempts;
+            const merged = this.recovery?.proposalId === proposal.id && this.recovery.operations.size ? { ...raw, requiredOperations: [...new Set([...raw.requiredOperations, ...this.recovery.operations])] } : raw;
+            const failed = this.failedActivations(merged, view.runtime);
+            const retry = failed.length > 0 && (this.recovery?.proposalId === proposal.id ? this.recovery.attempts : 0) < this.config.autoRecover.maxAttempts;
             const result = failed.length && !retry ? await this.degrade(merged, failed, logicalTime) : merged;
             this.recordActivations(result, logicalTime);
             if (retry) {
                 const paused = await this.incompleteProposal(session, view, reservation, result, true);
-                return { kind: 'paused', result: paused, advance: result, completed: this.completedActivations(result) };
+                return { kind: 'paused', result: paused, advance: result, completed: this.completedActivations(result), failed };
             }
             const completion = view.completion.evaluate(result);
             if (result.status !== 'settled' || !completion.complete) {
@@ -483,9 +475,9 @@ export class RunController extends Service {
         }
     }
     private async executeRuntime(proposal: Proposal, view: GenerationView, reservation: ExecutionReservation, logicalTime: Json, signal: AbortSignal) {
-        const recoveryAttempt = this.recovery?.proposalId === proposal.id ? this.recovery.attempts : 0;
+        const recovery = this.recovery?.proposalId === proposal.id ? this.recovery : undefined, recoveryAttempt = recovery?.attempts ?? 0;
         const context: ExecutionContext = {
-            ctx: this.ctx, runId: reservation.lease.runId, generation: view.generation, operationId: proposal.id, signal: AbortSignal.any([signal, reservation.signal]), lease: reservation.lease, database: this.ctx.database, logicalTime, selections: [], ...(recoveryAttempt ? { recoveryAttempt } : {})
+            ctx: this.ctx, runId: reservation.lease.runId, generation: view.generation, operationId: proposal.id, signal: AbortSignal.any([signal, reservation.signal]), lease: reservation.lease, database: this.ctx.database, logicalTime, selections: [], ...(recoveryAttempt ? { recoveryAttempt } : {}), ...(recovery?.completed.size ? { completedActivations: new Set(recovery.completed) } : {})
         };
         const abort = () => reservation.cancel(String(signal.reason ?? 'run cancelled'));
         signal.addEventListener('abort', abort, {

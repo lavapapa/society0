@@ -34,6 +34,7 @@ export class RuntimeDriver extends Service implements Runtime {
     static Config = Config;
     static inject = ['activation'];
     readonly planKinds = ['staged/1'];
+    readonly rerunnable = true;
     private work: RuntimeWork;
     constructor(ctx: Context) {
         super(ctx, 'runtimeDriver');
@@ -52,35 +53,34 @@ export class RuntimeDriver extends Service implements Runtime {
             throw Error('STAGED_CURSOR');
         return plan;
     }
-    private async submitPhase(phase: StagedPlan['phases'][number], context: ExecutionContext, admissions: Json[], intents: ActivationIntent[]) {
+    private async submitPhase(phase: StagedPlan['phases'][number], context: ExecutionContext, admissions: Json[]) {
         context.signal.throwIfAborted();
         if (!Array.isArray(phase.activations))
             throw Error('STAGED_PHASE');
         let rejected = false;
         for (const intent of phase.activations) {
-            intents.push(intent);
             const result = await this.ctx.activation.submit(intent, context);
             admissions.push({
                 ...result
             });
-            if (result.kind === 'rejected')
+            if (result.kind === 'rejected' && result.reason !== 'ACTIVATION_DUPLICATE')
                 rejected = true;
         }
         await this.ctx.activation.drain(context);
         return rejected;
     }
     private async advance(proposal: Proposal, context: ExecutionContext): Promise<AdvanceResult> {
-        const plan = this.plan(proposal), admissions: Json[] = [], intents: ActivationIntent[] = [];
+        const plan = this.plan(proposal), admissions: Json[] = [];
         let rejected = false;
         try {
             for (const phase of plan.phases)
-                rejected = await this.submitPhase(phase, context, admissions, intents) || rejected;
+                rejected = await this.submitPhase(phase, context, admissions) || rejected;
             const results = await this.ctx.activation.drain(context);
             return {
                 status: activationStatus(rejected, results), frontier: {
                     codec: 'staged/1', value: plan.nextCursor
                 }, requiredOperations: results.flatMap(result => result.requiredOperations ?? []), evidence: {
-                    admissions, activations: results.map((result, index) => ({ ...(intents[index] ? { id: intents[index]!.id, actorId: intents[index]!.actorId } : {}), ...result })) as unknown as Json
+                    admissions, activations: results.map(result => ({ id: result.activationId, ...result })) as unknown as Json
                 }
             };
         }
