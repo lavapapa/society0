@@ -20,7 +20,7 @@ test('large literal bootstrap profile retains complete plan through a bounded or
   const record=JSON.parse(await readFile(origin.plan.journalPath,'utf8'));
   assert.equal(origin.plan.operationId,record.plan.operationId);assert.deepEqual(record.plan,plan);
   assert.deepEqual(record.plan.sources,plan.sources);assert.equal(record.plan.target.profile.patches[0].insert[0].config.find(entry=>entry.id==='bootstrap-scope').config[0].config.seed,bootstrap.config[0].config.seed);
-  assert.equal(receipt.point.lineage.sourcePointId,f.root.id);assert.equal((await f.host.ctx.runBranch.probe(plan.operationId)).live,true);
+  assert.equal(receipt.point.lineage.pointId,f.root.id);assert.equal((await f.host.ctx.runBranch.probe(plan.operationId)).live,true);
   const sourceDirectory=f.ctx.database.directory;assert.equal(sourceDirectory,join(f.home,'source'));assert.equal(await realpath(sourceDirectory),sourceDirectory);
   await f.handle.close();await rm(sourceDirectory,{recursive:true});
   assert.deepEqual(JSON.parse(await readFile(origin.plan.journalPath,'utf8')).plan,plan);

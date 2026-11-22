@@ -47,7 +47,6 @@
 | ./artifacts-local | directory | string | null | new-run | true | null |
 | ./artifacts-local | chunkBytes | number | 65536 | new-run | true | null |
 | ./artifacts-local | maxObjectBytes | number | 67108864 | new-run | true | null |
-| ./artifacts-local | maxActive | number | 8 | new-run | true | null |
 | ./sqlite-history | directory | string | null | new-run | true | null |
 | ./sqlite-history | runId | string | null | new-run | true | null |
 | ./sqlite-history | generation | string | null | new-run | true | null |
@@ -56,10 +55,9 @@
 | ./sqlite-history | maxSegmentBytes | number | 67108864 | new-run | true | null |
 | ./sqlite-history | maxRootBytes | number | 268435456 | new-run | true | null |
 | ./sqlite-history | maxManifestBytes | number | 1048576 | new-run | true | null |
-| ./sqlite-history | maxDependencies | number | 10000 | new-run | true | null |
 | ./sqlite-history | applyBatchSegments | number | 32 | new-run | true | null |
 | ./sqlite-history | applyBatchBytes | number | 268435456 | new-run | true | null |
-| ./sqlite-history | compactEvery | number | 64 | new-run | true | null |
+| ./sqlite-history | compactEvery | number | 8 | new-run | true | null |
 | ./sqlite-history | mirrorDirectory | string | null | new-run | true | null |
 | ./sqlite-history | mirrorPolicy | union | "every-point" | new-run | true | null |
 | ./sqlite-history | mirrorIntervalMs | number | 60000 | new-run | true | null |

@@ -422,14 +422,6 @@
               "mode": "new-run",
               "affectsResults": true,
               "secret": null
-            },
-            {
-              "name": "maxActive",
-              "type": "number",
-              "default": 8,
-              "mode": "new-run",
-              "affectsResults": true,
-              "secret": null
             }
           ]
         },
@@ -502,14 +494,6 @@
               "secret": null
             },
             {
-              "name": "maxDependencies",
-              "type": "number",
-              "default": 10000,
-              "mode": "new-run",
-              "affectsResults": true,
-              "secret": null
-            },
-            {
               "name": "applyBatchSegments",
               "type": "number",
               "default": 32,
@@ -528,7 +512,7 @@
             {
               "name": "compactEvery",
               "type": "number",
-              "default": 64,
+              "default": 8,
               "mode": "new-run",
               "affectsResults": true,
               "secret": null
