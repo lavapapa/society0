@@ -111,7 +111,6 @@ test('run branch forks a complete point into resumable paused runs', { skip, tim
     const firstStatus = JSON.parse(await readFile(join(first, 'entry-status.json'), 'utf8'));
     assert.equal(firstStatus.state, 'paused');
     assert.equal(firstStatus.completedTicks, 2);
-    assert.equal(firstStatus.lineage, sourceDocument.lineage);
     targets.push({ dir: first, output: firstOutput });
 
     const sqlite = nested(document.patches[0].insert, '@society0/core/sqlite');
@@ -125,7 +124,6 @@ test('run branch forks a complete point into resumable paused runs', { skip, tim
     const secondStatus = JSON.parse(await readFile(join(second, 'entry-status.json'), 'utf8'));
     assert.equal(secondStatus.state, 'paused');
     assert.equal(secondStatus.completedTicks, 2);
-    assert.equal(secondStatus.lineage, sourceDocument.lineage);
     targets.push({ dir: second, output: secondOutput });
 
     for (const target of targets) {
@@ -137,7 +135,6 @@ test('run branch forks a complete point into resumable paused runs', { skip, tim
         assert.equal(result.schema, 'society0.run-result/1');
         assert.equal(result.state, 'completed');
         const status = JSON.parse(await readFile(join(target.dir, 'entry-status.json'), 'utf8'));
-        assert.equal(status.lineage, sourceDocument.lineage);
     }
     assert.notEqual(targets[0].output.runId, targets[1].output.runId);
     assert.notEqual(targets[0].output.targetPointId, targets[1].output.targetPointId);

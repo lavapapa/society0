@@ -21,16 +21,15 @@ async function exercise(run,provider,modelId,name){
   const context=run.context(name);
   let selected;
   try {
-    selected=await provider.prepare({provider:'pi/v1',model:modelId,reasoning:'off'},context);
+    selected=await provider.prepare({session:{actorId:'a',momentId:'m'},provider:'pi/v1',model:modelId,reasoning:'off'},context);
     try {
       const stream=await selected.value.streamFn(selected.value.model,{messages:[{role:'user',content:'Reply with the single word OK.',timestamp:Date.now()}]},{});
       for await (const _ of stream) {}
     } catch {}
     await selected.value.drain();
     const settlements=[...(selected.value.attemptSettlements??[])].map(item=>({status:item.status,httpStatus:item.httpStatus,cause:item.cause}));
-    const probe=await run.ctx.attempts.probe({lineage:run.ctx.attempts.authority().lineage,operationId:modelOperationId(context,1),attempt:0});
-    const record=probe.status==='found'?probe.record:undefined;
-    return {model:modelId,settlements,probe:probe.status,recordStatus:record?.status??null,reason:record?.reason??null,result:record?.result??null};
+    const record=await run.ctx.sessions.find({actorId:'a',momentId:'m'},{operationId:modelOperationId(context,1),attempt:0});
+    return {model:modelId,settlements,recordType:record?.type??null,result:record?.data??null};
   } finally {
     await selected?.release().catch(()=>{});
   }
@@ -47,22 +46,18 @@ test('RV3-04-T05 authorized local gateway classifies complete 4xx and success',{
   await credentials.modify('local-gateway',async()=>({type:'api_key',key:secret}));
   const modelSet=createModels({credentials,authContext:{env:async()=>undefined,fileExists:async()=>false}});
   modelSet.setProvider(createProvider({id:'local-gateway',models,auth:{apiKey:envApiKeyAuth('explicit credential',[])},api:completions}));
-  const provider=new PiModelProvider(modelSet,run.ctx.attempts,{runId:'pr07',providerId:'local-gateway',maxEventBytes:1048576,maxRawBytes:16777216,maxRequestBytes:16777216,options:{reasoning:'off',maxTokens:256,temperature:0,maxRetries:0,transport:'sse'},timeoutMs:120000});
+  const provider=new PiModelProvider(modelSet,run.ctx.sessions.log,{runId:'pr07',providerId:'local-gateway',maxEventBytes:1048576,maxRawBytes:16777216,options:{reasoning:'off',maxTokens:256,temperature:0,maxRetries:0,transport:'sse'},timeoutMs:120000});
   try {
     const missing=await exercise(run,provider,'does-not-exist','rv304-live-missing');
     facts.push(missing);await save('missing-model.json',missing);await save('request-facts.json',facts);
-    assert.equal(missing.probe,'found');
-    assert.equal(missing.recordStatus,'settled');
-    assert.equal(missing.result.status,'failed');
+    assert.equal(missing.recordType,'attempt/failed');
     assert.ok([400,401,403,404,422].includes(missing.result.httpStatus));
     assert.equal(missing.settlements[0]?.status,'failed');
     assert.equal(missing.settlements[0]?.httpStatus,missing.result.httpStatus);
 
     const ok=await exercise(run,provider,'Qwen3.6-35B-A3B-FP8','rv304-live-ok');
     facts.push(ok);await save('normal-model.json',ok);await save('request-facts.json',facts);
-    assert.equal(ok.probe,'found');
-    assert.equal(ok.recordStatus,'settled');
-    assert.equal(ok.result.status,'response');
+    assert.equal(ok.recordType,'response');
     assert.equal(ok.settlements[0]?.status,'response');
     assert.equal(ok.result.httpStatus,200);
   } finally {

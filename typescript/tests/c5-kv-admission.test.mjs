@@ -31,7 +31,7 @@ async function gateway(run, {handler} = {}) {
     const selectedModel = {...model, baseUrl: 'http://127.0.0.1:' + server.address().port + '/v1'};
     const models = createModels({credentials, authContext: {env: async () => undefined, fileExists: async () => false}});
     models.setProvider(createProvider({id: 'offline', models: [selectedModel], auth: {apiKey: envApiKeyAuth('explicit', [])}, api: completions}));
-    const provider = new PiModelProvider(models, run.ctx.attempts, {runId: 'pr07', providerId: 'offline', maxEventBytes: 65536, maxRawBytes: 1048576, maxRequestBytes: 1048576, options: {maxTokens: 256, maxRetries: 0, transport: 'sse'}, timeoutMs: 5000, jsonTimeoutMs: 180000, transport: 'json'});
+    const provider = new PiModelProvider(models, run.ctx.sessions.log, {runId: 'pr07', providerId: 'offline', maxEventBytes: 65536, maxRawBytes: 1048576, options: {maxTokens: 256, maxRetries: 0, transport: 'sse'}, timeoutMs: 5000, jsonTimeoutMs: 180000, transport: 'json'});
     return {provider, received, close: async () => { await provider.close(); server.closeAllConnections(); for (const socket of sockets) socket.destroy(); await new Promise(resolve => server.close(resolve)); }};
 }
 
@@ -44,7 +44,7 @@ test('C5 model-pi sends the thread session_id in the request body metadata', asy
     }});
     t.after(() => gate.close());
     const context = run.context('c5-session');
-    const selected = await gate.provider.prepare({provider: 'pi/v1', model: 'offline', sessionId: 'thread/actor/a', metadata: {session_id: 'thread/actor/a'}}, context);
+    const selected = await gate.provider.prepare({session:{actorId:'a',momentId:'m'},provider: 'pi/v1', model: 'offline', sessionId: 'thread/actor/a', metadata: {session_id: 'thread/actor/a'}}, context);
     try {
         const stream = await selected.value.streamFn(selected.value.model, {messages: [{role: 'user', content: 'hi', timestamp: 0}]}, {});
         for await (const _ of stream) { /* drain */ }

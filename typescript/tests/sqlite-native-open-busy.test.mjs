@@ -1,6 +1,5 @@
-// Opening a connection must honour timeoutMs for the open-time pragmas. Sibling branches open the
-// shared lineage attempts ledger from separate processes; on a slow shared filesystem a lock held
-// by a sibling at open time made `PRAGMA journal_mode=WAL` fail with "database is locked" because
+// Opening a connection must honour timeoutMs for the open-time pragmas. A lock held by another
+// process at open time made `PRAGMA journal_mode=WAL` fail with "database is locked" because
 // busy_timeout was applied only after it.
 import test from 'node:test';
 import assert from 'node:assert/strict';

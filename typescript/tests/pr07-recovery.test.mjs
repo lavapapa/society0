@@ -11,7 +11,6 @@ import { Slots } from '../.build/host/dist/slots/index.js';
 import { ExecutionFence } from '../.build/core/dist/execution-fence/index.js';
 import { SqliteDatabase } from '../.build/core/dist/sqlite/index.js';
 import { ArtifactsLocal, artifactsMigration } from '../.build/core/dist/artifacts-local/index.js';
-import { Attempts } from '../.build/core/dist/attempts/index.js';
 import { Actors, actorsMigration } from '../.build/core/dist/actors/index.js';
 import ActorEligibility from '../.build/core/dist/actor-eligibility/index.js';
 import { Actions, actionsMigration } from '../.build/core/dist/actions/index.js';

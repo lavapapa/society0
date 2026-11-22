@@ -12,7 +12,7 @@ import type { CompositionPlan, EntryPatch, PlannedEntry, ProfileProblem } from '
 import type { Context } from '@society0/host';
 import type { RunHandle } from '@society0/host/run-directory';
 import type {} from '@society0/core/run-controller';
-import type {} from '@society0/core/attempts';
+import type {} from '@society0/core/session-log';
 import type {} from '@society0/core/sqlite-history';
 import type {} from '@society0/core/sqlite-bootstrap';
 import type {} from '@society0/core/sqlite';
@@ -68,7 +68,6 @@ interface RunStatus {
     profile: string;
     lock?: string;
     patches?: string;
-    lineage: string;
     ticks?: number;
     base?: string;
     world?: string;
@@ -821,7 +820,6 @@ export async function checkProfile(options: {
 export interface StartOptions {
     profile: string;
     dir: string;
-    lineage?: string;
     ticks?: number;
     lock?: string;
     patches?: string;
@@ -840,7 +838,6 @@ export interface BranchOptions {
     pointId?: string;
     base?: string;
     lock?: string;
-    lineage?: string;
 }
 
 interface PreparedPlan {
@@ -849,7 +846,6 @@ interface PreparedPlan {
     profile: ProfileDocument;
     ticks?: number;
     dir: string;
-    lineage: string;
     input: unknown;
 }
 
@@ -882,7 +878,6 @@ export async function prepareRunPlan(options: StartOptions): Promise<PreparedPla
         throw new PlatformError('CHECK_FAILED', `profile 未通过装配检查：${missing.map(item => `${item.kind}:${item.id}`).join(', ')}`, '先运行 society0 check --profile <p> --json 查看缺失项');
     const entryOf = (name: string) => active(analysis.plan).find(entry => entry.name === name);
     const directory = resolve(options.dir);
-    const lineage = resolve(options.lineage ?? join(dirname(directory), 'lineages', basename(directory)));
     const overrides: EntryPatch[] = [];
     const sqlite = entryOf('@society0/core/sqlite');
     if (sqlite) overrides.push({ id: sqlite.id, config: { ...(sqlite.config as Record<string, unknown>), directory, runId: basename(directory) } });
@@ -890,14 +885,14 @@ export async function prepareRunPlan(options: StartOptions): Promise<PreparedPla
     if (artifacts) overrides.push({ id: artifacts.id, config: { ...(artifacts.config as Record<string, unknown>), directory: join(directory, 'artifacts') } });
     const history = entryOf('@society0/core/sqlite-history');
     if (history) overrides.push({ id: history.id, config: { ...(history.config as Record<string, unknown>), directory, runId: basename(directory) } });
-    const attempts = entryOf('@society0/core/attempts');
-    if (attempts) overrides.push({ id: attempts.id, config: { ...(attempts.config as Record<string, unknown>), directory: lineage, lineage: basename(lineage) } });
+    const sessions = entryOf('@society0/core/session-log');
+    if (sessions) overrides.push({ id: sessions.id, config: { ...(sessions.config as Record<string, unknown>), directory } });
     overrides.push(...tickOverride(analysis.plan, options.ticks));
     const input = options.world && options.mode === 'start' ? await readWorld(options.world) : {};
     const host2 = await platformHost(modelSeeds(profile), options.base);
     try {
         const plan = await host2.ctx.profileLoader.compile(profile as never, { baseURL: url.href, cliPatches: [...cliPatches, ...overrides] });
-        return { plan, profileUrl: url.href, profile, ticks: options.ticks, dir: directory, lineage, input };
+        return { plan, profileUrl: url.href, profile, ticks: options.ticks, dir: directory, input };
     }
     finally {
         await host2.close();
@@ -955,13 +950,9 @@ async function createRunRoot(prepared: PreparedPlan, options: StartOptions): Pro
         const handle = await host.ctx.runDirectory.create({
             runId, generation: plan, mount: { runEntryId: runGroup.id, bootstrapEntryId: bootstrapGroup.id },
             prepare: async (bootstrapCtx, phase) => {
-                const consumer = await phase!.run.plugin({ name: 'platform.prepare', inject: ['attempts', 'sqliteBootstrap', 'history', 'database'], apply(value: Context) { context = value; } });
+                const consumer = await phase!.run.plugin({ name: 'platform.prepare', inject: ['sqliteBootstrap', 'history', 'database'], apply(value: Context) { context = value; } });
                 await consumer.await();
                 const ctx = context!;
-                if (options.mode === 'resume')
-                    await ctx.attempts.verifyAuthority();
-                else
-                    await ctx.attempts.initialize();
                 let root;
                 if (options.mode === 'resume')
                     root = await ctx.history.activate();
@@ -1001,12 +992,10 @@ async function checkWorldRoot(options: {
         return [];
     const base = await mkdtemp(join(tmpdir(), 'society0-check-'));
     const directory = join(base, 'run');
-    const lineage = join(base, 'lineage');
     try {
         await mkdir(directory, { recursive: true });
-        await mkdir(lineage, { recursive: true });
         const start: StartOptions = {
-            profile: options.profile, dir: directory, lineage,
+            profile: options.profile, dir: directory,
             lock: options.lock, patches: options.patches, base: options.base,
             world: options.world, credentialsEnv: options.credentialsEnv,
             detach: false, mode: 'start'
@@ -1255,10 +1244,8 @@ export async function runBranch(options: BranchOptions): Promise<Record<string, 
     const sourceProfilePath = resolve(status.profile);
     const sourceProfile = await readJson<ProfileDocument>(sourceProfilePath);
     const sourceLock = effectiveLock(sourceProfile, sourceProfilePath, status.lock);
-    const sourceLineage = resolve(status.lineage ?? options.lineage ?? join(dirname(sourceDir), 'lineages', basename(sourceDir)));
-    const targetLineage = resolve(options.lineage ?? sourceLineage);
     const sourcePrepared = await prepareRunPlan({
-        profile: sourceProfilePath, dir: sourceDir, lineage: sourceLineage,
+        profile: sourceProfilePath, dir: sourceDir,
         lock: sourceLock, patches: status.patches, base: options.base ?? status.base,
         detach: false, mode: 'resume'
     });
@@ -1282,12 +1269,11 @@ export async function runBranch(options: BranchOptions): Promise<Record<string, 
                     throw new PlatformError('BRANCH_PHASE_REQUIRED', 'branch 源 run 缺少准备阶段', '确认 profile 保留 run 与 bootstrap 组');
                 const consumer = await phase.run.plugin({
                     name: 'platform.branch-source',
-                    inject: ['attempts', 'history', 'database'],
+                    inject: ['history', 'database'],
                     apply(value: Context) { sourceContext = value; }
                 });
                 await consumer.await();
                 const ctx = sourceContext!;
-                await ctx.attempts.verifyAuthority();
                 const root = await ctx.history.current();
                 const history = await ctx.history.status();
                 return { root, metadata: ctx.database.metadata, database: ctx.database, state: history.state };
@@ -1336,13 +1322,13 @@ export async function runBranch(options: BranchOptions): Promise<Record<string, 
         const sqliteEntry = findEntryByName(entries, '@society0/core/sqlite', 'sqlite');
         const artifactsEntry = findEntryByName(entries, '@society0/core/artifacts-local', 'artifacts-local');
         const historyEntry = findEntryByName(entries, '@society0/core/sqlite-history', 'sqlite-history');
-        const attemptsEntry = findEntryByName(entries, '@society0/core/attempts', 'attempts');
+        const sessionsEntry = findEntryByName(entries, '@society0/core/session-log', 'sessions');
         const genBindingEntry = findEntryByName(entries, '@society0/core/generation-binding', 'generation-binding');
         patches.push(
             { id: sqliteEntry.id, config: { ...sqliteEntry.config, directory: targetDir, runId: targetRunId, generation } },
             { id: artifactsEntry.id, config: { ...artifactsEntry.config, directory: join(targetDir, 'artifacts') } },
             { id: historyEntry.id, config: { ...historyEntry.config, directory: targetDir, runId: targetRunId, generation, controlSequence } },
-            { id: attemptsEntry.id, config: { ...attemptsEntry.config, directory: targetLineage, lineage: basename(targetLineage) } },
+            { id: sessionsEntry.id, config: { ...sessionsEntry.config, directory: targetDir } },
             { id: genBindingEntry.id, config: { ...genBindingEntry.config, generation, controlSequence } }
         );
         targetProfile.patches = patches;
@@ -1366,7 +1352,6 @@ export async function runBranch(options: BranchOptions): Promise<Record<string, 
             updatedAt: new Date().toISOString(),
             profile: join(targetDir, 'profile.json'),
             lock,
-            lineage: targetLineage,
             ticks: status.ticks,
             base: options.base ?? status.base,
             world: status.world,
@@ -1398,7 +1383,7 @@ export async function runBranch(options: BranchOptions): Promise<Record<string, 
 }
 
 export function spawnWorker(main: string, options: StartOptions): Promise<number> {
-    return spawnDetached(main, ['__worker', '--mode', options.mode, '--profile', options.profile, '--dir', options.dir, ...(options.lineage ? ['--lineage', options.lineage] : []), ...(options.ticks !== undefined ? ['--ticks', String(options.ticks)] : []), ...(options.lock ? ['--lock', options.lock] : []), ...(options.patches ? ['--patches', options.patches] : []), ...(options.base ? ['--base', options.base] : []), ...(options.world ? ['--world', options.world] : []), ...(options.credentialsEnv ? ['--credentials-env', options.credentialsEnv] : [])], options.dir);
+    return spawnDetached(main, ['__worker', '--mode', options.mode, '--profile', options.profile, '--dir', options.dir, ...(options.ticks !== undefined ? ['--ticks', String(options.ticks)] : []), ...(options.lock ? ['--lock', options.lock] : []), ...(options.patches ? ['--patches', options.patches] : []), ...(options.base ? ['--base', options.base] : []), ...(options.world ? ['--world', options.world] : []), ...(options.credentialsEnv ? ['--credentials-env', options.credentialsEnv] : [])], options.dir);
 }
 
 async function spawnDetached(main: string, args: string[], dir: string): Promise<number> {
@@ -1422,7 +1407,6 @@ export async function startRun(main: string, options: StartOptions): Promise<Rec
         ...options,
         profile: options.profile ? resolve(options.profile) : options.profile,
         dir: resolve(options.dir),
-        lineage: options.lineage ? resolve(options.lineage) : undefined,
         lock: options.lock ? resolve(options.lock) : undefined,
         patches: options.patches ? resolve(options.patches) : undefined,
         base: options.base ? resolve(options.base) : undefined,
@@ -1434,14 +1418,14 @@ export async function startRun(main: string, options: StartOptions): Promise<Rec
         await readWorld(options.world);
     await mkdir(dirname(options.dir), { recursive: true });
     if (options.mode === 'start')
-        await requireFresh(resolve(options.dir), resolve(options.lineage ?? join(dirname(resolve(options.dir)), 'lineages', basename(resolve(options.dir)))));
+        await requireFresh(resolve(options.dir));
     if (options.mode === 'resume') {
         const status = await readStatus(options.dir);
         if (status.state === 'running' && alive(status.pid))
             throw new PlatformError('RUN_ALREADY_RUNNING', `run 仍在运行（pid ${status.pid}）`, '先停止现有进程或等待它结束');
         if (status.state === 'completed')
             throw new PlatformError('RUN_COMPLETED', 'run 已完成，没有可续跑的 frontier', '用 run result 读取结果');
-        options = { ...options, profile: status.profile, lineage: status.lineage, ticks: options.ticks ?? status.ticks, lock: options.lock ?? status.lock, patches: options.patches ?? status.patches, base: options.base ?? status.base, world: options.world ?? status.world, credentialsEnv: options.credentialsEnv ?? status.credentialsEnv };
+        options = { ...options, profile: status.profile, ticks: options.ticks ?? status.ticks, lock: options.lock ?? status.lock, patches: options.patches ?? status.patches, base: options.base ?? status.base, world: options.world ?? status.world, credentialsEnv: options.credentialsEnv ?? status.credentialsEnv };
     }
     const pid = await spawnWorker(main, options);
     const now = new Date().toISOString();
@@ -1458,7 +1442,6 @@ export async function startRun(main: string, options: StartOptions): Promise<Rec
         profile: options.profile,
         lock: options.lock,
         patches: options.patches,
-        lineage: options.lineage ?? join(dirname(resolve(options.dir)), 'lineages', basename(resolve(options.dir))),
         ticks: options.ticks,
         base: options.base,
         world: options.world,
@@ -1468,7 +1451,7 @@ export async function startRun(main: string, options: StartOptions): Promise<Rec
     return { schema: RUN_SCHEMA, runId: status.runId, pid, dir: status.dir, state: 'running' };
 }
 
-async function requireFresh(directory: string, lineage: string): Promise<void> {
+async function requireFresh(directory: string): Promise<void> {
     const exists = async (path: string) => {
         try { await stat(path); return true; }
         catch { return false; }
@@ -1479,14 +1462,11 @@ async function requireFresh(directory: string, lineage: string): Promise<void> {
         if (entries.some(name => name !== 'entry-status.json' && name !== 'entry-run.log'))
             throw new PlatformError('FRESH_RUN_EXISTS', `run 目录已存在：${directory}`, '换一个 --dir，或对已有 run 使用 run resume');
     }
-    if (await exists(lineage))
-        throw new PlatformError('FRESH_LINEAGE_EXISTS', `lineage 目录已存在：${lineage}`, '换一个 --lineage，或保留现有 lineage 供 resume 使用');
     await mkdir(dirname(directory), { recursive: true });
-    await mkdir(dirname(lineage), { recursive: true });
 }
 
 export async function worker(options: StartOptions): Promise<number> {
-    const directory = resolve(options.dir), lineage = resolve(options.lineage ?? join(dirname(directory), 'lineages', basename(directory)));
+    const directory = resolve(options.dir);
     const runId = basename(directory);
     const isTerminal = (state: RunStatus['state']) => state === 'completed' || state === 'failed' || state === 'paused';
     let terminal = false;
@@ -1497,13 +1477,12 @@ export async function worker(options: StartOptions): Promise<number> {
             terminal = true;
         await writeJsonAtomic(statusPath(directory), {
             schema: STATUS_SCHEMA, runId, dir: directory, state, completedTicks, frontier, lastReason,
-            ...(pid ? { pid } : {}), updatedAt: new Date().toISOString(), profile: options.profile, lock: options.lock, patches: options.patches, lineage, ticks: options.ticks,
+            ...(pid ? { pid } : {}), updatedAt: new Date().toISOString(), profile: options.profile, lock: options.lock, patches: options.patches, ticks: options.ticks,
             base: options.base, world: options.world, credentialsEnv: options.credentialsEnv
         } satisfies RunStatus);
     };
     if (options.mode === 'start') {
-        await requireFresh(directory, lineage);
-        await mkdir(lineage, { recursive: true });
+        await requireFresh(directory);
     }
     await mkdir(directory, { recursive: true });
     await writeStatus('running', 0, null, null, process.pid);
@@ -1512,15 +1491,15 @@ export async function worker(options: StartOptions): Promise<number> {
     let stopping = false;
     const inflight = new Set<Promise<void>>();
     try {
-        const prepared = await prepareRunPlan({ ...options, lineage });
-        const root = await createRunRoot(prepared, { ...options, lineage });
+        const prepared = await prepareRunPlan(options);
+        const root = await createRunRoot(prepared, options);
         host = root.host;
         const { handle } = root;
         let context: Context = root.context;
         const lease = host.ctx.runDirectory.acquire(runId, 'write');
         let consumer;
         try {
-            consumer = await lease.ctx.plugin({ name: 'platform.consume', inject: ['runs', 'observation', 'history', 'database', 'attempts'], apply(value: Context) { context = value; } });
+            consumer = await lease.ctx.plugin({ name: 'platform.consume', inject: ['runs', 'observation', 'history', 'database', 'sessions'], apply(value: Context) { context = value; } });
             await consumer.await();
         }
         catch (error) {

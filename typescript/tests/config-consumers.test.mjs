@@ -14,7 +14,6 @@ const wholeObject = new Set([
     'packages/core/src/driver-llm/index.ts#reasoning',
     'packages/core/src/model-codex-subscription/index.ts#maxEventBytes',
     'packages/core/src/model-codex-subscription/index.ts#maxRawBytes',
-    'packages/core/src/model-codex-subscription/index.ts#maxRequestBytes',
     'packages/core/src/model-codex-subscription/index.ts#timeoutMs',
     'packages/core/src/generation-binding/index.ts#generation',
     'packages/core/src/generation-binding/index.ts#controlSequence'

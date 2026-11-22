@@ -29,7 +29,7 @@
 ### B.2 操作 ID 唯一性与重用（补充 07 §2.2 第 46 行）
 - 在途重复由宿主拒绝。已提交重复由 worker 依据 `s0_operations` 返回 `OPERATION_EXISTS`。
 - 排队且未 BEGIN 的事务取消时，在拒绝返回前释放操作 ID；持有有效执行租约的调用方可立即用同一 ID 重试。旧任务出队时跳过 BEGIN，其物理容量和 permit 保留至 settled；旧任务的结算保留新重试的身份。已 BEGIN 的事务须等待 `transaction` 确定未提交，或 `probe` 返回 `not-committed` 后再重试。在途期间的 `OPERATION_EXISTS` 表示并发重复；已提交重复由持久回执判定。
-- **重试会再次执行回调，回调必须幂等，或只包含同一事务内的 SQL。** 需要只执行一次的外部效果由 attempts 账本保证。
+- **重试会再次执行回调，回调必须幂等，或只包含同一事务内的 SQL。** 外部效果的结果写入 session 日志；恢复只回到完整点，完整点之后的外部调用会重新执行。
 - unknown 期间数据库已停止写接纳，不得重用。诊断按物理事务 ID（tx）区分同一操作 ID 的多次尝试。
 
 ### B.3 增量段与历史文件的清理（补充 07 第 74、84、120 行）
@@ -45,18 +45,6 @@
 - 重投只在推进 evidence 中记录 `duplicateEventIds`，不再执行 handler，也不再激活。
 - seed 或迁移如果只登记“已见”，即表示接受不激活的后果。
 
-## RV3-04：模型请求的物理相位与结果分类
-
-补充 inputs/society0_next_refactor_v3/docs/18-inference-and-reuse.md §四第 3 段。
-
-只有完整收到 400/401/403/404/422 响应（响应体读到 EOF）才判确定失败；能证明请求未发出的判 `not_dispatched`（`create()` 同步失败、abort 在底层 fetch 之前、连接阶段被拒的 code 链）；其余一律 `unknown`。observer 只统计目标端点调用，不读响应体；Codex 的 OAuth refresh 不经 `options.fetch`，不计入 `calls`；`maxRetries:0` 下无库内重试，`calls>1` 的非成功结局记 `unknown` 并记录 `physicalCalls`。ActivationResult 只在 ledger 写入成功后登记 `modelAttempts`；存在 unknown settlement 时原因为 `transport_unknown`；claim 为 `unknown` 时不登记 settlement，原因为 `persistence_error`。
-
-## NEW-3：embedding 的物理结局与 ledger 写入
-
-补充 inputs/society0_next_refactor_v3/docs/18-inference-and-reuse.md §四、prs/PR08.md。
-
-embedding provider 抛错可附带 `physical: not_dispatched|failed|response`；缺省视为 `unknown`。确定失败只拒绝本批，队列继续服务；`unknown`、ledger 写入失败、未取得 claim 的情况毒化队列并停止后续发送。ledger 写入失败以 `EMBEDDING_LEDGER_ERROR` 上抛，不得吞掉；claim 返回 `existing`/`unknown` 时不写 ledger。
-
 ## RV3-08：Thread 大消息的精确字节预检与分块写入
 
 补充 inputs/society0_next_refactor_v3/docs/15-next-lessons.md §2.2、docs/07-storage.md:76,112、docs/16-domain-design.md:37。
@@ -67,39 +55,27 @@ Thread 消息的字节预算覆盖整个 Message 对象的 JSON（包括原始 p
 
 补充 inputs/society0_next_refactor_v3/docs/18-inference-and-reuse.md §四（driver 部分）、prs/PR08.md。
 
-`driver-llm` 的 activation 对全部抛错源只分类一次，统一为 `LlmActivationError{reason,code,stage,cause}`；已分类错误原样传递，cause 保留内层错误对象。reason 取 `InferenceStopReason` 并新增 `setup_error`、`perception_error`、`thread_error`、`internal_error`；stage 标识触发阶段（`db.snapshot`、`db.close`、`thread.open`、`thread.history|prepare|append|appendInput|consumer`、`prompts`、`context.freeze`、`artifact.stage`、`perception.collect|material|commit`、`attempts.probe|undispatched`、`actions.receipts`、`model.prepare`、`actor-tools`、`runtime.acquire`、`runtime.run`、`transaction:<label>`、`unclassified` 仅限未分类的内部不变量）。ActivationResult 的 incomplete evidence 增加 `code`、`stage`、`committed`、`receipt`；`error` 保留 cause 文本。
+`driver-llm` 的 activation 对全部抛错源只分类一次，统一为 `LlmActivationError{reason,code,stage,cause}`；已分类错误原样传递，cause 保留内层错误对象。reason 取 `InferenceStopReason` 并新增 `setup_error`、`perception_error`、`thread_error`、`internal_error`；stage 标识触发阶段（`db.snapshot`、`db.close`、`thread.open`、`thread.history|prepare|append|appendInput|consumer`、`prompts`、`context.freeze`、`artifact.stage`、`perception.collect|material|commit`、`actions.receipts`、`model.prepare`、`actor-tools`、`runtime.acquire`、`runtime.run`、`transaction:<label>`、`unclassified` 仅限未分类的内部不变量）。ActivationResult 的 incomplete evidence 增加 `code`、`stage`、`committed`、`receipt`；`error` 保留 cause 文本。
 
 - 事务按 B §1.3a 的调用方处置表：`SQLITE_COMMIT_UNKNOWN`、`SQLITE_SEGMENT_FAILED` 为 `persistence_unknown`（SEGMENT_FAILED 带 `committed:true` 与真实 receipt，且该 operationId 不进入 requiredOperations；COMMIT_UNKNOWN 的 `committed`/`receipt` 为 null），`SQLITE_TX_OUTCOME_MISSING` 为 `internal_error`，其余确定未提交或 body 错误为 `persistence_error`。
 - `view.close` 只在主体成功时上抛 `persistence_error/db.close`；已有主错误时 close 失败不覆盖主错误。
-- 取消只在 signal 已中止时按同一 reason 对象、cause 链或原生 `AbortError` 名称识别；`transport_unknown`、`persistence_unknown` 与 `context_limit` 优先于 `cancelled`。lease release 失败保留 `transport_unknown` 与 `persistence_unknown`，其余改写为 `persistence_error`。
-- `actor-tools` 的工具动作或回执保存以 `SQLITE_COMMIT_UNKNOWN`/`SQLITE_SEGMENT_FAILED` 失败时上抛 `INFERENCE_PERSISTENCE_UNKNOWN`，经 runtime 得到 `persistence_unknown`；`ACTION_ATTEMPT_UNKNOWN`（外部动作结果未知）仍为 `transport_unknown`。失败回执的 value 增加 `persistenceUnknown`。
-- undispatched 回调按真实 claim 结果处理：`{status:'unknown'}` 抛 `ATTEMPT_LEDGER_UNKNOWN`，`existing` 且记录非 settled（pending/unknown）抛 `ATTEMPT_LEDGER_INCOMPLETE`，两者都归 `persistence_error/attempts.undispatched`，不伪造 not_dispatched 结算；`existing` 已 settled 时视为已有耐久事实、不重写记录；只有 `send-permitted` 才写结算。
-- 行动 claim 的存储不确定（`ACTION_ATTEMPT_UNKNOWN{storage:true}`）经 `ActionExecutionFailure.storage` 与 binding 判定报 `INFERENCE_PERSISTENCE_UNKNOWN`/`persistence_unknown`，失败回执 `persistenceUnknown:true`、`externalUnknown:false`；无 storage 的外部动作结果未知仍为 `transport_unknown`。
+- 取消只在 signal 已中止时按同一 reason 对象、cause 链或原生 `AbortError` 名称识别；`persistence_unknown` 与 `context_limit` 优先于 `cancelled`。lease release 失败保留 `persistence_unknown`，其余改写为 `persistence_error`。
+- `actor-tools` 的工具动作或回执保存以 `SQLITE_COMMIT_UNKNOWN`/`SQLITE_SEGMENT_FAILED` 失败时上抛 `INFERENCE_PERSISTENCE_UNKNOWN`，经 runtime 得到 `persistence_unknown`。失败回执的 value 增加 `persistenceUnknown`。
 
 
-## RV3-06：大访谈结果、ledger 记录上限与重放一致性
+## RV3-06：大访谈结果与测量记录
 
 补充 inputs/society0_next_refactor_v3/docs/07-storage.md:112、prs/PR10.md:15、PR10-T04。
 
-`AttemptLedger` 与 `Attempts` 新增公开只读 `maxRecordBytes`。Social 测量合同改为 `MeasurementObservation{value,original,source:Json}` 与 `PreparedMeasurement{value,original,source:StoredValue}`，`MeasurementRecord extends PreparedMeasurement`；`StoredValue` 直接使用 `@society0/core/contracts/data` 的导出，DDL 不变，不保留旧 shape 或迁移。
+Social 测量合同改为 `MeasurementObservation{value,original,source:Json}` 与 `PreparedMeasurement{value,original,source:StoredValue}`，`MeasurementRecord extends PreparedMeasurement`；`StoredValue` 直接使用 `@society0/core/contracts/data` 的导出，DDL 不变，不保留旧 shape 或迁移。
 
 `measurementRepository` 新增 `inlineBytes`（`Schema.natural().min(1).max(16384).default(16384)`，`new-run`/`affectsResults`）、`prepare`（逐字段调用现有 `prepareValue`）与 `readPayload`（`readValue`）。`append` 要求字段已是 StoredValue，内联字段超过 `inlineBytes` 时以 `MEASUREMENT_PREPARE_REQUIRED` 拒绝；同一事务内 `attachValue` 三字段后写入 JSON，`page` 按 StoredValue 解析。`measurements` 在 observe 后先用 `jsonByteBound` 检查：超过 `maxResultBytes` 得 `MEASUREMENT_RESULT_BYTES`，非 Json（toJSON/Date、BigInt、循环）得 `MEASUREMENT_RESULT_INVALID`；非循环共享引用按原生 JSON 展开语义计数，不误判超限。
 
-访谈 attempt：观察失败时以 `MeasurementFailure` 保留原始文本（`toString` 返回该文本，Error/TypeError/plain string 首次与重放逐字一致），failure 一律存为 StoredValue（4096 内联阈）；成功保存 `PreparedMeasurement`。信封包含 observation/failure/original/evidence 的全部引用；`bytes(envelope)+256` 超过 `attempts.maxRecordBytes` 时把信封整体 stage 为 evidence，再 settle `{envelope:ref}` 并携带其内部全部 refs。重放用 `attempts.readArtifact` 读取信封与 failure，正文引用先 `materialize` 再随仓库引用，避免为读信封制造未引用对象。结果持久化的单一失败边界（`repository.prepare`、`storeOne`、`storeFailure`、`stageEvidence`、`stageOversize`、`attempts.settle` 的实际失败）统一抛 `MEASUREMENT_ATTEMPT_UNKNOWN`（原 cause 保留）且不写仓库；成功 settle 后按原始失败文本、`MEASUREMENT_RESULT_BYTES` 或 `MEASUREMENT_RESULT_INVALID` 报告，不被该边界改写。删除 `saved.evidence` 一律抛错与 `MEASUREMENT_ATTEMPT_PENDING`。
+访谈结果写入该主体线程的 session 日志：观察成功时在检查之前写 `measurement` 事件（含完整 observation），失败时写 `attempt/failed`（`cause` 为 `String(error)`，保留 `original`）。超过 `maxResultBytes` 的 observation 同样完整记录，再报 `MEASUREMENT_RESULT_BYTES`。重新采集会重新观察，不从日志短路。
 
-超测量结果上限的 observation，在 `attempts.evidenceMaxObjectBytes` 范围内完整 stage 为 evidence 并 settle `{ok:false,failure:{kind:'inline',value:'MEASUREMENT_RESULT_BYTES'},evidence,bytes}`；超过证据库对象上限时记录 `evidence=null` 与 `bytes='>'+实际证据上限`，明确正文保存范围。
+**消费者 shape 变化**：completed outcome 的 value/original/source 与仓库 page 行为 StoredValue；完整正文经 `measurementRepository.readPayload` 分块读取。`pr10-runtime`、`pr10-runtime-activation` 读 `.value.value`；`pr10-query-boundaries` 在 append 前 `prepare`；`pr10-observation-boundaries` 读 `.original.value.body`。
 
-**失败原文归一化的边界**：`failedInterview` 的 `String(error)` 求值放在同一持久化 try 内；若观测错误的 `toString` 自身抛错，转换失败进入 `raiseUnknown`，首次与 pending 重放都报 `MEASUREMENT_ATTEMPT_UNKNOWN`，不写仓库、不重新 observe。settle 成功后仍按原始失败文本抛 `MeasurementFailure`，转换成功的原文语义不变。
-
-**failure 写入预检**：`storeFailure` 采用原有 `FAILURE_INLINE` 与主工件服务 `artifacts.maxObjectBytes` 中较大的容量作 JSON 字节预检；原生 `prepareValue` 随后选择内联或引用表示。failure 引用读取采用主工件库有效上限。编码字节 B 可保存的条件为 `B≤FAILURE_INLINE` 或 `B≤artifacts.maxObjectBytes`，超出两种表示容量才进入持久化 unknown。真实 64KiB 配置下，超限失败原文首跑与重放均为 `MEASUREMENT_ATTEMPT_UNKNOWN`、observe 一次、stage 零调用；主库和 ledger 行均设为 1KiB 时，约 2KiB 的内联失败仍由 attempts 证据信封保存并逐字重放。
-
-**读取上限反例（原生 JSON 实测）**：§4.4 原文的信封上限 `maxRecordBytes*4` 与 failure 上限 1MiB 同合法配置冲突。`attempts.maxRecordBytes=1024` 加 `inlineBytes=16384`（默认）时，三字段各 1400B 的合法观测生成 4102B 信封（大于 4096）；三字段各 16000B 时观测 48116B（≤`maxResultBytes` 49152）、信封 48142B。failure 文本 1048578 字符存为引用时 `rawBytes=1048580`（大于 1048576）。两者都会让已成功 settle 的 attempt 在重放改抛 budget，首次与重放不同事实。当前合同分别读取实际存储上限：failure 预检和引用读取使用 `artifacts.maxObjectBytes`；信封读取、超限观测 evidence 预检使用 `attempts.evidenceMaxObjectBytes`。ArtifactsLocal 服务透出底层主工件库上限；AttemptLedger 与 Attempts 透出自有证据库上限。两端默认值可以相同，调用点仍按正文归属取值。`MEASUREMENT_ENVELOPE_BUDGET` 保留为引用元数据超过对应有效上限的完整性守卫。
-
-**消费者 shape 变化**：completed outcome 的 value/original/source 与仓库 page 行为 StoredValue；完整正文经 `measurementRepository.readPayload` 分块读取。`pr10-runtime`、`pr10-runtime-activation` 读 `.value.value`；`pr10-query-boundaries` 在 append 前 `prepare`；`pr10-observation-boundaries` 读 `.original.value.body`。PR10-T04 的 attempt evidence 现在是 observation 本体，不再是 `{ok:true,observation}` 信封。
-
-**行为变化**：Date 等带 toJSON 的值过去能被 stringify 并写入仓库，现在按测量合同报 `MEASUREMENT_RESULT_INVALID`；重放不再报 `MEASUREMENT_ATTEMPT_PENDING` 或 25 字节窗口的 `MEASUREMENT_RESULT_BYTES`，ledger 结果未知时按真实事实报 `MEASUREMENT_ATTEMPT_UNKNOWN`。
-
-**T02 口径（主裁定）**：append 真失败一次时，首次 `runOne` 为 incomplete（事务真实回滚，仓库无行），但 observation 在 append 之前已 settle 到 attempts；第二次重放 completed 且不重新 observe。不能把事务失败记为 completed；“两次 completed”只适用于没有事务失败的配置。测试 T02 以 observe 计数、attempt settled 与空仓库行证明这三个事实。
+**行为变化**：Date 等带 toJSON 的值过去能被 stringify 并写入仓库，现在按测量合同报 `MEASUREMENT_RESULT_INVALID`。
 
 **未引用对象**：`LocalArtifacts.collect(retained)` 只在 `packages/core/src/artifacts-local/store.ts:28` 定义，`packages/core/src/artifacts-local` 与 `packages/core/src/sqlite-history` 内无调用者（全包 grep 亦无）；完整点/GC 不回收事务前 stage 的未引用 artifact。登记为后续 GC 事项，本 PR 不扩实现。
 
@@ -156,9 +132,9 @@ host 在 profile resolver 之后的 `resolution.value`、Schema validate 之前�
 
 Core 使用原生 `String.isWellFormed()` 检查即将参与持久化标识的文本。[Thread](../packages/core/src/thread/index.ts) 在查询前检查 `actorId`、`momentId`，在编码或暂存消息前检查 `message.id`，拒绝时报告 `THREAD_TEXT_NOT_WELL_FORMED` 并带 `field`。[ActorTools](../packages/core/src/actor-tools/binding.ts) 在拼接 operationId 前检查模型的 `toolCall.id`，拒绝时报告 `INFERENCE_MODEL_TEXT_NOT_WELL_FORMED`，推理结局归为 `provider_error`。标识保持原始值，调用方应修正其生成源。
 
-失败原因属于诊断文本：[ActionCall](../packages/core/src/actions/execution.ts) 向 attempts 写入 unknown 的 reason 前使用原生 `toWellFormed()`，原始 message 仍留在 JSON evidence 中，以 JSON 的代理码元转义形式保存，读取后可恢复原始字符串。该规则同时适用于外部行动结果未知与事务提交未知的失败记录。
+失败原因属于诊断文本：[ActionCall](../packages/core/src/actions/execution.ts) 向 session 日志写入 `attempt/failed` 时，`cause` 使用原生 `toWellFormed()`，原始文本保留在 `message` 字段，以 JSON 的代理码元转义形式保存，读取后可恢复原始字符串。
 
-结局优先级保留外部结果未知、持久化未知、持久化失败这些已发生事实，再考虑模型文本错误。通用 `SQLITE_TEXT_NOT_WELL_FORMED` 沿用存储阶段分类；模型错误分类依赖明确的模型入口错误码。
+结局优先级保留持久化未知、持久化失败这些已发生事实，再考虑模型文本错误。通用 `SQLITE_TEXT_NOT_WELL_FORMED` 沿用存储阶段分类；模型错误分类依赖明确的模型入口错误码。
 
 ## CR-02：批准的配置缺口
 
@@ -179,3 +155,14 @@ Core 使用原生 `String.isWellFormed()` 检查即将参与持久化标识的�
 `LocalArtifacts.collect` 已删除：设计 `catalog/plan.json` 的 ArtifactStore 操作只有 `stage/read/localFile/close`，设计包 `docs/07-storage.md` §4.3 把对象删除归显式 retention/GC 操作，仓库内没有调用入口。对象 GC 仍待独立维护操作实现，不在本插件公开合同中。
 
 其他已知限制按原条目保留：`core/sqlite-history/maxBufferedBytes` 的统一跨阶段在途预算、`host/profile-loader/requiredReadyTimeoutMs` 的 required 服务就绪期限，以及 Codex 真实订阅验证。对应范围和原有处置继续以配置对账及验收记录为准。
+
+## K3：外部调用记录改为 session 日志
+
+修订 RV3-04、NEW-3、RV3-06 中 attempts 账本相关的文字（这些小节已删除或改写）。
+
+- 每个 session（主体 × 激活线程）一个只追加 JSONL，位于 run 目录 `sessions/`。首行 `{type:'session',version:1,actorId,momentId,createdAt}`，之后每行 `{type,seq,time,data}`。非线程调用（embedding、Codex 凭据刷新）写入 `@system` 的固定 session。
+- 模型请求：header 变化才写 `request/header`；上下文是上次的延续时只写 `context/append`，否则写 `context/reset`；随后写 `request`（含 `contextLen`、`headerSeq`）。结论写 `response`（含 zstd+base64 的原始回包）或 `attempt/failed`。失败按退避重试至 `maxRetries`，4xx 中只重试 408/429。
+- 事件在内存攒批，按 `flushMs` 或发请求前的 barrier 写给操作系统，不 fsync；发布完整点时 `heads()` fsync 并把各文件长度写进点记录，恢复时 `truncate(heads)` 截回该长度。只从完整点恢复，完整点之后的外部调用会重新执行。
+- 分叉目标在 `sessions/parent.json` 记录源 run 与截断长度，读取时先读源前缀，写只追加自己的文件。
+- `replay.lookup({session,operationId,attempt})` 从日志读该尝试的结论事件，没有记录报 `REPLAY_MISSING`。
+- 删除 `transport_unknown` 与外部结果未知的概念，以及 `REOPEN_AUTHORITY_UNAVAILABLE`（改为 `REOPEN_STORAGE_UNAVAILABLE`）。

@@ -11,7 +11,7 @@
  * 只调用 127.0.0.1:4000；key 只存在进程内存，不进日志/证据，也不落盘。
  */
 import assert from 'node:assert/strict';
-import {appendFile, cp, lstat, mkdir, readFile, rename, rm, statfs, symlink, unlink, writeFile} from 'node:fs/promises';
+import {appendFile, cp, lstat, mkdir, readdir, readFile, rename, rm, statfs, symlink, unlink, writeFile} from 'node:fs/promises';
 import {appendFileSync, existsSync} from 'node:fs';
 import {join, dirname, resolve} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
@@ -200,7 +200,6 @@ async function mirrorTick(tick) {
   await rm(temp, {recursive: true, force: true});
   await mkdir(temp, {recursive: true});
   await cp(join(hotRoot, 'run'), join(temp, 'run'), {recursive: true, force: true});
-  await cp(join(hotRoot, 'run-lineage'), join(temp, 'run-lineage'), {recursive: true, force: true});
   await rm(targetBase, {recursive: true, force: true});
   await rename(temp, targetBase);
   const state = {tick, completedTicks: tick, latest: `tick-${tick}`, at: new Date().toISOString(), hotRoot};
@@ -231,7 +230,6 @@ async function restoreFromMirror(source, target) {
   await rm(target, {recursive: true, force: true});
   await mkdir(target, {recursive: true});
   await cp(join(snapshot, 'run'), join(target, 'run'), {recursive: true, force: true});
-  await cp(join(snapshot, 'run-lineage'), join(target, 'run-lineage'), {recursive: true, force: true});
   await progress(`restore tick=${state.completedTicks} from=${snapshot} to=${target}`);
   return state.completedTicks;
 }
@@ -250,12 +248,19 @@ async function queryFacts() {
   } finally { db.close(); }
 }
 
+/** 各 session 日志里的失败尝试（attempt/failed）。 */
 async function queryAttempts() {
-  const path = join(hotRoot, 'run-lineage', 'attempts.sqlite');
-  if (!existsSync(path)) return [];
-  const db = new DatabaseSync(path, {readOnly: true});
-  try { return db.prepare('SELECT operation_id,status,reason FROM attempts').all(); }
-  finally { db.close(); }
+  const directory = join(hotRoot, 'run', 'sessions');
+  if (!existsSync(directory)) return [];
+  const rows = [];
+  for (const name of (await readdir(directory)).filter(name => name.endsWith('.jsonl'))) {
+    for (const line of (await readFile(join(directory, name), 'utf8')).split('\n')) {
+      if (!line) continue;
+      const event = JSON.parse(line);
+      if (event.type === 'attempt/failed') rows.push({operation_id: event.data.operationId, status: 'failed', reason: event.data.cause});
+    }
+  }
+  return rows;
 }
 
 async function fetchPrefixCache() {
@@ -375,8 +380,6 @@ try {
   Object.assign(sqlite, {directory: join(hotRoot, 'run'), runId, generation: 'g1', maxQueryRows: 100000, maxQueryBytes: 16777216, maxInlineBytes: 16777216, maxSnapshotAgeMs: 300000});
   const sqliteHistory = structuredClone(entry(entries, '@society0/core/sqlite-history').config);
   Object.assign(sqliteHistory, {directory: join(hotRoot, 'run'), runId, generation: 'g1', controlSequence: '0'});
-  const attempts = structuredClone(entry(entries, '@society0/core/attempts').config);
-  Object.assign(attempts, {directory: join(hotRoot, 'run-lineage'), lineage: runId});
   const activation = structuredClone(entry(entries, '@society0/core/activation').config);
   activation.capacity = 20;
   const social = structuredClone(entry(entries, '@society0/social/social').config);
@@ -488,7 +491,6 @@ try {
       await writeFile(patchesPath, JSON.stringify([
         {id: 'sqlite', config: sqlite},
         {id: 'sqlite-history', config: sqliteHistory},
-        {id: 'attempts', config: attempts},
         {id: 'activation', config: activation},
         {id: 'topology-edges', config: topology},
         {id: 'social', config: social},
@@ -503,7 +505,6 @@ try {
         report = await runProfile({
           profile: join(here, '..', '..', 'profiles', 'social-sqlite.json'),
           directory: join(hotRoot, 'run'),
-          lineageDirectory: join(hotRoot, 'run-lineage'),
           runId,
           patches: patchesPath,
           lock: lockPath,

@@ -16,8 +16,6 @@ export interface RunDirectoryPlan {
  readonly mount?:{readonly runEntryId:string;readonly bootstrapEntryId:string};
  readonly generation:CompositionPlan;
  readonly isolateServices?:readonly string[];
- /** Explicit new-lineage authority; reopening and forks select existing or omit this hook. */
- readonly lineage?:{readonly kind:'fresh';initialize(ctx:Context):Promise<void>}|{readonly kind:'existing'};
 }
 export interface RunPreparationPhase {readonly run:Context;readonly bootstrap:Context;readonly tree:MountedTree}
 export interface RunHandle {readonly runId:string;readonly root:RunRoot;readonly metadata:unknown;readonly database:PreparedRun['database'];readonly state:PreparedRun['state'];close():Promise<void>}
@@ -39,7 +37,7 @@ export class RunDirectory extends Service {
   private async mountGeneration(plan:RunDirectoryPlan,owner:Fiber,session?:MountSession):Promise<void>{if(session)await session.mountScopes(['generation']);else await this.ctx.profileLoader.mount(plan.generation,owner.ctx)}
  async create(plan:RunDirectoryPlan):Promise<RunHandle>{
   this.admit(plan);let owner:Fiber|undefined;let session:MountSession|undefined;
-  try{owner=await this.privateOwner(plan);if(plan.lineage?.kind==='fresh')await plan.lineage.initialize(owner.ctx);if(plan.mount)session=await this.ctx.profileLoader.createMountSession(plan.generation,owner.ctx);const {prepared,runContext}=await this.preparation(plan,owner,session);this.assertPrepared(plan,prepared);if(prepared.state==='clean')await this.mountGeneration(plan,owner,session);return this.publish(plan,owner,runContext,prepared,session)}
+  try{owner=await this.privateOwner(plan);if(plan.mount)session=await this.ctx.profileLoader.createMountSession(plan.generation,owner.ctx);const {prepared,runContext}=await this.preparation(plan,owner,session);this.assertPrepared(plan,prepared);if(prepared.state==='clean')await this.mountGeneration(plan,owner,session);return this.publish(plan,owner,runContext,prepared,session)}
   catch(error){try{await session?.close()}finally{await owner?.dispose()}throw error}finally{this.preparing.delete(plan.runId)}
  }
  acquire(runId:string,mode:'read'|'write'='read'):RunLease{

@@ -109,7 +109,7 @@ society0 check --profile <p> [--lock <f>] [--patches <f>] [--world <f>] [--base 
 ### run start
 
 ```
-society0 run start --profile <p> --dir <run> [--lineage <d>] [--ticks N] [--world <f>] [--base <d>] [--credentials-env <NAME>] [--lock <f>] [--patches <f>] --detach --json
+society0 run start --profile <p> --dir <run> [--ticks N] [--world <f>] [--base <d>] [--credentials-env <NAME>] [--lock <f>] [--patches <f>] --detach --json
 ```
 
 在后台启动一个独立进程，立即返回：
@@ -119,7 +119,7 @@ society0 run start --profile <p> --dir <run> [--lineage <d>] [--ticks N] [--worl
 ```
 
 - `runId` 取 run 目录的 basename；后台日志写到同级 `<dir>.log`。
-- `--dir` 必须是新目录；`--lineage` 缺省为 `<dir 的父目录>/lineages/<dir 的 basename>`，必须不存在。
+- `--dir` 必须是新目录。
 - `--ticks N` 对所有 profile 生效：把 N 写进 run-controller 的 `maxTicks`，是**上限**，不保证一定跑满。推进满 N 个 tick 后，在已发布的完整点停下，状态为 `completed`，`lastReason` 形如 `max ticks reached (N)`。来源先耗尽时（例如 round-robin 的 `rounds` 不够 N 个 tick）run 会提前 `completed`，`lastReason` 记来源给出的原因，常见为 `round-robin exhausted`。不传时由 profile 自己的终止条件决定运行长度。
 - `--world <f>`：JSON 对象，作为本次 run 的 world 输入。`actors` 段形如 `[{"id","attributes","source"}]`，由 Core 的 `actors.seed` 在根创建事务里写入 `s0_actors`；`source` 必填，缺失时报 `ACTOR_SOURCE_MISSING`。路径记录在状态文件里。
 - `--base <d>`：同 check，指定插件查找目录。
@@ -133,7 +133,7 @@ society0 run start --profile <p> --dir <run> [--lineage <d>] [--ticks N] [--worl
 society0 run resume --dir <run> [--credentials-env <NAME>] --detach --json
 ```
 
-从 run 目录已发布的完整点（frontier）续跑。profile、lock、patches、ticks、lineage、base、world、credentials-env 都从 `entry-status.json` 读取；`--credentials-env` 可以显式覆盖，但变量值仍只在子进程内存里。进程仍存活时返回 `RUN_ALREADY_RUNNING`；已完成时返回 `RUN_COMPLETED`。
+从 run 目录已发布的完整点（frontier）续跑。profile、lock、patches、ticks、base、world、credentials-env 都从 `entry-status.json` 读取；`--credentials-env` 可以显式覆盖，但变量值仍只在子进程内存里。进程仍存活时返回 `RUN_ALREADY_RUNNING`；已完成时返回 `RUN_COMPLETED`。
 
 ### run status
 

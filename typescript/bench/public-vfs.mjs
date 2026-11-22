@@ -15,7 +15,7 @@ import { ArtifactsLocal, artifactsMigration } from '../.build/core/dist/artifact
 import { Initializers } from '../.build/core/dist/initializers/index.js';
 import { SqliteBootstrap } from '../.build/core/dist/sqlite-bootstrap/index.js';
 import { SqliteHistory } from '../.build/core/dist/sqlite-history/index.js';
-import { Attempts } from '../.build/core/dist/attempts/index.js';
+import { Sessions } from '../.build/core/dist/session-log/index.js';
 import { Actors, actorsMigration } from '../.build/core/dist/actors/index.js';
 import ActorEligibility from '../.build/core/dist/actor-eligibility/index.js';
 import { Actions, actionsMigration } from '../.build/core/dist/actions/index.js';
@@ -203,8 +203,7 @@ async function assembleCurrent(state) {
         await host.ctx.plugin(Initializers);
         await host.ctx.plugin(SqliteBootstrap);
         await host.ctx.plugin(SqliteHistory, { directory: run, runId: 'b0-bench', generation: 'g', controlSequence: '0' });
-        await host.ctx.plugin(Attempts, { directory: join(base, 'attempts'), lineage: 'b0-bench' });
-        await host.ctx.attempts.initialize();
+        await host.ctx.plugin(Sessions, { directory: run });
         const source = MIGRATION_SOURCE;
         await host.ctx.database.applyMigrations([artifactsMigration, actorsMigration, actionsMigration(source), threadMigration(source), resultsMigration(source), perceptionMigration(source), workspaceMigration(source), benchMigration]);
         await host.ctx.plugin(Actors);
@@ -221,7 +220,7 @@ async function assembleCurrent(state) {
         await host.ctx.plugin(mountWorld);
         await host.ctx.plugin(ExplorationShell);
         let ctx;
-        await host.ctx.plugin({ inject: ['database', 'executionFence', 'artifacts', 'attempts', 'actors', 'actorEligibility', 'actions', 'information', 'threads', 'results', 'perceptions', 'workspace', 'exploration', 'explorationShell'], apply(c) { ctx = c; } });
+        await host.ctx.plugin({ inject: ['database', 'executionFence', 'artifacts', 'sessions', 'actors', 'actorEligibility', 'actions', 'information', 'threads', 'results', 'perceptions', 'workspace', 'exploration', 'explorationShell'], apply(c) { ctx = c; } });
         return { host, ctx, run, base };
     }
     catch (error) {
@@ -250,8 +249,7 @@ async function assemblePublic(state) {
         await host.ctx.plugin(Initializers);
         await host.ctx.plugin(SqliteBootstrap);
         await host.ctx.plugin(SqliteHistory, { directory: run, runId: 'b10-bench', generation: 'g', controlSequence: '0' });
-        await host.ctx.plugin(Attempts, { directory: join(base, 'attempts'), lineage: 'b10-bench' });
-        await host.ctx.attempts.initialize();
+        await host.ctx.plugin(Sessions, { directory: run });
         const source = MIGRATION_SOURCE;
         await host.ctx.database.applyMigrations([artifactsMigration, publicMigration(source), publicIndexMigration(source), momentViewsMigration(source), actorsMigration, actionsMigration(source), threadMigration(source), resultsMigration(source), perceptionMigration(source), workspaceMigration(source)]);
         await host.ctx.plugin(Actors);
@@ -270,7 +268,7 @@ async function assemblePublic(state) {
         await host.ctx.plugin(mountResults);
         await host.ctx.plugin(ExplorationShell, { timeoutMs: state.options.shellTimeoutMs });
         let ctx;
-        await host.ctx.plugin({ inject: ['database', 'executionFence', 'artifacts', 'attempts', 'actors', 'actorEligibility', 'actions', 'information', 'threads', 'results', 'perceptions', 'workspace', 'exploration', 'public', 'momentViews', 'publicSelf', 'explorationShell'], apply(c) { ctx = c; } });
+        await host.ctx.plugin({ inject: ['database', 'executionFence', 'artifacts', 'sessions', 'actors', 'actorEligibility', 'actions', 'information', 'threads', 'results', 'perceptions', 'workspace', 'exploration', 'public', 'momentViews', 'publicSelf', 'explorationShell'], apply(c) { ctx = c; } });
         return { host, ctx, run, base };
     }
     catch (error) {

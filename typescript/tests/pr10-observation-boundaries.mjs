@@ -9,13 +9,13 @@ import Rankings from '../.build/social/dist/social-ranking/index.js';
 import Recommendations from '../.build/social/dist/social-recommendations/index.js';
 import SocialPerception from '../.build/social/dist/social-perception/index.js';
 
-test('PR10 failed HTTP interview replays settled original failure without resending',async()=>{
+test('PR10 failed HTTP interview records original failure in the session log',async()=>{
  let calls=0;const server=createServer((req,res)=>{calls++;res.statusCode=503;res.end('完整原始失败响应')});server.listen(0,'127.0.0.1');await once(server,'listening');let f,held;
  try{f=await fixture({migrations:[measurementMigration]});const c=f.ctx;for(const plugin of [Drivers,Repository,Measurements,Every])await c.plugin(plugin);
   await c.plugin({inject:['measurements'],apply(ctx){ctx.measurements.register({id:'failed-http',kind:'interview',required:true,async observe(){const response=await fetch('http://127.0.0.1:'+server.address().port);const original={status:response.status,body:await response.text()};throw Object.assign(Error('HTTP_INTERVIEW_'+response.status),{original})}})}});
   held=await c.executionFence.reserve({id:'failed-interview'});const context=activation(f,held,'failed-interview');
-  for(let i=0;i<2;i++){const result=await c.measurements.collect(context);assert.equal(result.status,'incomplete');assert.match(result.value[0].failure,/HTTP_INTERVIEW_503/);assert.deepEqual(result.requiredOperations,[])}
-  assert.equal(calls,1);const identity={lineage:c.attempts.authority().lineage,operationId:'failed-interview/measurement/failed-http',attempt:0};const probe=await c.attempts.probe(identity);assert.equal(probe.record.status,'settled');assert.equal(probe.record.result.original.value.body,'完整原始失败响应');assert.equal(probe.record.result.ok,false);
+  const result=await c.measurements.collect(context);assert.equal(result.status,'incomplete');assert.match(result.value[0].failure,/HTTP_INTERVIEW_503/);assert.deepEqual(result.requiredOperations,[]);
+  assert.equal(calls,1);const recorded=await c.sessions.find({actorId:context.actorId,momentId:context.momentId},{operationId:'failed-interview/measurement/failed-http',attempt:0});assert.equal(recorded.type,'attempt/failed');assert.equal(recorded.data.original.body,'完整原始失败响应');
  }finally{await held?.release();await f?.host.close();server.close();await once(server,'close')}
 });
 

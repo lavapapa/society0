@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {Worker} from 'node:worker_threads';
 import {openConnection} from '../.build/sqlite-native/src/index.mjs';
 
-// 同一 lineage 的分叉世界在不同进程共享 attempts.sqlite：写事务遇到他人短暂持锁时须在 timeoutMs 内等待，而不是立刻 SQLITE_BUSY。
+// 写事务遇到其他连接短暂持锁时须在 timeoutMs 内等待，而不是立刻 SQLITE_BUSY。
 const holder=`const {workerData,parentPort}=require('node:worker_threads');
 import(workerData.module).then(({openConnection})=>{const db=openConnection({path:workerData.path});db.begin();db.execute('INSERT INTO t VALUES(1)');parentPort.postMessage('locked');
 setTimeout(()=>{db.commit();db.close();parentPort.postMessage('released')},300)})`;

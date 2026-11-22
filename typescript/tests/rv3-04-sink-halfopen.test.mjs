@@ -19,12 +19,12 @@ import {fixture,extensions} from './pr08-support.mjs';
 import {modelOperationId} from '../.build/core/dist/model-pi/selection.js';
 
 const modelFor=port=>({id:'offline',name:'offline',api:'openai-completions',provider:'offline',baseUrl:'http://127.0.0.1:'+port+'/v1',reasoning:false,input:['text'],cost:{input:0,output:0,cacheRead:0,cacheWrite:0},contextWindow:8192,maxTokens:256});
-async function connect(port,ledger,fetchImpl) {
+async function connect(port,sessions,fetchImpl) {
   const credentials=new InMemoryCredentialStore();
   await credentials.modify('offline',async()=>({type:'api_key',key:'fixture-key'}));
   const models=createModels({credentials,authContext:{env:async()=>undefined,fileExists:async()=>false}});
   models.setProvider(createProvider({id:'offline',models:[modelFor(port)],auth:{apiKey:envApiKeyAuth('explicit',[])},api:completions}));
-  return new PiModelProvider(models,ledger,{runId:'pr07',providerId:'offline',maxEventBytes:65536,maxRawBytes:1048576,maxRequestBytes:1048576,options:{maxTokens:256,maxRetries:0,transport:'sse'},timeoutMs:5000,...(fetchImpl?{fetch:fetchImpl}:{})});
+  return new PiModelProvider(models,sessions,{runId:'pr07',providerId:'offline',maxEventBytes:65536,maxRawBytes:1048576,options:{maxTokens:256,maxRetries:0,transport:'sse'},timeoutMs:5000,...(fetchImpl?{fetch:fetchImpl}:{})});
 }
 async function withServer(handler){const server=createServer(handler);await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));return {server,port:server.address().port,close:async()=>{server.closeAllConnections?.();await new Promise(resolve=>server.close(resolve))}}}
 
@@ -45,9 +45,9 @@ test('RV3-04-T02b real sink budget rejection and protocol abort on half-open SSE
     server=await withServer((req,res)=>{requests++;req.resume();current=res;res.writeHead(200,{'content-type':'text/event-stream'});res.write('data: '+JSON.stringify({id:'x',object:'chat.completion.chunk',created:0,model:'offline',choices:[{index:0,delta:{content:'half'},finish_reason:null}]})+'\n\n');res.on('close',()=>{upstreamEnded=res.writableEnded})});
     const headers=Promise.withResolvers();
     const routeFetch=async(input,init)=>{const response=await fetch(input,init);headers.resolve();return response};
-    provider=await connect(server.port,run.ctx.attempts,routeFetch);
+    provider=await connect(server.port,run.ctx.sessions.log,routeFetch);
     const context=run.context('rv304-t02b');
-    prepared=await provider.prepare({provider:'pi/v1',model:'offline'},context);
+    prepared=await provider.prepare({session:{actorId:'a',momentId:'m'},provider:'pi/v1',model:'offline'},context);
     runtime=new PiRuntime();
     const abort=new AbortController();
     const started=Promise.withResolvers();
@@ -58,18 +58,16 @@ test('RV3-04-T02b real sink budget rejection and protocol abort on half-open SSE
     await new Promise(resolve=>setTimeout(resolve,50));
     abort.abort(budgetError);
     const outcome=await work;
-    assert.equal(outcome.reason,'transport_unknown');
     assert.equal(outcome.status,'incomplete');
     const settlements=[...(prepared.value.attemptSettlements??[])];
     assert.equal(settlements.length,1);
-    assert.equal(settlements[0].status,'unknown');
+    assert.equal(settlements[0].status,'failed');
     assert.equal(settlements[0].httpStatus,200);
     assert.equal(upstreamEnded,false);
     assert.equal(current.writableEnded,false);
     assert.equal(requests,1);
-    const identity={lineage:run.ctx.attempts.authority().lineage,operationId:modelOperationId(context,1),attempt:0};
-    const probe=await run.ctx.attempts.probe(identity);
-    assert.equal(probe.record.status,'unknown');
+    const recorded=await run.ctx.sessions.find({actorId:'a',momentId:'m'},{operationId:modelOperationId(context,1),attempt:0});
+    assert.equal(recorded.type,'attempt/failed');
     await runtime.drain('done');runtime=undefined;
   } finally {
     await prepared?.release().catch(()=>{});

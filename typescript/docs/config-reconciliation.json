@@ -83,34 +83,13 @@
       "state": "added",
       "consumer": "typescript/packages/core/src/sqlite/database.ts:37"
     },
-    "@society0/core/attempts/chunkBytes": {
+    "@society0/core/session-log/directory": {
       "state": "added",
-      "consumer": "typescript/packages/core/src/attempts/ledger.ts:13"
+      "consumer": "typescript/packages/core/src/session-log/index.ts:15"
     },
-    "@society0/core/attempts/lineage": {
+    "@society0/core/session-log/flushMs": {
       "state": "added",
-      "consumer": "typescript/packages/core/src/attempts/ledger.ts:16"
-    },
-    "@society0/core/attempts/maxEvidenceObjects": {
-      "state": "added",
-      "consumer": "typescript/packages/core/src/attempts/ledger.ts:34"
-    },
-    "@society0/core/attempts/maxPending": {
-      "state": "added",
-      "consumer": "typescript/packages/core/src/attempts/ledger.ts:18"
-    },
-    "@society0/core/attempts/maxRecordBytes": {
-      "state": "added",
-      "consumer": "typescript/packages/core/src/attempts/ledger.ts:17"
-    },
-    "@society0/core/attempts/maxSnapshotBytes": {
-      "state": "added",
-      "consumer": "typescript/packages/core/src/attempts/ledger.ts:34"
-    },
-    "@society0/core/attempts/unknownResult": {
-      "state": "dropped",
-      "reason": "未知结局由 driver/fence 固定分类与停机处理；U-6 的 not-committed 重用由 attempts 账本与调用方控制，无配置消费者。",
-      "design": "docs/18-inference-and-reuse.md §四；B §3.2/U-6"
+      "consumer": "typescript/packages/core/src/session-log/store.ts:43"
     },
     "@society0/core/thread/maxMessageBytes": {
       "state": "added",
@@ -356,11 +335,6 @@
       "consumer": "typescript/packages/core/src/model-pi/request.ts:25",
       "reason": "首方 model-codex-subscription/index.ts:25 的 {...this.config} 转交 PiModelProvider；下游真实读取在 model-pi/request.ts:17。"
     },
-    "@society0/core/model-codex-subscription/maxRequestBytes": {
-      "state": "added",
-      "consumer": "typescript/packages/core/src/model-pi/request.ts:17",
-      "reason": "首方 model-codex-subscription/index.ts:25 的 {...this.config} 转交 PiModelProvider；下游真实读取在 model-pi/request.ts:15。"
-    },
     "@society0/core/model-codex-subscription/maxTokens": {
       "state": "added",
       "consumer": "typescript/packages/core/src/model-codex-subscription/index.ts:25"
@@ -408,10 +382,6 @@
     "@society0/core/model-pi/maxRawBytes": {
       "state": "added",
       "consumer": "typescript/packages/core/src/model-pi/request.ts:25"
-    },
-    "@society0/core/model-pi/maxRequestBytes": {
-      "state": "added",
-      "consumer": "typescript/packages/core/src/model-pi/request.ts:17"
     },
     "@society0/core/model-pi/maxTokens": {
       "state": "added",

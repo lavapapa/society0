@@ -187,8 +187,6 @@ export class LlmActivation {
  private async recoverCall(message:AssistantMessage,call:ToolCall,origins:ReadonlyMap<AgentMessage,string>):Promise<AgentMessage>{
   const activation=origins.get(message);
   if(!activation)throw new LlmActivationError('thread_error','INFERENCE_UNRESOLVED_TOOL','thread.history');
-  const fact=await this.step('persistence_error','attempts.probe',()=>this.ctx.attempts.probe({lineage:this.ctx.attempts.authority().lineage,operationId:activation+'/undispatched/'+call.id,attempt:0}));
-  if(fact.status!=='found'||fact.record.status!=='settled'||(fact.record.result as {status?:string})?.status!=='not_dispatched')throw new LlmActivationError('thread_error','INFERENCE_UNRESOLVED_TOOL','thread.history');
   return {role:'toolResult',toolCallId:call.id,toolName:call.name,content:[{type:'text',text:JSON.stringify({status:'not_dispatched',reason:'cancelled'})}],details:{status:'not_dispatched'},isError:true,timestamp:0};
  }
  private async reconcile(messages:AgentMessage[],origins:ReadonlyMap<AgentMessage,string>):Promise<AgentMessage[]>{const recovered:AgentMessage[]=[];for(let index=0;index<messages.length;index++){const message=messages[index]!;recovered.push(message);if(message.role!=='assistant')continue;const returned=this.returnedAfter(messages,index);for(const call of message.content){if(call.type!=='toolCall'||returned.has(call.id))continue;recovered.push(await this.recoverCall(message,call,origins))}}return recovered}
@@ -300,13 +298,7 @@ export class LlmActivation {
   if(this.pendingFrames.length>=this.config.maxPendingEvents||this.pendingEventBytes>=this.config.maxPendingBytes||this.boundary(event))await this.flushEvents();
  }
  private async undispatched(receipt:UndispatchedToolReceipt){
-  await this.step('persistence_error','attempts.undispatched',async()=>{
-   const identity={lineage:this.ctx.attempts.authority().lineage,operationId:this.context.operationId+'/undispatched/'+receipt.toolCallId,attempt:0};
-   const claim=await this.ctx.attempts.claim(identity,{kind:'not_dispatched',threadId:this.thread.id,interactionId:this.thread.interactionId,receipt});
-   if(claim.status==='unknown')throw Object.assign(Error('ATTEMPT_LEDGER_UNKNOWN '+claim.reason),{code:'ATTEMPT_LEDGER_UNKNOWN',reason:claim.reason});
-   if(claim.status==='send-permitted'){await this.ctx.attempts.settle(identity,{status:'not_dispatched',receipt});return}
-   if(claim.record.status!=='settled')throw Object.assign(Error('ATTEMPT_LEDGER_INCOMPLETE '+claim.record.status),{code:'ATTEMPT_LEDGER_INCOMPLETE',reason:claim.record.reason??claim.record.status});
-  });
+  this.ctx.sessions.append({actorId:this.context.actorId,momentId:this.threadMoment()},'tool/undispatched',{operationId:this.context.operationId+'/undispatched/'+receipt.toolCallId,attempt:0,threadId:this.thread.id,interactionId:this.thread.interactionId,receipt});
  }
  private threadMoment(){return this.config.threadLifetime==='actor'?'thread/actor/'+this.context.actorId:this.context.momentId}
  private async open(){this.thread=await this.withView(view=>this.step('thread_error','thread.open',()=>this.ctx.threads.open(this.context.actorId,this.threadMoment(),view)))}
@@ -372,7 +364,7 @@ export class LlmActivation {
   const runtimeHistory=this.enforceBudget(combined,current);
   const binding=await this.step('setup_error','actor-tools',()=>this.ctx.actorTools.bind({...this.context,deliveredOffers:deliveredKeys(delivery.fold)},delivery.fold,this.offerLimits));
   this.held.push(binding);
-  const selected=await this.step('provider_error','model.prepare',async()=>{const started=performance.now();try{return await this.ctx.modelProviders.prepare({...this.config,sessionId:this.thread.id,metadata:{session_id:this.thread.id}},this.context)}finally{metricsOf(this.ctx)?.observe('llm.queueWaitMs',performance.now()-started)}});
+  const selected=await this.step('provider_error','model.prepare',async()=>{const started=performance.now();try{return await this.ctx.modelProviders.prepare({...this.config,session:{actorId:this.context.actorId,momentId:this.threadMoment()},sessionId:this.thread.id,metadata:{session_id:this.thread.id}},this.context)}finally{metricsOf(this.ctx)?.observe('llm.queueWaitMs',performance.now()-started)}});
   this.held.push(selected);
   const runtime=await this.step('setup_error','runtime.acquire',()=>this.ctx.agentRuntimes.acquire(this.config.runtime));
   this.held.push(runtime);
@@ -389,13 +381,13 @@ export class LlmActivation {
   const {binding,selected,runtime,extensions,sink,history}=prepared;
   const actionReceipts={read:()=>this.step('persistence_error','actions.receipts',()=>binding.value.actionReceipts.read())};
   const outcome=await this.runRuntime(runtime,{threadId:this.thread.id,interactionId:this.thread.interactionId,history,prompts:[],tools:binding.value.tools,actionReceipts,selection:this.measured(selected.value),budget:{maxRequests:this.config.maxRequests,maxToolCalls:this.config.maxToolCalls,maxTurns:this.config.maxTurns},minOutputTokens:this.config.budget.output,requiredActions:this.config.requiredActions,toolChoice:this.config.toolChoice,textualToolCallRetries:this.config.textualToolCallRetries,failOnToolError:this.config.failOnToolError},sink,extensions);
-  const incompleteStream=outcome.status==='incomplete'&&(outcome.reason==='provider_error'||outcome.reason==='cancelled'||outcome.reason==='transport_unknown');
+  const incompleteStream=outcome.status==='incomplete'&&(outcome.reason==='provider_error'||outcome.reason==='cancelled');
   if(!incompleteStream)await this.flushEvents();
   for(const item of outcome.actionReceipts)for(const operationId of item.receipt.requiredOperations??[])this.operations.add(operationId);
   return {status:outcome.status,value:{reason:outcome.reason,requests:outcome.requests,toolCalls:outcome.toolCalls??0,explorationErrors:outcome.explorationErrors??0,actRecoverable:outcome.actRecoverable??0,actRejected:outcome.actRejected??0,actFailed:outcome.actFailed??0,requiredSatisfied:outcome.requiredSatisfied===true,...(outcome.warnings?.length?{warnings:[...outcome.warnings]}:{}),...(outcome.limit?{limit:outcome.limit}:{})},evidence:outcome as unknown as Json,requiredOperations:[...this.operations]};
  }
  private failureReason(failure:LlmActivationError):LlmActivationReason{
-  const unknown=failure.reason==='persistence_unknown'||failure.reason==='transport_unknown';
+  const unknown=failure.reason==='persistence_unknown';
   return unknown||failure.reason==='context_limit'||!aborted(failure,this.context.signal)?failure.reason:'cancelled';
  }
  private failureEvidence(failure:LlmActivationError):Json{
@@ -415,7 +407,7 @@ export class LlmActivation {
   const result=await this.activate(),failures:string[]=[];
   for(const lease of this.held.reverse())try{await lease.release()}catch(error){failures.push(String(error))}
   if(!failures.length)return result;
-  const reason=(result.value as {reason?:string})?.reason,unknown=reason==='transport_unknown'||reason==='persistence_unknown';
+  const reason=(result.value as {reason?:string})?.reason,unknown=reason==='persistence_unknown';
   return {...result,status:'incomplete',value:unknown?result.value:{reason:'persistence_error'},evidence:{activation:result.evidence,releaseFailures:failures}};
  }
 }

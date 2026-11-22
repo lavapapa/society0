@@ -7,9 +7,10 @@ import {PiModelProvider} from '../.build/core/dist/model-pi/provider.js';
 import {resolveTransport,jsonTransport} from '../.build/core/dist/model-pi/json-transport.js';
 import {fixture} from './pr08-support.mjs';
 import {modelOperationId} from '../.build/core/dist/model-pi/selection.js';
+import {unpackText} from '../.build/core/dist/session-log/index.js';
 
 const model={id:'offline',name:'offline',api:'openai-completions',provider:'offline',baseUrl:'',reasoning:false,input:['text'],cost:{input:0,output:0,cacheRead:0,cacheWrite:0},contextWindow:8192,maxTokens:256};
-async function gateway(run,{transport='json',jsonTimeoutMs=180000,handler,ledger}={}){
+async function gateway(run,{transport='json',jsonTimeoutMs=180000,handler}={}){
   const received=[],sockets=new Set();
   const server=createServer(async(request,response)=>{const chunks=[];for await(const chunk of request)chunks.push(chunk);const body=Buffer.concat(chunks).toString();received.push(body);await handler(body,response)});
   server.on('connection',socket=>{sockets.add(socket);socket.on('close',()=>sockets.delete(socket))});
@@ -18,19 +19,18 @@ async function gateway(run,{transport='json',jsonTimeoutMs=180000,handler,ledger
   const selectedModel={...model,baseUrl:'http://127.0.0.1:'+server.address().port+'/v1'};
   const models=createModels({credentials,authContext:{env:async()=>undefined,fileExists:async()=>false}});
   models.setProvider(createProvider({id:'offline',models:[selectedModel],auth:{apiKey:envApiKeyAuth('explicit',[])},api:completions}));
-  const provider=new PiModelProvider(models,ledger??run.ctx.attempts,{runId:'pr07',providerId:'offline',maxEventBytes:65536,maxRawBytes:1048576,maxRequestBytes:1048576,options:{maxTokens:256,maxRetries:0,transport:'sse'},timeoutMs:5000,jsonTimeoutMs,transport});
+  const provider=new PiModelProvider(models,run.ctx.sessions.log,{runId:'pr07',providerId:'offline',maxEventBytes:65536,maxRawBytes:1048576,options:{maxTokens:256,maxRetries:0,transport:'sse'},timeoutMs:5000,jsonTimeoutMs,transport});
   return {server,provider,received,close:async()=>{await provider.close();server.closeAllConnections();for(const socket of sockets)socket.destroy();await new Promise(resolve=>server.close(resolve))}};
 }
 async function call(run,provider,context,options={}){
-  const selected=await provider.prepare({provider:'pi/v1',model:'offline'},context);
+  const selected=await provider.prepare({session:{actorId:'a',momentId:'m'},provider:'pi/v1',model:'offline'},context);
   const events=[];let error,message;
   try{const stream=await selected.value.streamFn(selected.value.model,{messages:[{role:'user',content:'fixture',timestamp:0}]},options);try{for await(const event of stream)events.push(event)}catch(cause){error=cause}try{message=await stream.result()}catch(cause){error??=cause}}catch(cause){error=cause}
   try{await selected.value.drain()}catch(cause){error??=cause}
   await selected.release();
   return {events,error,message};
 }
-async function attempt(run,context){return run.ctx.attempts.probe({lineage:run.ctx.attempts.authority().lineage,operationId:modelOperationId(context,1),attempt:0})}
-async function artifactText(run,ref){let text='';for await(const part of run.ctx.attempts.readArtifact(ref))text+=Buffer.from(part).toString();return text}
+async function attempt(run,context){return run.ctx.sessions.find({actorId:'a',momentId:'m'},{operationId:modelOperationId(context,1),attempt:0})}
 
 test('D1 default transport is json and sse is per-model opt-in',()=>{
   assert.equal(resolveTransport(undefined,'m'),'json');
@@ -60,12 +60,8 @@ test('D1 json transport sends stream:false and reassembles tool calls with usage
   assert.equal(message.usage.output,7);
   assert.equal(message.usage.totalTokens,18);
   const found=await attempt(run,context);
-  assert.equal(found.record.status,'settled');
-  let wire=false,raw=false,synthetic=false;
-  for(const ref of found.record.artifacts){const text=await artifactText(run,ref);if(text.includes('"stream":false')&&text.includes('"messages"'))wire=true;if(text.includes('"tool_calls"')&&!text.includes('synthetic'))raw=true;if(text.includes('synthetic')&&text.includes('tool_calls'))synthetic=true}
-  assert.equal(wire,true,'wire body archived');
-  assert.equal(raw,true,'raw json archived');
-  assert.equal(synthetic,true,'synthetic raw events marked');
+  assert.equal(found.type,'response');
+  assert.equal(JSON.parse(unpackText(found.data.raw)).choices[0].message.tool_calls.length,2,'raw json body recorded');
 });
 
 test('D1 json text response records usage',async t=>{
@@ -81,7 +77,7 @@ test('D1 json text response records usage',async t=>{
 
 async function failureStatus(run,transport,handler,label){
   const gate=await gateway(run,{transport,handler});
-  try{const context=run.context(label);const {message,error}=await call(run,gate.provider,context);const found=await attempt(run,context);return {message,error,status:found.record.result?.status??found.record.status}}finally{await gate.close()}
+  try{const context=run.context(label);const {message,error}=await call(run,gate.provider,context);const found=await attempt(run,context);return {message,error,status:found.type}}finally{await gate.close()}
 }
 test('D1 json failures settle like the same sse failures',async t=>{
   const run=await fixture();t.after(()=>run.close());
@@ -90,12 +86,11 @@ test('D1 json failures settle like the same sse failures',async t=>{
   const emptyChoices=async(_body,response)=>{response.writeHead(200,{'content-type':'application/json'});response.end(JSON.stringify({id:'empty',object:'chat.completion',choices:[]}))};
   const sseBad=async(_body,response)=>{response.writeHead(200,{'content-type':'text/event-stream'});response.end('data: not-json\n\n')};
   const sseEmpty=async(_body,response)=>{response.writeHead(200,{'content-type':'text/event-stream'});response.end('data: '+JSON.stringify({choices:[]})+'\n\ndata: [DONE]\n\n')};
-  for(const [name,jsonHandler,sseHandler,equal] of [['http500',http500,http500,true],['bad-json',badJson,sseBad,false],['empty-choices',emptyChoices,sseEmpty,true]]){
+  for(const [name,jsonHandler,sseHandler] of [['http500',http500,http500],['bad-json',badJson,sseBad],['empty-choices',emptyChoices,sseEmpty]]){
     await t.test(name,async()=>{
       const json=await failureStatus(run,'json',jsonHandler,'json-'+name),sse=await failureStatus(run,'sse',sseHandler,'sse-'+name);
       assert.ok(json.error||json.message?.stopReason==='error',name+' json fails');
-      if(equal)assert.equal(json.status,sse.status,'same settlement status for '+name);
-      else assert.equal(json.status,'response','fully received json body settles as response');
+      assert.equal(json.status,sse.status,'same settlement status for '+name);
     });
   }
 });
@@ -125,36 +120,6 @@ test('D1 json transport composes request and init abort signals',async()=>{
   request.abort(Error('request signal abort'));
   await assert.rejects(Promise.race([pending,new Promise((_,reject)=>setTimeout(()=>reject(Error('init-only signal composition lost the request signal')),1000))]),/request signal abort/);
   assert.ok(seen.aborted);
-});
-
-test('D1 abort interrupts slow evidence staging before the json request is dispatched',async t=>{
-  const run=await fixture();t.after(()=>run.close());
-  const attempts=run.ctx.attempts,entered=Promise.withResolvers();
-  let sent=false,delayed=false;
-  const stageEvidence=(source,mediaType,options)=>{
-    if(delayed||mediaType!=='application/json')return attempts.stageEvidence(source,mediaType,options);
-    delayed=true;
-    return new Promise((resolve,reject)=>{
-      let timer;
-      const cleanup=()=>{if(timer)clearTimeout(timer);options?.signal?.removeEventListener('abort',onAbort)};
-      const onAbort=()=>{cleanup();reject(options?.signal?.reason??Object.assign(Error('aborted'),{name:'AbortError'}))};
-      timer=setTimeout(async()=>{cleanup();try{resolve(await attempts.stageEvidence(source,mediaType,options))}catch(error){reject(error)}},5000);
-      if(options?.signal){if(options.signal.aborted)onAbort();else options.signal.addEventListener('abort',onAbort,{once:true})}
-      entered.resolve();
-    });
-  };
-  const ledger={claim:(...args)=>attempts.claim(...args),settle:(...args)=>attempts.settle(...args),markUnknown:(...args)=>attempts.markUnknown(...args),authority:()=>attempts.authority(),evidenceChunkBytes:attempts.evidenceChunkBytes,stageEvidence};
-  const gate=await gateway(run,{ledger,handler:async(_body,response)=>{sent=true;response.end()}});
-  t.after(()=>gate.close());
-  const controller=new AbortController(),started=Date.now();
-  const pending=call(run,gate.provider,run.context('json-slow-stage'),{signal:controller.signal});
-  pending.catch(()=>{});
-  await entered.promise;
-  controller.abort(Error('client abort'));
-  const outcome=await Promise.race([pending.then(()=>({settled:true}),()=>({settled:true})),new Promise(resolve=>setTimeout(()=>resolve({settled:false}),1500))]);
-  assert.equal(outcome.settled,true,'abort must settle without waiting for slow evidence staging');
-  assert.ok(Date.now()-started<1500);
-  assert.equal(sent,false,'cancelled request must not be dispatched');
 });
 
 test('D1 jsonTimeoutMs bounds the whole request',async t=>{

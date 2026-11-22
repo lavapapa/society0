@@ -11,7 +11,7 @@ import { Slots } from '../.build/host/dist/slots/index.js';
 import { ExecutionFence } from '../.build/core/dist/execution-fence/index.js';
 import { SqliteDatabase } from '../.build/core/dist/sqlite/index.js';
 import { ArtifactsLocal, artifactsMigration } from '../.build/core/dist/artifacts-local/index.js';
-import { Attempts } from '../.build/core/dist/attempts/index.js';
+import { Sessions } from '../.build/core/dist/session-log/index.js';
 import { Actors, actorsMigration } from '../.build/core/dist/actors/index.js';
 import ActorEligibility from '../.build/core/dist/actor-eligibility/index.js';
 import { Actions, actionsMigration } from '../.build/core/dist/actions/index.js';
@@ -43,8 +43,7 @@ export async function setup({ migrations = [], explorationOptions = {}, threadPl
         await host.ctx.plugin(Initializers);
         await host.ctx.plugin(SqliteBootstrap);
         await host.ctx.plugin(SqliteHistory, { directory, runId: 'pr07', generation: 'g', controlSequence: '0' });
-        await host.ctx.plugin(Attempts, { directory: join(base, 'attempts'), lineage: 'pr07' });
-        await host.ctx.attempts.initialize();
+        await host.ctx.plugin(Sessions, { directory });
         const source = { consumer: 'pr07-real-chain' };
         await host.ctx.database.applyMigrations([artifactsMigration, actorsMigration, actionsMigration(source), threadMigration(source), resultsMigration(source), perceptionMigration(source), workspaceMigration(source), { owner: 'inventory', from: 0, to: 1, after: [], source, statements: [{ sql: 'CREATE TABLE inventory(id TEXT PRIMARY KEY NOT NULL,quantity INTEGER NOT NULL); INSERT INTO inventory VALUES(\'stock\',1)' }] }, ...migrations]);
         await host.ctx.plugin(Actors);
@@ -62,7 +61,7 @@ export async function setup({ migrations = [], explorationOptions = {}, threadPl
         await beforePlain?.(host);
         await host.ctx.plugin(plain);
         let ctx;
-        await host.ctx.plugin({ inject: ['database', 'executionFence', 'artifacts', 'attempts', 'actors', 'actorEligibility', 'actions', 'information', 'threads', 'results', 'perceptions', 'workspace', 'exploration'], apply(c) { ctx = c; } });
+        await host.ctx.plugin({ inject: ['database', 'executionFence', 'artifacts', 'sessions', 'actors', 'actorEligibility', 'actions', 'information', 'threads', 'results', 'perceptions', 'workspace', 'exploration'], apply(c) { ctx = c; } });
         const reservation = await ctx.executionFence.reserve({ id: 'pr07' });
         await ctx.database.transaction(reservation.lease, request('seed'), async (tx) => {
             for (const id of ['a', 'b']) {

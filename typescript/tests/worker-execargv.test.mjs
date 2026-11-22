@@ -7,10 +7,6 @@ const cases={
 const directory=await mkdtemp(join(tmpdir(),'rv311-rpc-')),gate=new ExecutionGate({runId:'rv3-11',generation:'g1',maxAcceptedCommits:20,readRevision:()=>'0'});
 const db=await Database.open({directory,runId:'rv3-11',maxTransactionMs:20000},gate);
 try{await db.applyMigrations([{owner:'notes',from:0,to:1,after:[],source:{package:'notes',version:'1'},statements:[{sql:'CREATE TABLE notes(id INTEGER PRIMARY KEY,body TEXT NOT NULL)'}]}]);await db.transaction(await gate.reserve({id:'rv3-11'}).then(item=>item.lease),{operationId:'rv3-11',maxDurationMs:15000,maxStatements:4,maxInputBytes:65536,maxChangedRows:10,maxCapturedBytes:65536},async tx=>{await tx.execute({sql:'INSERT INTO notes VALUES (?,?)',parameters:[1n,'x']})})}finally{await db.close()}`,
- 'attempts ledger':`${bootstrap}const {AttemptLedger}=await import('${core}core/dist/attempts/ledger.js');const {LocalArtifacts}=await import('${core}core/dist/artifacts-local/store.js');
-const directory=await mkdtemp(join(tmpdir(),'rv311-attempts-')),objects=await LocalArtifacts.open({directory:join(directory,'artifacts'),chunkBytes:65536});
-const ledger=await AttemptLedger.open({directory:join(directory,'lineage'),lineage:'lineage-1'},objects);
-try{await ledger.initialize()}finally{await ledger.close()}`,
  'history io':`${bootstrap}const {openConnection}=await import('${core}sqlite-native/src/index.mjs');const {nativeJob}=await import('${core}core/dist/sqlite-history/io.js');
 const directory=await mkdtemp(join(tmpdir(),'rv311-io-')),path=join(directory,'source.db'),target=join(directory,'backup.db');
 const db=openConnection({path});db.execSchema('CREATE TABLE t(id INTEGER PRIMARY KEY,body TEXT)');db.begin();db.execute('INSERT INTO t VALUES (1,?)',['x']);db.commit();db.close();

@@ -30,7 +30,7 @@
 ### 能做的
 
 - 从源运行的一个完整点创建目标运行。内核的 `runBranch` 服务提供 `plan`、`create`、`probe` 三个入口；`@society0/host/run-branch` 是公开入口。
-- 目标运行拥有自己的 world 目录、generation 和 control sequence，但沿用源 lineage 的 attempts authority。
+- 目标运行拥有自己的 world 目录、generation 和 control sequence，session 日志通过 `sessions/parent.json` 按引用读取源运行的前缀。
 - 目标 profile 是完整 profile，不是补丁片段；目标可以继续推进，也可以只观察。
 - 分叉计划记录源随机选择与目标随机选择；默认 `seedPolicy: "preserve-seed-new-run-address"` 要求两边种子一致。
 - 目标目录会写入 `branch-origin.json`，其中保存 operationId、源/目标身份和计划日志位置。
@@ -127,7 +127,6 @@ node examples/run-profile-branch.mjs \
 - `branch.targetPoint`：目标完成后的完整点。
 - `branch.observation`：主体表的只读观察，含 `id` 和 `attributes`。
 - `branch.receipts`：行动回执。
-- `branch.authority`：实际使用的 lineage authority。
 - `branch.closed`：目标是否已关闭。
 
 控制组和处理组各保存一份 JSON，再比较同一主体、同一时点的属性或回执：
@@ -151,12 +150,10 @@ node examples/run-profile.mjs \
   --directory runs/branch-control \
   --run-id branch-control \
   --lock module-lock.json \
-  --lineage-directory runs/lineages/source \
-  --lineage source \
   --reopen --observe
 ```
 
-分叉目标沿用源 lineage，所以必须显式给出源的 lineage 目录和 identity；不传时会报告 authority 不可用，而不是自动初始化。
+目标的 session 日志按引用读取源运行目录，比较完成前保留源目录；目标目录缺失时报告 `REOPEN_STORAGE_UNAVAILABLE`，而不是自动初始化。
 
 ## 五、种子的实际用法
 

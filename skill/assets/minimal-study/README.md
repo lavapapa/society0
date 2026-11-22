@@ -157,12 +157,10 @@ node examples/run-profile.mjs \
   --directory runs/branch-control \
   --run-id branch-control \
   --lock module-lock.json \
-  --lineage-directory runs/lineages/source \
-  --lineage source \
   --reopen --observe
 ```
 
-分叉目标沿用来源 lineage，必须显式给出源 lineage 目录和 identity。
+目标的 session 日志按引用读取来源 run 目录的前缀，比较完成前保留来源目录。
 
 ## 这个示例说明什么
 

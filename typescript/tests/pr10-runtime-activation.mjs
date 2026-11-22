@@ -121,7 +121,7 @@ test('PR06/PR07-T03 two actors have independent actions interviews and stable re
             operationId: 'identity-replay', pointId: f.root.id, targetRunId: 'identity-branch', targetDirectory: directory
         });
         branch = await fixture({
-            restore: true, directory, runId: 'identity-branch', attemptDirectory: f.attemptDirectory
+            restore: true, directory, runId: 'identity-branch'
         });
         const repeated = [], repeatedReceipts = [];
         await install(branch, repeated, repeatedReceipts);

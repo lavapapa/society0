@@ -1,5 +1,5 @@
 // CLI run branch with a real model-pi driver: two sibling worlds branched from the same
-// complete point share the source lineage and must both advance past the fork.
+// complete point must both advance past the fork.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -63,8 +63,6 @@ test('sibling branches from one point both resume through model activations', { 
 
     const worlds = ['world-a', 'world-b'].map(name => join(directory, name));
     for (const dir of worlds) assert.equal(json(call(['run', 'branch', '--dir', source, '--target-dir', dir, '--json'])).state, 'paused');
-    const lineage = JSON.parse(await readFile(join(source, 'entry-status.json'), 'utf8')).lineage;
-    for (const dir of worlds) assert.equal(JSON.parse(await readFile(join(dir, 'entry-status.json'), 'utf8')).lineage, lineage);
 
     for (const dir of worlds) {
         json(call(['run', 'resume', '--dir', dir, '--ticks', '2', ...credentials, '--detach', '--json'], { env }));

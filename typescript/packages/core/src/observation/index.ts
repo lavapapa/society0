@@ -9,12 +9,12 @@ import '../sqlite/index.js';import '../sqlite-history/index.js';import '../execu
 import '@society0/host/inspector';import '@society0/host/diagnostics';import '@society0/host/resources';
 export const Config=Schema.object({pageSize:Schema.natural().min(1).max(10000).default(100),includeRawProvider:Schema.const(false).default(false),maxPageBytes:Schema.natural().min(256).default(1048576),maxSnapshots:Schema.natural().min(1).default(16),snapshotAgeMs:Schema.natural().min(1).max(30000).default(30000),bufferSize:Schema.natural().min(1).default(16),maxSubscribers:Schema.natural().min(1).default(32),pollIntervalMs:Schema.natural().min(10).default(100)});
 export const metadata:PluginMetadata={title:'observation',summary:'Read-only snapshot pages and bounded lossy display observations',configVersion:1,scope:'run',allowedScopes:['run'],hostAbi:'society0/host/1',configPolicy:[{path:'/pageSize',mode:'live',affectsResults:false},{path:'/includeRawProvider',mode:'live',affectsResults:false},...['maxPageBytes','maxSnapshots','snapshotAgeMs','bufferSize','maxSubscribers','pollIntervalMs'].map(path=>({path:'/'+path,mode:'recreate' as const,affectsResults:false}))]};
-export const api:ApiEntry={exportPath:'./observation',provides:['observation','branchSource'].map(key=>({key,protocol:key,major:1,capabilities:[]})),requires:['database','history','inspector','diagnostics','attempts','artifacts'].map(key=>({service:{key,protocol:key,major:1,capabilities:[]},optional:false,phase:'module'}))};
+export const api:ApiEntry={exportPath:'./observation',provides:['observation','branchSource'].map(key=>({key,protocol:key,major:1,capabilities:[]})),requires:['database','history','inspector','diagnostics','artifacts'].map(key=>({service:{key,protocol:key,major:1,capabilities:[]},optional:false,phase:'module'}))};
 interface PageState {snapshot:SqliteSnapshot;sql:string;parameters:readonly (null|string|number)[];offset:number;busy:boolean;timer:ReturnType<typeof setTimeout>}
 interface Subscriber {queue:ObservationEvent[];dropped:number;wake?:()=>void;closed:boolean;close:()=>Promise<void>}
 declare module '@society0/host' {interface Context {observation:ObservationPort}}
 export class Observation extends Service implements ObservationPort {
- static Config=Config;static inject=['database','history','inspector','diagnostics','attempts','artifacts'];
+ static Config=Config;static inject=['database','history','inspector','diagnostics','artifacts'];
  private config:ReturnType<typeof Config>;private pages=new Map<string,PageState>();private subscribers=new Set<Subscriber>();private sequence=0n;private poll?:ReturnType<typeof setInterval>;private refreshing?:Promise<void>;private closed=false;private opening=0;private active=new Set<Promise<unknown>>();
  constructor(ctx:Context,input={}){super(ctx,'observation');this.config=Config(input);ctx.effect(()=>()=>this.close())}
  async [Service.init](){await this.ctx.plugin(SqliteBranchSource)}

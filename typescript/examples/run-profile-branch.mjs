@@ -33,14 +33,14 @@ function validateTargetFrontier(branch){
   offset=BigInt(event.offset);time=BigInt(event.time);
  }
 }
-function applyTargetAddress(branch,authority){
+function applyTargetAddress(branch){
  branch.generation=branch.options.generation??'g2';branch.controlSequence=String(BigInt(branch.sourcePoint.controlSequence)+1n);
  const {targetDirectory,targetRunId,generation,controlSequence}=branch;
  branch.profile.patches.push(
   {id:'sqlite',config:{...targetConfig(branch,'sqlite'),directory:targetDirectory,runId:targetRunId,generation}},
   {id:'artifacts-local',config:{...targetConfig(branch,'artifacts-local'),directory:join(targetDirectory,'artifacts')}},
   {id:'sqlite-history',config:{...targetConfig(branch,'sqlite-history'),directory:targetDirectory,runId:targetRunId,generation,controlSequence}},
-  {id:'attempts',config:{...targetConfig(branch,'attempts'),directory:authority.directory,lineage:authority.lineage}},
+  {id:'sessions',config:{...targetConfig(branch,'sessions'),directory:targetDirectory}},
   {id:'generation-binding',config:{...targetConfig(branch,'generation-binding'),generation,controlSequence}}
  );
 }
@@ -65,13 +65,13 @@ async function createBranch(branch){
 }
 async function executeBranch(branch,{host,ctx,cut}){
  branch.host=host;branch.sourceCtx=ctx;branch.sourcePoint=branch.options.pointId?await ctx.history.describe(branch.options.pointId):cut;
- validateTargetFrontier(branch);applyTargetAddress(branch,ctx.attempts.authority());await planBranch(branch);await createBranch(branch);
+ validateTargetFrontier(branch);applyTargetAddress(branch);await planBranch(branch);await createBranch(branch);
  const report=await consumeTarget(branch);report.closed=!host.ctx.runDirectory.list().some(run=>run.runId===branch.targetRunId);return report;
 }
 async function consumeTarget(branch){
  const lease=branch.host.ctx.runDirectory.acquire(branch.targetRunId,branch.advance?'write':'read'),handle=lease.value;let consumer;
  try{
-  let target;consumer=await lease.ctx.plugin({name:'public.branch.consume',inject:['runs','observation','history','attempts','generationViews'],apply(ctx){target=ctx}});await consumer.await();
+  let target;consumer=await lease.ctx.plugin({name:'public.branch.consume',inject:['runs','observation','history','generationViews'],apply(ctx){target=ctx}});await consumer.await();
   await feedTargetEvents(branch,target);const result=await advanceTarget(branch,target),report=await observeTarget(branch,target,result);
   await writeFile(join(branch.targetDirectory,'profile.json'),JSON.stringify(branch.profile,null,2),{flag:'wx'});return report;
  }finally{await consumer?.dispose();await lease.release();await handle.close()}
@@ -88,7 +88,7 @@ async function advanceTarget(branch,target){
 }
 async function observeTarget(branch,target,result){
  const {plan,receipt,sourcePoint,planMs,createMs}=branch;
- const report={plan,receipt,result,sourcePoint,threadCount:(await target.observation.query({sql:'SELECT COUNT(*) AS count FROM threads'})).rows[0].count,targetPoint:await target.history.current(),authority:target.attempts.authority(),actorCount:(await target.observation.query({sql:'SELECT COUNT(*) AS count FROM s0_actors'})).rows[0].count,observation:await target.observation.query({sql:'SELECT id,attributes FROM s0_actors ORDER BY id'}),receipts:await target.observation.query({sql:'SELECT operation_id,actor_id,action,value FROM action_receipts ORDER BY operation_id'}),status:await target.observation.status(),history:target.history.diagnostics(),timings:{planMs,createMs},modelRequests:branch.advance&&branch.model?null:0};
+ const report={plan,receipt,result,sourcePoint,threadCount:(await target.observation.query({sql:'SELECT COUNT(*) AS count FROM threads'})).rows[0].count,targetPoint:await target.history.current(),actorCount:(await target.observation.query({sql:'SELECT COUNT(*) AS count FROM s0_actors'})).rows[0].count,observation:await target.observation.query({sql:'SELECT id,attributes FROM s0_actors ORDER BY id'}),receipts:await target.observation.query({sql:'SELECT operation_id,actor_id,action,value FROM action_receipts ORDER BY operation_id'}),status:await target.observation.status(),history:target.history.diagnostics(),timings:{planMs,createMs},modelRequests:branch.advance&&branch.model?null:0};
  if(targetUses(branch,'@society0/social/social'))report.socialObservation={posts:await target.observation.query({sql:'SELECT id,author_id,content FROM social_posts ORDER BY ordinal'}),deliveries:await target.observation.query({sql:'SELECT event_id,post,recipient,sender FROM social_deliveries ORDER BY ordinal'})};
  return report;
 }
@@ -114,9 +114,9 @@ async function monitorHistory(history,path,operationId){
 }
 
 async function main(){
- const {values:v}=parseArgs({options:{profile:{type:'string'},directory:{type:'string'},'run-id':{type:'string'},lock:{type:'string'},'lineage-directory':{type:'string'},lineage:{type:'string'},'target-profile':{type:'string'},'target-directory':{type:'string'},'target-run-id':{type:'string'},'target-events':{type:'string'},diagnostics:{type:'string'},'point-id':{type:'string'},'advance-target':{type:'boolean'},offline:{type:'boolean'},help:{type:'boolean'}}});
- if(v.help){console.log('Usage: node run-profile-branch.mjs --profile <source-profile> --directory <existing-run> --run-id <source-id> --lock <lock> --target-profile <new-profile> --target-directory <new-run> --target-run-id <new-id> [--lineage-directory <path>] [--lineage <id>] [--point-id <complete-point-id>] [--diagnostics <new-ndjson-file>] [--advance-target [--target-events <json-file>]] [--offline]\nReopen and observe the source, plan and create a native full-profile branch, observe and close both runs. Preserve the emitted lineage directory and identity when reopening the target. Event target advance requires a nonempty JSON array of new events with offsets after the selected point and nondecreasing moments; the queue is ended after the batch. Unknown operations require probe before retry.');return;}
+ const {values:v}=parseArgs({options:{profile:{type:'string'},directory:{type:'string'},'run-id':{type:'string'},lock:{type:'string'},'target-profile':{type:'string'},'target-directory':{type:'string'},'target-run-id':{type:'string'},'target-events':{type:'string'},diagnostics:{type:'string'},'point-id':{type:'string'},'advance-target':{type:'boolean'},offline:{type:'boolean'},help:{type:'boolean'}}});
+ if(v.help){console.log('Usage: node run-profile-branch.mjs --profile <source-profile> --directory <existing-run> --run-id <source-id> --lock <lock> --target-profile <new-profile> --target-directory <new-run> --target-run-id <new-id> [--point-id <complete-point-id>] [--diagnostics <new-ndjson-file>] [--advance-target [--target-events <json-file>]] [--offline]\nReopen and observe the source, plan and create a native full-profile branch, observe and close both runs. Event target advance requires a nonempty JSON array of new events with offsets after the selected point and nondecreasing moments; the queue is ended after the batch. Unknown operations require probe before retry.');return;}
  for(const key of ['profile','directory','run-id','target-profile','target-directory','target-run-id'])if(!v[key])throw Error('BRANCH_ARGUMENT: provide --'+key+'; use --help');
- console.log(JSON.stringify(await forkProfile({...v,runId:v['run-id'],lineageDirectory:v['lineage-directory'],targetProfile:v['target-profile'],targetDirectory:v['target-directory'],targetRunId:v['target-run-id'],diagnosticsPath:v.diagnostics,pointId:v['point-id'],advanceTarget:v['advance-target'],targetEvents:v['target-events']?JSON.parse(await readFile(resolve(v['target-events']),'utf8')):undefined})));
+ console.log(JSON.stringify(await forkProfile({...v,runId:v['run-id'],targetProfile:v['target-profile'],targetDirectory:v['target-directory'],targetRunId:v['target-run-id'],diagnosticsPath:v.diagnostics,pointId:v['point-id'],advanceTarget:v['advance-target'],targetEvents:v['target-events']?JSON.parse(await readFile(resolve(v['target-events']),'utf8')):undefined})));
 }
 if(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.url)await main().catch(error=>{console.error(error);process.exitCode=1});

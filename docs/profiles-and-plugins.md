@@ -86,7 +86,7 @@ Core 的公开导出在 `@society0/core/package.json` 的 `exports` 中。常用
 **存储与运行**
 
 - `sqlite`、`sqlite-bootstrap`、`sqlite-history`：SQLite 数据库、schema 初始化、历史段和完整点。
-- `artifacts-local`、`attempts`、`execution-fence`：外部工件、Attempts authority、写入边界。
+- `artifacts-local`、`session-log`、`execution-fence`：外部工件、session 日志（外部调用记录与重放来源）、写入边界。
 - `run-controller`、`activation`、`activation-mailbox`、`actor-eligibility`、`actors`：推进、激活、主体资格和主体表。
 - `results`、`thread`、`observation`、`generation-views`、`metrics`：结果、Thread、只读观察、代际视图和指标。
 

@@ -31,9 +31,8 @@ async function readRun(options){
   const profileURL=pathToFileURL(resolve(options.profile)),profile=JSON.parse(await readFile(profileURL,'utf8'));
   if(options.lock)profile.lockfile=pathToFileURL(resolve(options.lock)).href;
   const directory=resolve(options.directory),runId=options.runId??'example';
-  const lineageDirectory=resolve(options.lineageDirectory??join(dirname(directory),'lineages',basename(directory))),lineage=options.lineage??runId;
   const entries=literalEntries(applyEntryPatches([],profile.patches,message=>{throw Error('PROFILE_PATCH: '+message)}));
-  return {options,profileURL,profile,directory,runId,lineageDirectory,lineage,entries,event:activeModule(entries,'@society0/core/runtime-events'),social:activeModule(entries,'@society0/social/social')};
+  return {options,profileURL,profile,directory,runId,entries,event:activeModule(entries,'@society0/core/runtime-events'),social:activeModule(entries,'@society0/social/social')};
 }
 function hostBoot(run){
   const names=['resources','tasks','composition-strategies','slot-strategies','module-resolver','config-resolvers','profile-loader','inspector','run-directory'];
@@ -43,8 +42,8 @@ function hostBoot(run){
   return seed;
 }
 async function compileRun(run){
-  const {directory,runId,lineageDirectory,lineage,entries}=run;
-  const overrides=[{id:'sqlite',config:{...entryConfig(entries,'sqlite'),directory,runId}},{id:'artifacts-local',config:{...entryConfig(entries,'artifacts-local'),directory:join(directory,'artifacts')}},{id:'sqlite-history',config:{...entryConfig(entries,'sqlite-history'),directory,runId}},{id:'attempts',config:{...entryConfig(entries,'attempts'),directory:lineageDirectory,lineage}}];
+  const {directory,runId,entries}=run;
+  const overrides=[{id:'sqlite',config:{...entryConfig(entries,'sqlite'),directory,runId}},{id:'artifacts-local',config:{...entryConfig(entries,'artifacts-local'),directory:join(directory,'artifacts')}},{id:'sqlite-history',config:{...entryConfig(entries,'sqlite-history'),directory,runId}},{id:'sessions',config:{...entryConfig(entries,'sessions'),directory}}];
   if(run.options.patches)overrides.push(...JSON.parse(await readFile(resolve(run.options.patches),'utf8')));
   const started=performance.now();run.plan=await run.host.ctx.profileLoader.compile(run.profile,{baseURL:run.profileURL.href,cliPatches:overrides});run.metrics.profileCompileMs=performance.now()-started;
 }
@@ -52,7 +51,6 @@ function resolveRunDefinition(run){
   run.modelEnabled=activeModule(run.plan.flat,'@society0/core/driver-llm');
   run.databaseEntry=run.plan.flat.find(entry=>entry.id==='sqlite');run.historyEntry=run.plan.flat.find(entry=>entry.id==='sqlite-history');
   run.source=run.databaseEntry.binding.identity.source;run.directory=resolve(run.databaseEntry.config.directory);
-  run.authorityDirectory=resolve(run.plan.flat.find(entry=>entry.id==='attempts').config.directory);
 }
 function authorizeRun(run){
   if(run.options.offline||run.options.observe)return;
@@ -63,15 +61,13 @@ async function admitStorage(run){
   if(run.options.reopen)return verifyExistingStorage(run);
   await reserveFreshStorage(run);
 }
-async function verifyExistingStorage({directory,authorityDirectory}){
-  try{await stat(join(authorityDirectory,'attempts.sqlite'));await stat(join(directory,'world.sqlite'));}
-  catch(error){throw Error('REOPEN_AUTHORITY_UNAVAILABLE: preserve '+directory+' and '+authorityDirectory+'; existing run storage and lineage authority are required; no authority was initialized',{cause:error});}
+async function verifyExistingStorage({directory}){
+  try{await stat(join(directory,'world.sqlite'));}
+  catch(error){throw Error('REOPEN_STORAGE_UNAVAILABLE: preserve '+directory+'; existing run storage is required',{cause:error});}
 }
-async function reserveFreshStorage({directory,authorityDirectory}){
+async function reserveFreshStorage({directory}){
   await mkdir(dirname(directory),{recursive:true});
-  try{await mkdir(directory);}catch(error){throw Error('FRESH_RUN_EXISTS: '+directory+'; select a new directory or explicitly use --reopen; preserve any missing authority as unknown',{cause:error});}
-  await mkdir(dirname(authorityDirectory),{recursive:true});
-  try{await mkdir(authorityDirectory);}catch(error){throw Error('FRESH_LINEAGE_EXISTS: '+authorityDirectory+'; select a new lineage directory; existing authority will not be initialized',{cause:error});}
+  try{await mkdir(directory);}catch(error){throw Error('FRESH_RUN_EXISTS: '+directory+'; select a new directory or explicitly use --reopen',{cause:error});}
 }
 async function collectMigrations(run){
   const [{artifactsMigration},{actorsMigration},{resultsMigration},{threadMigration},{actionsMigration}]=await Promise.all(['artifacts-local','actors','results','thread','actions'].map(name=>import('@society0/core/'+name)));
@@ -94,12 +90,11 @@ async function openRun(run){
   run.handle=await run.host.ctx.runDirectory.create({runId:run.runId,generation:run.plan,mount:{runEntryId:'run',bootstrapEntryId:'bootstrap'},prepare:(ctx,phase)=>prepareRun(run,ctx,phase)});
   run.metrics[run.options.reopen?'recoverMs':'createMs']=performance.now()-started;
   run.lease=run.host.ctx.runDirectory.acquire(run.runId,run.options.observe?'read':'write');
-  run.consumerFiber=await run.lease.ctx.plugin({name:'public.consume',inject:['runs','observation','history','database','attempts'],apply(ctx){run.ctx=ctx}});await run.consumerFiber.await();run.nativeScopes=nativeScopes(run);
+  run.consumerFiber=await run.lease.ctx.plugin({name:'public.consume',inject:['runs','observation','history','database'],apply(ctx){run.ctx=ctx}});await run.consumerFiber.await();run.nativeScopes=nativeScopes(run);
 }
 async function prepareRun(run,bootstrapCtx,phase){
   run.mountedTree=phase.tree;await registerWorkspaceSeed(run,bootstrapCtx);
-  let ctx;const consumer=await phase.run.plugin({name:'public.prepare',inject:['attempts','sqliteBootstrap','history','database'],apply(value){ctx=value}});await consumer.await();
-  if(run.options.reopen)await ctx.attempts.verifyAuthority();else await ctx.attempts.initialize();
+  let ctx;const consumer=await phase.run.plugin({name:'public.prepare',inject:['sqliteBootstrap','history','database'],apply(value){ctx=value}});await consumer.await();
   const root=await prepareRoot(run,ctx),status=await ctx.history.status();
   return {root,metadata:ctx.database.metadata,database:ctx.database,state:status.state};
 }
@@ -148,7 +143,7 @@ async function consumeRun(run){
   const observed=await observeRun(run);run.metrics.memory=process.memoryUsage();run.metrics.resourceUsage=process.resourceUsage();run.metrics.totalMs=performance.now()-run.started;
   const {host,plan,profileURL,directory,runId}=run;
   const branch=await run.options.afterRun?.({host,ctx:run.ctx,cut:observed.cut,plan,tree:run.mountedTree,profileURL,directory,runId});
-  return {branch,profile:profileURL.href,runId,directory,reopened:!!run.options.reopen,root:run.handle.root,before,result,nativeScopes:run.nativeScopes,lineage:run.ctx.attempts.authority(),configuration:host.ctx.profileLoader.dump(plan),source:run.source,...observed,history:run.ctx.history.diagnostics(),metrics:run.metrics,modelRequests:modelRequests(run,branch)};
+  return {branch,profile:profileURL.href,runId,directory,reopened:!!run.options.reopen,root:run.handle.root,before,result,nativeScopes:run.nativeScopes,configuration:host.ctx.profileLoader.dump(plan),source:run.source,...observed,history:run.ctx.history.diagnostics(),metrics:run.metrics,modelRequests:modelRequests(run,branch)};
 }
 async function closeRun(run){
   const started=performance.now();await run.consumerFiber?.dispose();await run.lease?.release();await run.handle?.close();const closed=await run.host.close();
@@ -156,9 +151,9 @@ async function closeRun(run){
 }
 
 async function main(){
- const {values}=parseArgs({options:{profile:{type:'string'},directory:{type:'string'},'lineage-directory':{type:'string'},lineage:{type:'string'},lock:{type:'string'},patches:{type:'string'},'run-id':{type:'string'},reopen:{type:'boolean'},offline:{type:'boolean'},observe:{type:'boolean'},inspect:{type:'boolean'},help:{type:'boolean'}}});
- if(values.help){console.log('Usage: node run-profile.mjs --profile <profile.json> --directory <run-directory> --lock <module-lock.json> [--run-id <id>] [--lineage-directory <path>] [--lineage <id>] [--patches <patch-array.json>] [--reopen] [--inspect] [--offline] [--observe]\nFresh requires unused world and lineage directories. Reopen requires existing world and authority; fork must retain the source lineage identity and directory. Create or reopen a real SQLite run through ProfileLoader and RunDirectory. --inspect validates and reports effective config without opening a run or requesting a model. --reopen activates existing history and skips seed. --offline mounts native providers, opens the root and observes it without advancing or reading model credentials. --reopen --observe reads the existing source point and live state without advancing or activating a dirty run. Output: one JSON result; failures: stderr and exit 1.');return;}
+ const {values}=parseArgs({options:{profile:{type:'string'},directory:{type:'string'},lock:{type:'string'},patches:{type:'string'},'run-id':{type:'string'},reopen:{type:'boolean'},offline:{type:'boolean'},observe:{type:'boolean'},inspect:{type:'boolean'},help:{type:'boolean'}}});
+ if(values.help){console.log('Usage: node run-profile.mjs --profile <profile.json> --directory <run-directory> --lock <module-lock.json> [--run-id <id>] [--patches <patch-array.json>] [--reopen] [--inspect] [--offline] [--observe]\nFresh requires an unused run directory. Reopen requires the existing run directory. Create or reopen a real SQLite run through ProfileLoader and RunDirectory. --inspect validates and reports effective config without opening a run or requesting a model. --reopen activates existing history and skips seed. --offline mounts native providers, opens the root and observes it without advancing or reading model credentials. --reopen --observe reads the existing source point and live state without advancing or activating a dirty run. Output: one JSON result; failures: stderr and exit 1.');return;}
  if(!values.profile||!values.directory)throw Error('PROFILE_ARGUMENTS: provide --profile and --directory; use --help');
- console.log(JSON.stringify(await runProfile({...values,runId:values['run-id'],lineageDirectory:values['lineage-directory']})));
+ console.log(JSON.stringify(await runProfile({...values,runId:values['run-id']})));
 }
 if(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.url)await main().catch(error=>{console.error(error);process.exitCode=1});

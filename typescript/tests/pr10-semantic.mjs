@@ -1,3 +1,4 @@
+import { unpackText } from '../.build/core/dist/session-log/index.js';
 import Embeddings from '../.build/core/dist/embedding/index.js';
 import EmbeddingHttp from '../.build/core/dist/embedding-http/index.js';
 import Credentials from '../.build/core/dist/model-credentials/index.js';
@@ -81,17 +82,14 @@ test('PR10-T08 actual exact index survives apply/progress crash and fresh projec
             }, []);
         });
         const attempt = {
-            lineage: c.attempts.authority().lineage, operationId: 'actual-http-embedding', attempt: 0
-        };
-        assert.equal((await c.attempts.claim(attempt, {
-            texts: ['First original', 'Second original']
-        })).status, 'send-permitted');
+            operationId: 'actual-http-embedding', attempt: 0
+        }, session = { actorId: '@system', momentId: 'embedding/fixture-http' };
         const raw = await (await fetch('http://127.0.0.1:' + server.address().port, {
             method: 'POST', body: JSON.stringify({
                 texts: ['First original', 'Second original']
             })
         })).json();
-        await c.attempts.settle(attempt, raw);
+        c.sessions.append(session, 'embedding', { ...attempt, raw });
         const expectedRevision = await c.database.readRevision();
         const revision = String(BigInt(expectedRevision) + 1n);
         await c.database.transaction(r.lease, {
@@ -158,7 +156,7 @@ test('PR10-T08 actual exact index survives apply/progress crash and fresh projec
                 attempt, itemIndex: 0
             }
         }, next)), /SOCIAL_SEMANTIC_TEXT_STALE/);
-        assert.equal((await c.attempts.probe(attempt)).record.result.items[0].originalText, 'First original');
+        assert.equal((await c.sessions.find(session, attempt)).data.raw.items[0].originalText, 'First original');
     }
     finally {
         await held?.release();
@@ -282,13 +280,11 @@ test('PR10-T08/T09 full actual Embeddings HTTP service feeds SQL semantic prepar
             maxRows: 1, maxBytes: 1024
         }))[0].n, 0n);
         await view.close();
-        const origin = JSON.parse(saved[1].origin), record = (await c.attempts.probe(origin.attempt)).record;
+        const origin = JSON.parse(saved[1].origin), record = await c.sessions.find({ actorId: '@system', momentId: 'embedding/social-http' }, origin.attempt);
         assert.equal(origin.itemIndex, 1);
-        assert.equal(record.status, 'settled');
-        assert.equal(record.result.usage.tokens, 2);
-        let raw = '';
-        for await (const chunk of c.attempts.readArtifact(record.result.original))
-            raw += Buffer.from(chunk);
+        assert.equal(record.type, 'embedding');
+        assert.equal(record.data.usage.tokens, 2);
+        const raw = unpackText(record.data.raw);
         assert.equal(JSON.parse(raw).vendorOpaque.preserved, '完整提供者响应');
         assert.equal(JSON.parse(raw).data[1].originalText, 'Beta full original');
         await owner.dispose();

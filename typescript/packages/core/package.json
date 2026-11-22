@@ -161,9 +161,9 @@
       "types": "./dist/random/index.d.ts",
       "default": "./dist/random/index.js"
     },
-    "./attempts": {
-      "types": "./dist/attempts/index.d.ts",
-      "default": "./dist/attempts/index.js"
+    "./session-log": {
+      "types": "./dist/session-log/index.d.ts",
+      "default": "./dist/session-log/index.js"
     },
     "./contracts/random": {
       "types": "./dist/contracts/random.d.ts",

@@ -1,6 +1,6 @@
 # 因果分支
 
-分支的目标是控制变量：从同一个完整点出发，建立几个只差一个干预或参数的 run，然后比较结果。Society0 的 RunBranch 从源 run 的完整点复制 SQL 状态、历史和 lineage 身份；源 run 不被修改，目标 run 有新的 run id、目录、generation 和 controlSequence。
+分支的目标是控制变量：从同一个完整点出发，建立几个只差一个干预或参数的 run，然后比较结果。Society0 的 RunBranch 从源 run 的完整点复制 SQL 状态和历史，并按引用接上源 run 的 session 日志；源 run 不被修改，目标 run 有新的 run id、目录、generation 和 controlSequence。
 
 ## 内核实际能做什么
 
@@ -8,7 +8,7 @@
 - 目标沿用源 SQL schema；分支例子传空 migration 列表，不在目标上重新建表。
 - 目标复制源完整点的世界状态、Thread、结果和 artifacts 引用。
 - 目标可以换 profile 配置，但必须保留相同的随机 seed（例子使用 `preserve-seed-new-run-address`）。
-- 目标与源共享 lineage authority；目标保存自己的 `profile.json`，之后用同一 lineage 目录和 identity 重新打开。
+- 目标的 `sessions/parent.json` 记录源 run 与截断长度，读取 session 时先读源的前缀；目标保存自己的 `profile.json`，之后用目标目录重新打开。
 - 目标可以只观察，也可以显式推进。规则目标用 `--advance-target`；模型目标需要额外授权；事件目标还需要提供新的目标事件批次。
 - 分支操作有 plan、create、probe 三个步骤和持久 journal。创建异常时保留 operationId 和目标目录，先用 `runBranch.probe` 核实，不要直接重发。
 
@@ -72,7 +72,6 @@ node run-profile-branch.mjs \
 - `--target-directory`：目标 run 目录，必须尚未使用。
 - `--target-run-id`：目标 run id，不能与源相同。
 - `--point-id`：可选，指定源完整点。
-- `--lineage-directory`、`--lineage`：可选，指定共享 authority；默认沿用源 lineage。
 - `--advance-target`：显式推进目标；不传时只观察。
 - `--target-events`：事件目标推进时提供的新事件 JSON 数组。
 - `--diagnostics`：可选，写分支期间的 history 采样。
@@ -84,7 +83,6 @@ node run-profile-branch.mjs \
 - `branch.targetPoint.id`：目标根完整点 id。
 - `branch.targetPoint.runId`、`generation`、`controlSequence`：目标身份；示例中 generation 从 `g1` 变为 `g2`，controlSequence 从 `0` 变为 `1`。
 - `branch.actorCount`：目标主体数，规则示例为 2。
-- `branch.authority`：共享 lineage 目录和 identity。
 - `branch.status.state`：目标重新打开后的状态，实测为 `clean`。
 - `branch.closed`：目标是否已关闭。
 
@@ -100,8 +98,6 @@ node run-profile.mjs \
   --directory runs/rule-b \
   --run-id rule-b \
   --lock module-lock.json \
-  --lineage-directory runs/lineages/rule \
-  --lineage rule \
   --reopen --observe
 ```
 
@@ -149,7 +145,7 @@ node run-profile-branch.mjs ... --target-profile rule-c.json \
 - `result.cut.frontier`：推进边界。
 - `activations.total/completed/failed`：激活是否完成。
 - 测量记录和 Social 内容：按主体或群体分组比较。
-- `branch.authority`、`targetPoint.id`：确认比较的是同一源点下的目标。
+- `sourcePoint.id`、`targetPoint.id`：确认比较的是同一源点下的目标。
 
 比较时把“源完整点 + 目标 profile 的差异 + 目标结果”放在一起。只展示汇总数字，会掩盖哪些主体或群体发生了变化。
 
@@ -160,7 +156,7 @@ node run-profile-branch.mjs ... --target-profile rule-c.json \
 - **样本量**：一个源点、一个 seed 只产生一次对照。要扩大结论，需要多个独立 run 或多个完整点，并报告分布而不是单点。
 - **改动数量**：一次只改一个因素。改两个以上时，无法从结果区分是哪一个造成的。
 - **schema**：目标沿用源 schema。跨 schema 版本的比较不是分支，需要单独建 run。
-- **外部数据**：目标引用源完整点里的数据集和 artifacts。保留源 lineage 与 artifacts 目录；不要在比较完成前清理。
+- **外部数据**：目标引用源完整点里的数据集和 artifacts。目标的 session 日志也按引用读取源 run 目录。保留源 run 目录与 artifacts 目录；不要在比较完成前清理。
 
 ## 没有分支脚本时
 
@@ -168,6 +164,6 @@ node run-profile-branch.mjs ... --target-profile rule-c.json \
 
 1. 复制源 profile、world 文件和数据集到新目录。
 2. 用相同的 seed、主体和初始数据分别启动独立 run。
-3. 每个 run 使用自己的目录和 lineage。
+3. 每个 run 使用自己的目录。
 
-这仍然是控制变量，但它不是从同一个完整点复制：各 run 的历史身份不同，也没有共享 lineage。报告时要写明这是“独立重复运行”，不要把它描述成同点分支。
+这仍然是控制变量，但它不是从同一个完整点复制：各 run 的历史身份不同，也不共享 session 日志前缀。报告时要写明这是“独立重复运行”，不要把它描述成同点分支。

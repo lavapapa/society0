@@ -43,8 +43,8 @@ async function run(retry, statuses, operationId) {
     const models = createModels({credentials, authContext: {env: async () => undefined, fileExists: async () => false}});
     models.setProvider(createProvider({id: 'offline', models: [model], auth: {apiKey: envApiKeyAuth('explicit', [])}, api: completions}));
     const context = env.context(operationId);
-    provider = new PiModelProvider(models, env.ctx.attempts, {runId: context.runId, providerId: 'offline', maxEventBytes: 65536, maxRawBytes: 1048576, maxRequestBytes: 1048576, retry, options: {maxTokens: 64, maxRetries: 2, transport: 'json'}, jsonTimeoutMs: 10000});
-    selected = await provider.prepare({provider: 'pi/v1', model: 'offline'}, context);
+    provider = new PiModelProvider(models, env.ctx.sessions.log, {runId: context.runId, providerId: 'offline', maxEventBytes: 65536, maxRawBytes: 1048576, retry, transport: 'json', options: {maxTokens: 64, maxRetries: 2}, jsonTimeoutMs: 10000});
+    selected = await provider.prepare({session:{actorId:'a',momentId:'m'},provider: 'pi/v1', model: 'offline'}, context);
     const stream = await selected.value.streamFn(selected.value.model, {messages: [{role: 'user', content: 'retry fixture', timestamp: 0}]}, {});
     for await (const event of stream) {}
     await selected.value.drain();
@@ -61,21 +61,13 @@ test('D3-P3A upstream 500 retries with growing backoff and records each attempt'
   const {env, calls, selected, context} = await run(retry, [500, 500, 200], 'd3-retry-upstream');
   try {
     assert.equal(calls(), 3);
-    const lineage = env.ctx.attempts.authority().lineage;
     const records = [];
-    for (const attempt of [0, 1, 2]) {
-      const found = await env.ctx.attempts.probe({lineage, operationId: modelOperationId(context, 1), attempt});
-      assert.equal(found.status, 'found');
-      records.push(found.record);
-    }
-    assert.equal(records[0].result.status, 'failed');
-    assert.equal(records[0].result.cause, 'MODEL_UPSTREAM_ERROR');
-    assert.equal(records[1].result.status, 'failed');
-    assert.equal(records[1].result.retryOf, records[0].physicalRequestId);
-    assert.equal(records[2].result.status, 'response');
-    assert.equal(records[2].result.retryOf, records[1].physicalRequestId);
-    assert.deepEqual([records[1].result.retryDelayMs, records[2].result.retryDelayMs], [5, 10]);
-    assert.deepEqual([records[0].result.retryNextDelayMs, records[1].result.retryNextDelayMs], [5, 10]);
+    for (const attempt of [0, 1, 2]) records.push(await env.ctx.sessions.find({actorId: 'a', momentId: 'm'}, {operationId: modelOperationId(context, 1), attempt}));
+    assert.deepEqual(records.map(record => record.type), ['attempt/failed', 'attempt/failed', 'response']);
+    assert.equal(records[0].data.cause, 'MODEL_UPSTREAM_ERROR');
+    assert.equal(records[1].data.retryOf, records[0].data.physicalRequestId);
+    assert.equal(records[2].data.retryOf, records[1].data.physicalRequestId);
+    assert.deepEqual([records[1].data.retryDelayMs, records[2].data.retryDelayMs], [5, 10]);
     assert.deepEqual(selected.value.attemptSettlements.map(item => item.status), ['failed', 'failed', 'response']);
   } finally {
     await env.close();
@@ -86,8 +78,7 @@ test('D3-P3A 4xx is not retried', async () => {
   const {env, calls, context} = await run({baseMs: 1, maxMs: 2, jitter: 0}, [400], 'd3-retry-client');
   try {
     assert.equal(calls(), 1);
-    const found = await env.ctx.attempts.probe({lineage: env.ctx.attempts.authority().lineage, operationId: modelOperationId(context, 1), attempt: 1});
-    assert.equal(found.status, 'absent');
+    assert.equal(await env.ctx.sessions.find({actorId: 'a', momentId: 'm'}, {operationId: modelOperationId(context, 1), attempt: 1}), undefined);
   } finally {
     await env.close();
   }

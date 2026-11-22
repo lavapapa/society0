@@ -77,12 +77,12 @@ node .build/cli/dist/main.js lock --base .build --out module-lock.json \
 ## run start
 
 ```sh
-node .build/cli/dist/main.js run start --profile <p> --dir <run> [--lineage <d>] \
+node .build/cli/dist/main.js run start --profile <p> --dir <run> \
   [--ticks N] [--world <f>] [--base <d>] [--credentials-env <NAME>] \
   [--detach] --json
 ```
 
-创建并启动一次新 run。`--profile` 和 `--dir` 必填；`--dir` 是 run 目录，run id 取目录名。`--lineage` 指定 Attempts authority，默认在 run 目录同级建立 `lineages/<runId>`。`--ticks` 覆盖 `run-controller` 的 `maxTicks`，必须是正整数；达到上限时 run 以 `max ticks reached (N)` 结束。
+创建并启动一次新 run。`--profile` 和 `--dir` 必填；`--dir` 是 run 目录，run id 取目录名。外部调用记录写在 run 目录的 `sessions/` 下。`--ticks` 覆盖 `run-controller` 的 `maxTicks`，必须是正整数；达到上限时 run 以 `max ticks reached (N)` 结束。
 
 `--detach` 启动后台 worker 并立即返回：
 
@@ -98,7 +98,7 @@ node .build/cli/dist/main.js run start --profile <p> --dir <run> [--lineage <d>]
  "lastReason":"max ticks reached (1)"}
 ```
 
-新建要求 world 目录和 lineage 目录尚未使用；重复使用会报 `FRESH_RUN_EXISTS` 或 `FRESH_LINEAGE_EXISTS`。检查失败会报 `CHECK_FAILED`，并提示先运行 `society0 check`。
+新建要求 world 目录尚未使用；重复使用会报 `FRESH_RUN_EXISTS`。检查失败会报 `CHECK_FAILED`，并提示先运行 `society0 check`。
 
 ## run status
 
@@ -124,7 +124,7 @@ node .build/cli/dist/main.js run status --dir <run> --json
 node .build/cli/dist/main.js run resume --dir <run> [--credentials-env <NAME>] --detach --json
 ```
 
-从已有 run 的最后一个完整点继续。它沿用状态文件里记录的原 profile、lock、patches、lineage、ticks、world 和 `--base`；没有显式传入时不会改用新的输入。恢复跳过初始化 seed，并核验 lineage authority。
+从已有 run 的最后一个完整点继续。它沿用状态文件里记录的原 profile、lock、patches、ticks、world 和 `--base`；没有显式传入时不会改用新的输入。恢复跳过初始化 seed，并把 session 日志截回该完整点记录的长度。
 
 只接受 `paused` 或 `failed` 的 run：
 
@@ -156,7 +156,6 @@ run 还在运行或暂停时没有结果，返回 `RUN_NOT_COMPLETED`；状态�
 
 - `--patches`：`EntryPatch[]` JSON 文件。`config` 会替换该入口的整个配置对象，覆盖时保留必填字段。
 - `--base`：插件解析目录。源码构建时指向 `typescript/.build`；发行安装时指向包含 `node_modules` 的消费者目录。
-- `--lineage`：外部 authority 目录。恢复和分叉时要与源 run 使用同一个 lineage 目录和 identity。
 - `--credentials-env`：凭据环境变量。值只进入进程内存，不写入磁盘或日志。
 
 分支不在 `society0` CLI 里；它由 `examples/run-profile-branch.mjs` 或公开 SDK 的 `forkProfile` 调用 RunBranch 服务完成，见[因果分支](causal-branches.md)。

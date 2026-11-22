@@ -57,14 +57,6 @@ test('A-T1 recoverable rejected action does not fail activation and later act su
     assert.equal(good.receipt.status,'completed');
   }finally{await h.binding.release()}
 });
-test('A-T1 unknown attempt still reports transport_unknown',async t=>{
-  const h=await harness(t,c=>{c.actions.register({name:'external.unknown',effect:'external',inputSchema:{type:'object'},outputSchema:{},available:async()=>true,execute:async()=>{throw Object.assign(Error('physical unknown'),{code:'ACTION_ATTEMPT_UNKNOWN'})}})});
-  try{
-    const outcome=await runModel(t,{...h,tools:[invokeTool(h.binding)],fixture:[assistant([{type:'toolCall',id:'invoke-1',name:'act',arguments:{action:'external.unknown',input:{}}}],'toolUse'),assistant([{type:'text',text:'must not run'}])]});
-    assert.equal(outcome.status,'incomplete');
-    assert.equal(outcome.reason,'transport_unknown');
-  }finally{await h.binding.release()}
-});
 test('A-T1 storage unknown still reports persistence_unknown',async t=>{
   const h=await harness(t,c=>{c.actions.register({name:'world.storage',effect:'world',inputSchema:{type:'object'},outputSchema:{},available:async()=>true,execute:async()=>{throw Object.assign(Error('storage unknown'),{code:'SQLITE_COMMIT_UNKNOWN',storage:true})}})});
   try{

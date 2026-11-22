@@ -30,9 +30,9 @@ test('PR07-T05/T23 real attempt survives expired revision and inventory eligibil
     try {
         ctx.actorEligibility.register({ id: 'stock', async evaluate(request, reader) { const [row] = await reader.query({ sql: 'SELECT quantity FROM inventory WHERE id=?', parameters: ['stock'] }, { maxRows: 1, maxBytes: 1024 }); return { allowed: request.kind !== 'action' || request.action !== 'external.purchase' || row.quantity > 0, reason: 'stock', facts: { quantity: Number(row.quantity) }, versions: [{ owner: 'inventory', version: String(row.quantity) }] }; } });
         const started = Promise.withResolvers(), finished = Promise.withResolvers();
-        const attempt = { lineage: 'pr07', operationId: 'physical-order', attempt: 0 };
+        const session = { actorId: 'a', momentId: 'm' }, recorded = async (operationId) => (await ctx.sessions.find(session, { operationId, attempt: 0 })).type;
         let expectedRevision = await ctx.database.readRevision();
-        ctx.actions.register({ name: 'external.purchase', inputSchema: { type: 'object' }, outputSchema: {}, effect: 'external', available: async () => true, execute: async (input, context) => { assert.equal((await ctx.attempts.claim(attempt, { input })).status, 'send-permitted'); started.resolve(); const original = await finished.promise; await ctx.attempts.settle(attempt, original); await context.transaction({ ...request('purchase-commit'), expectedRevision }, async (tx) => { await ctx.actors.update(tx, { id: 'a', attributes: { purchased: true } }); return original; }); return { operationId: 'purchase-commit', status: 'completed', value: original, original, artifacts: [] }; } });
+        ctx.actions.register({ name: 'external.purchase', inputSchema: { type: 'object' }, outputSchema: {}, effect: 'external', available: async () => true, execute: async (input, context) => { started.resolve(); const original = await finished.promise; await context.transaction({ ...request('purchase-commit'), expectedRevision }, async (tx) => { await ctx.actors.update(tx, { id: 'a', attributes: { purchased: true } }); return original; }); return { operationId: 'purchase-commit', status: 'completed', value: original, original, artifacts: [] }; } });
         const work = ctx.actions.execute('external.purchase', {}, env.context('purchase'));
         void work.catch(() => { });
         await started.promise;
@@ -40,12 +40,11 @@ test('PR07-T05/T23 real attempt survives expired revision and inventory eligibil
         await ctx.database.transaction(reservation.lease, request('stock-expires'), tx => tx.execute({ sql: 'UPDATE inventory SET quantity=0' }));
         finished.resolve({ provider: 'local-physical', receipt: 'raw-1' });
         await assert.rejects(work, /SQLITE_STALE_REVISION/);
-        assert.equal((await ctx.attempts.probe(attempt)).record.status, 'settled');
+        assert.equal(await recorded('action:purchase'), 'attempt/failed');
         expectedRevision = undefined;
-        const again = { ...attempt, operationId: 'late-exit' };
-        ctx.actions.register({ name: 'external.late', inputSchema: {}, outputSchema: {}, effect: 'external', available: async () => true, execute: async (input, context) => { await ctx.attempts.claim(again, { input }); await ctx.attempts.settle(again, { raw: 'late' }); await ctx.database.transaction(reservation.lease, request('exit-actor'), tx => ctx.actors.setParticipation(tx, 'a', 'inactive', { reason: 'exit' })); await context.transaction(request('late-write'), tx => ctx.actors.update(tx, { id: 'a', attributes: { late: true } })); return { operationId: 'late-write', status: 'completed', value: null, original: null, artifacts: [] }; } });
+        ctx.actions.register({ name: 'external.late', inputSchema: {}, outputSchema: {}, effect: 'external', available: async () => true, execute: async (input, context) => { await ctx.database.transaction(reservation.lease, request('exit-actor'), tx => ctx.actors.setParticipation(tx, 'a', 'inactive', { reason: 'exit' })); await context.transaction(request('late-write'), tx => ctx.actors.update(tx, { id: 'a', attributes: { late: true } })); return { operationId: 'late-write', status: 'completed', value: null, original: null, artifacts: [] }; } });
         await assert.rejects(ctx.actions.execute('external.late', null, env.context('late')), /ACTION_INELIGIBLE/);
-        assert.equal((await ctx.attempts.probe(again)).record.status, 'settled');
+        assert.equal(await recorded('action:late'), 'attempt/failed');
         const discovered = await read(ctx, v => ctx.actions.discover(scope, v, page));
         assert.equal(discovered.total, '0');
         assert.deepEqual((await read(ctx, v => ctx.actors.get('a', v))).attributes, { score: 0, raw: { preserved: true } });
@@ -70,7 +69,7 @@ test('PR07-T23 inventory expiry without expectedRevision is denied inside final 
         await assert.rejects(work, /ACTION_INELIGIBLE/);
         assert.equal((await read(ctx, v => ctx.actors.get('a', v))).attributes.score, 0);
         assert.equal((await read(ctx, v => v.query({ sql: 'SELECT count(*) AS n FROM action_receipts WHERE operation_id=?', parameters: ['inventory-final-write'] }, { maxRows: 1, maxBytes: 1024 })))[0].n, 0n);
-        assert.equal((await ctx.attempts.probe({ lineage: 'pr07', operationId: 'action:inventory-final', attempt: 0 })).record.status, 'unknown');
+        assert.equal((await ctx.sessions.find({ actorId: 'a', momentId: 'm' }, { operationId: 'action:inventory-final', attempt: 0 })).type, 'attempt/failed');
     }
     finally {
         await env.close();
