@@ -2,11 +2,11 @@
 
 ## run
 
-run 是一次仿真的执行单位。一个 run 有自己的目录、run id、lineage authority、SQLite 数据库和历史。它由 profile 装配，由 `run-controller` 推进。
+run 是一次仿真的执行单位。一个 run 有自己的目录、run id、SQLite 数据库、历史和 session 日志。它由 profile 装配，由 `run-controller` 推进。
 
 run 的推进以 tick 为单位。每个 tick 从 proposal 源取出工作，按 phase 激活主体，等待行动回执，再发布完整点。`run status` 的 `frontier` 描述已经发布到哪里；`run result` 的 `result.cut` 是最后一个完整点。
 
-同一份 profile 可以创建多个 run，只要目录和 lineage 不同。创建要求目标目录尚未使用，这样每个 run 的起点可以追溯。
+同一份 profile 可以创建多个 run，只要目录不同。创建要求目标目录尚未使用，这样每个 run 的起点可以追溯。
 
 ## 世界
 

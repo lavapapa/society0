@@ -99,7 +99,7 @@ LLM 仿真会产生重要定性材料：
 分叉目标没有 CLI 的 `entry-status.json`，所以：
 
 - 用分叉脚本输出的 JSON 读取 `targetPoint`、`observation`、`receipts` 和 `result`。
-- 需要重新打开时，用 `run-profile.mjs --reopen --observe`，并显式给出源 lineage 目录和 identity。
+- 需要重新打开时，用 `run-profile.mjs --reopen --observe`，并保留源运行目录。
 - 不要把 `society0 run result --dir <目标目录>` 的 `RUN_NOT_FOUND` 当成运行失败。
 
 比较时保持同一口径：

@@ -916,63 +916,23 @@
           ]
         },
         {
-          "exportPath": "./attempts",
-          "title": "外部尝试证据",
+          "exportPath": "./session-log",
+          "title": "session-log",
           "fields": [
             {
               "name": "directory",
               "type": "string",
               "default": null,
               "mode": "new-run",
-              "affectsResults": true,
+              "affectsResults": false,
               "secret": null
             },
             {
-              "name": "lineage",
-              "type": "string",
-              "default": null,
-              "mode": "new-run",
-              "affectsResults": true,
-              "secret": null
-            },
-            {
-              "name": "chunkBytes",
+              "name": "flushMs",
               "type": "number",
-              "default": 65536,
+              "default": 200,
               "mode": "new-run",
-              "affectsResults": true,
-              "secret": null
-            },
-            {
-              "name": "maxRecordBytes",
-              "type": "number",
-              "default": 65536,
-              "mode": "new-run",
-              "affectsResults": true,
-              "secret": null
-            },
-            {
-              "name": "maxPending",
-              "type": "number",
-              "default": 64,
-              "mode": "new-run",
-              "affectsResults": true,
-              "secret": null
-            },
-            {
-              "name": "maxSnapshotBytes",
-              "type": "number",
-              "default": 67108864,
-              "mode": "new-run",
-              "affectsResults": true,
-              "secret": null
-            },
-            {
-              "name": "maxEvidenceObjects",
-              "type": "number",
-              "default": 10000,
-              "mode": "new-run",
-              "affectsResults": true,
+              "affectsResults": false,
               "secret": null
             }
           ]
@@ -1702,7 +1662,32 @@
         {
           "exportPath": "./embedding",
           "title": "embedding",
-          "fields": []
+          "fields": [
+            {
+              "name": "maxRetries",
+              "type": "number",
+              "default": 2,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "baseMs",
+              "type": "number",
+              "default": 500,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "maxMs",
+              "type": "number",
+              "default": 8000,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            }
+          ]
         },
         {
           "exportPath": "./embedding-http",
@@ -1876,14 +1861,6 @@
             },
             {
               "name": "maxRawBytes",
-              "type": "number",
-              "default": 16777216,
-              "mode": "recreate",
-              "affectsResults": true,
-              "secret": false
-            },
-            {
-              "name": "maxRequestBytes",
               "type": "number",
               "default": 16777216,
               "mode": "recreate",
@@ -2161,14 +2138,6 @@
             },
             {
               "name": "maxRawBytes",
-              "type": "number",
-              "default": 16777216,
-              "mode": "recreate",
-              "affectsResults": true,
-              "secret": false
-            },
-            {
-              "name": "maxRequestBytes",
               "type": "number",
               "default": 16777216,
               "mode": "recreate",

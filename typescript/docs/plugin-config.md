@@ -93,13 +93,8 @@
 | ./run-controller | autoRecover | object | {} | boundary | true | null |
 | ./random | algorithm | const | "philox4x32-10/v1" | new-run | true | null |
 | ./random | seed | string | "study-1" | new-run | true | null |
-| ./attempts | directory | string | null | new-run | true | null |
-| ./attempts | lineage | string | null | new-run | true | null |
-| ./attempts | chunkBytes | number | 65536 | new-run | true | null |
-| ./attempts | maxRecordBytes | number | 65536 | new-run | true | null |
-| ./attempts | maxPending | number | 64 | new-run | true | null |
-| ./attempts | maxSnapshotBytes | number | 67108864 | new-run | true | null |
-| ./attempts | maxEvidenceObjects | number | 10000 | new-run | true | null |
+| ./session-log | directory | string | null | new-run | false | null |
+| ./session-log | flushMs | number | 200 | new-run | false | null |
 | ./actions | maxDiscovered | number | 100 | boundary | true | false |
 | ./actions | defaultTimeoutMs | number | 30000 | boundary | true | false |
 | ./actions | maxOffers | number | 64 | boundary | true | false |
@@ -173,6 +168,9 @@
 | ./driver-llm | maxStatements | number | 2048 | recreate | true | false |
 | ./model-replay | name | string | "replay/v1" | recreate | true | false |
 | ./model-replay | fixtures | dict | {} | recreate | true | false |
+| ./embedding | maxRetries | number | 2 | recreate | false | null |
+| ./embedding | baseMs | number | 500 | recreate | false | null |
+| ./embedding | maxMs | number | 8000 | recreate | false | null |
 | ./embedding-http | provider | string | null | recreate | true | false |
 | ./embedding-http | configId | string | null | recreate | true | false |
 | ./embedding-http | model | string | null | recreate | true | false |
@@ -194,7 +192,6 @@
 | ./model-pi | temperature | number | null | recreate | true | false |
 | ./model-pi | maxEventBytes | number | 1048576 | recreate | true | false |
 | ./model-pi | maxRawBytes | number | 16777216 | recreate | true | false |
-| ./model-pi | maxRequestBytes | number | 16777216 | recreate | true | false |
 | ./model-pi | timeoutMs | number | 30000 | recreate | true | false |
 | ./model-pi | transport | dict | {} | recreate | true | false |
 | ./model-pi | jsonTimeoutMs | number | 180000 | recreate | true | false |
@@ -224,7 +221,6 @@
 | ./model-codex-subscription | maxTokens | number | 256 | recreate | true | false |
 | ./model-codex-subscription | maxEventBytes | number | 1048576 | recreate | true | false |
 | ./model-codex-subscription | maxRawBytes | number | 16777216 | recreate | true | false |
-| ./model-codex-subscription | maxRequestBytes | number | 16777216 | recreate | true | false |
 | ./model-codex-subscription | timeoutMs | number | 30000 | recreate | true | false |
 
 ## @society0/extras

@@ -94,7 +94,7 @@ Codex 订阅使用独立 provider 与 pi runtime。真实账号登录需要额�
 
 ## 五、恢复
 
-新建要求 world 与 lineage 目录尚未使用，创建命令重复运行会在挂载数据库之前失败。默认 authority 位于 world 同级的 `lineages/<world目录名>`，identity 为 `--run-id`；结果输出实际 `lineage` 引用。可通过 `--lineage-directory` 和 `--lineage` 指定外部 authority。分叉及其 reopen 保持源 lineage 的目录与 identity，源 world 删除后的证据保留以该独立 authority 为基础。`--reopen` 遇到缺失 authority 会报告 unavailable，保留 unknown；该路径不执行 initialize。
+新建要求 world 目录尚未使用，创建命令重复运行会在挂载数据库之前失败。外部调用记录写在 world 目录的 `sessions/`（每个主体线程一个只追加 JSONL）；完整点记录各文件长度，恢复时截回该长度。分叉目标通过 `sessions/parent.json` 按引用读取源 run 的前缀，比较完成前保留源目录。`--reopen` 遇到缺失的 run 存储报告 `REOPEN_STORAGE_UNAVAILABLE`；该路径不执行 initialize。
 
 ## 六、模型调用方
 
@@ -120,7 +120,7 @@ export async function runAuthorizedSocial(options, gatewayKey) {
 
 ## 七、分叉
 
-[分支例子](../examples/run-profile-branch.mjs) 使用 RunBranch 的公开 plan/create/probe 协议，目标沿用源 SQL schema。复制一份目标 profile，在 `patches` 末尾追加例如 `{"id":"checkpoint-policy","config":{"every":2}}`，即可声明不同策略；目录、run identity、generation 与共享 lineage 由例子补入原生 patch。
+[分支例子](../examples/run-profile-branch.mjs) 使用 RunBranch 的公开 plan/create/probe 协议，目标沿用源 SQL schema。复制一份目标 profile，在 `patches` 末尾追加例如 `{"id":"checkpoint-policy","config":{"every":2}}`，即可声明不同策略；目录、run identity 与 generation 由例子补入原生 patch。
 
 ```sh
 node run-profile-branch.mjs --profile profiles/rule-sqlite.json \
@@ -128,10 +128,10 @@ node run-profile-branch.mjs --profile profiles/rule-sqlite.json \
   --target-profile rule-fork.json --target-directory runs/rule-b --target-run-id rule-b
 node run-profile.mjs --profile runs/rule-b/profile.json \
   --directory runs/rule-b --run-id rule-b --lock module-lock.json \
-  --lineage-directory runs/lineages/rule --lineage rule --reopen --observe
+  --reopen --observe
 ```
 
-分支默认观察源与目标，不推进目标。`--advance-target` 显式推进零模型目标；获授权 Social 调用方可导入 `forkProfile`，传入同样的 `configureHost`、`allowModelRequests` 以及 `advanceTarget:true`。结果保留分支 operationId、源/目标完整点、目标有效配置、实际 authority 与关闭状态；目标保存自己的完整 profile，后续 reopen 继续使用所输出的共享 lineage。
+分支默认观察源与目标，不推进目标。`--advance-target` 显式推进零模型目标；获授权 Social 调用方可导入 `forkProfile`，传入同样的 `configureHost`、`allowModelRequests` 以及 `advanceTarget:true`。结果保留分支 operationId、源/目标完整点、目标有效配置与关闭状态；目标保存自己的完整 profile，后续 reopen 使用目标目录。
 
 分支可用 `--point-id <complete-point-id>` 选择历史完整点。`--diagnostics <new-ndjson-file>` 在创建前记录源 history baseline，此后每5秒串行记录计数/阶段耗时差值、active、elapsed、RSS与采样开销；结束前记录末次快照。当前点备份与历史段重放分别计量，阶段累计时长存在包含关系。发生创建异常时，例子输出 operationId 和目标目录，供公开 `runBranch.probe(operationId)` 核实。
 
@@ -149,9 +149,9 @@ Event目标使用 `--advance-target --target-events target-events.json`，或传
 
 ## 驱动错误分类
 
-`driver-llm` 的 `activate` 失败时返回 `status:"incomplete"`，`value.reason` 取推理原因或调用阶段原因：`setup_error`、`perception_error`、`thread_error`、`internal_error`，以及既有 `provider_error`、`context_limit`、`cancelled`、`persistence_error`、`persistence_unknown`、`transport_unknown`。`evidence` 同时带 `code`、`stage`、`committed`、`receipt` 与 cause 文本；`stage` 指出失败调用（如 `thread.appendInput`、`transaction:input`、`actions.receipts`）。
+`driver-llm` 的 `activate` 失败时返回 `status:"incomplete"`，`value.reason` 取推理原因或调用阶段原因：`setup_error`、`perception_error`、`thread_error`、`internal_error`，以及既有 `provider_error`、`context_limit`、`cancelled`、`persistence_error`、`persistence_unknown`。`evidence` 同时带 `code`、`stage`、`committed`、`receipt` 与 cause 文本；`stage` 指出失败调用（如 `thread.appendInput`、`transaction:input`、`actions.receipts`）。
 
-调用方按 `persistence_unknown` 处理存储提交未知：停止对该 operationId 的写入，用 `probe` 核实后再决定恢复或 fork；`SQLITE_SEGMENT_FAILED` 的 `evidence.committed` 为 `true` 且 `evidence.receipt` 为真实提交回执，但该 operationId 不会出现在 `requiredOperations`。取消只在 signal 已中止且错误链命中同一 reason 对象或原生 `AbortError` 时为 `cancelled`，存储未知与 `context_limit` 不会被取消覆盖。工具路径的存储未知经 `INFERENCE_PERSISTENCE_UNKNOWN` 报为 `persistence_unknown`；外部动作结果未知（`ACTION_ATTEMPT_UNKNOWN`，无 storage 标志）仍为 `transport_unknown`。工具调用前的 ledger claim 若返回 unknown 或已有未结算记录，驱动报 `persistence_error/attempts.undispatched`（`ATTEMPT_LEDGER_UNKNOWN`/`ATTEMPT_LEDGER_INCOMPLETE`），不伪造 not_dispatched 结算；已 settled 的记录保留不重写。行动 claim 返回 `ACTION_ATTEMPT_UNKNOWN{storage:true}` 属存储不确定，报 `persistence_unknown`（回执 `persistenceUnknown:true`、`externalUnknown:false`）。
+调用方按 `persistence_unknown` 处理存储提交未知：停止对该 operationId 的写入，用 `probe` 核实后再决定恢复或 fork；`SQLITE_SEGMENT_FAILED` 的 `evidence.committed` 为 `true` 且 `evidence.receipt` 为真实提交回执，但该 operationId 不会出现在 `requiredOperations`。取消只在 signal 已中止且错误链命中同一 reason 对象或原生 `AbortError` 时为 `cancelled`，存储未知与 `context_limit` 不会被取消覆盖。工具路径的存储未知经 `INFERENCE_PERSISTENCE_UNKNOWN` 报为 `persistence_unknown`（失败回执 `persistenceUnknown:true`）。外部动作的结果与失败写入该主体线程的 session 日志（`action`、`attempt/failed`）；恢复只回到完整点，完整点之后未完成的外部调用会重新执行。
 
 遇到 `INFERENCE_MODEL_TEXT_NOT_WELL_FORMED` 时，检查模型返回的工具调用 ID；修正生成源后再发起新的调用。`THREAD_TEXT_NOT_WELL_FORMED` 的 `field` 指明应修正的主体、时刻或消息标识。失败记录的 reason 可包含替换字符，完整原始消息从 JSON evidence 读取；具体边界见 [模型派生标识与失败原因文本](design-amendments.md#new-6模型派生标识与失败原因文本)。
 

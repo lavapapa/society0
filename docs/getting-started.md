@@ -65,7 +65,7 @@ node .build/cli/dist/main.js run start --profile profiles/rule-sqlite.json \
 {"schema":"society0.run/1","runId":"rule","pid":12345,"dir":".../runs/rule","state":"running"}
 ```
 
-不传 `--detach` 时，当前进程执行 worker，结束时打印最终状态。新建 run 要求 `--dir` 和 lineage 目录都尚未使用；重复使用同一目录会报 `FRESH_RUN_EXISTS` 或 `FRESH_LINEAGE_EXISTS`。
+不传 `--detach` 时，当前进程执行 worker，结束时打印最终状态。新建 run 要求 `--dir` 尚未使用；重复使用同一目录会报 `FRESH_RUN_EXISTS`。
 
 ## 查看状态与结果
 
@@ -113,7 +113,7 @@ node .build/cli/dist/main.js run resume --dir runs/event \
   --lock module-lock.json --base .build --detach --json
 ```
 
-`run resume` 返回新的 `society0.run/1` 和新的 `pid`。它沿用 run 目录里记录的原 profile、lock、lineage 和 ticks；已经完成的 run 不会被重新初始化。
+`run resume` 返回新的 `society0.run/1` 和新的 `pid`。它沿用 run 目录里记录的原 profile、lock 和 ticks；已经完成的 run 不会被重新初始化。
 
 ## run 目录
 
@@ -124,9 +124,7 @@ node .build/cli/dist/main.js run resume --dir runs/event \
 - `artifacts/`：大于内联预算的外部对象
 - `bootstrap.json`：创建时的入口和 schema 信息
 - `entry-status.json`、`entry-result.json`：平台读取的状态和结果
-- lineage 目录（默认在 run 目录同级的 `lineages/<runId>`）：Attempts 证据和来源身份
-
-`--lineage` 可以指定外部 authority。恢复和分叉时保留原 lineage 目录与 identity；删除 world 目录不会自动删除 lineage 证据。
+- `sessions/`：每个主体线程一个只追加 JSONL，记录模型请求的增量上下文、模型回包与外部调用结果；完整点记录各文件长度，恢复时截回该长度
 
 ## 下一步
 

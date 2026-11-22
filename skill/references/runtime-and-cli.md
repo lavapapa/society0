@@ -94,13 +94,12 @@ society0 check --profile <profile.json> [--lock <lock.json>] [--patches <patch.j
 
 ```sh
 society0 run start --profile <profile.json> --dir <run-dir> \
-  [--lineage <lineage-dir>] [--ticks N] [--world <world.json>] \
+  [--ticks N] [--world <world.json>] \
   [--base <实验目录>] [--credentials-env <ENV_NAME>] \
   [--lock <lock.json>] [--patches <patch.json>] --detach --json
 ```
 
 - `--dir` 必须是新目录。
-- 默认 lineage 是 `<run-dir 的父目录>/lineages/<run-dir 的 basename>`，必须不存在。
 - `--ticks N` 写入 `run-controller.maxTicks`，是上限。跑满 N 个 tick 后在已发布的完整点停下；来源先耗尽时提前结束。
 - `--world` 是 JSON 对象，`actors` 段每条为 `{id, attributes, source}`，`source` 必填。
 - `--base` 指定插件解析目录，从该目录的 `node_modules` 按包名查找。
@@ -208,11 +207,11 @@ society0 run resume --dir <run-dir> [--credentials-env <ENV_NAME>] --detach --js
 ```
 
 - 从 run 目录已发布的完整点继续。
-- profile、锁、patches、ticks、lineage、base、world、credentials-env 都从 `entry-status.json` 读取。
+- profile、锁、patches、ticks、base、world、credentials-env 都从 `entry-status.json` 读取。
 - 进程仍存活时返回 `RUN_ALREADY_RUNNING`；已完成时返回 `RUN_COMPLETED`。
-- 没有可验证的完整点或 authority 不可用时，报告不可用并保留现状，不会重新初始化。
+- 没有可验证的完整点时，报告不可用并保留现状，不会重新初始化。
 
-因此，恢复的前提是 run 至少发布过一个完整点。进程在根创建完成前被杀掉时，可能没有 authority，这时不要反复 resume；先保留目录和错误，重建来源运行。
+因此，恢复的前提是 run 至少发布过一个完整点。进程在根创建完成前被杀掉时，可能没有完整点，这时不要反复 resume；先保留目录和错误，重建来源运行。
 
 ## 八、目录与身份
 
@@ -228,17 +227,10 @@ society0 run resume --dir <run-dir> [--credentials-env <ENV_NAME>] --detach --js
   artifacts/               产物
   metrics.jsonl            指标记录
   segments/                历史段
+  sessions/                每个主体线程一个 JSONL：模型请求、回包与外部调用结果
 ```
 
-lineage 默认在同级：
-
-```text
-<run-dir 的父目录>/lineages/<run-dir 的 basename>/
-  attempts.sqlite
-  artifacts/
-```
-
-run 身份是 `--run-id`，默认取目录 basename。lineage 可以由 `--lineage` 指定。每次尝试使用新的 run 目录；不要复用旧目录来“续跑另一个条件”。
+run 身份是 `--run-id`，默认取目录 basename。每次尝试使用新的 run 目录；不要复用旧目录来“续跑另一个条件”。
 
 ## 九、种子
 
@@ -274,6 +266,6 @@ node examples/run-profile.mjs --profile <profile.json> \
 - `RUN_NOT_FOUND`：目录没有 `entry-status.json`，常见于指向了非 CLI 创建的目录。
 - `RUN_NOT_COMPLETED`：run 还在运行或失败，没有可用结果。
 - `RESULT_MISSING`：已完成但结果文件丢失。
-- `REOPEN_AUTHORITY_UNAVAILABLE`：重开时找不到 world 或 attempts authority；保留现场，不要重新初始化。
+- `REOPEN_STORAGE_UNAVAILABLE`：重开时找不到已有 run 存储；保留现场，不要重新初始化。
 
 失败时保留原始错误、run 目录和 operationId。分叉或恢复前先确认完整点，不要直接重发未知操作。

@@ -2,7 +2,7 @@
 
 这个目录提供 Society0 Next 的原生 Cordis 宿主、CLI、完整 Core、Extras 与 Social，以及 SQLite 原生存储、完整点恢复和分叉能力。生产入口输出 ESM JavaScript 和声明；包名采用项目自己的 `@society0` scope，发布操作由项目单独授权。
 
-使用发行包从[公开 SDK 安装](<docs/public-usage.md#一安装>)开始，再按[四个 profile 的运行入口](<docs/public-usage.md#二运行>)创建、推进和重开 run。[分叉步骤](<docs/public-usage.md#六分叉>)说明目标 profile、事件输入及共享 lineage authority。
+使用发行包从[公开 SDK 安装](<docs/public-usage.md#一安装>)开始，再按[四个 profile 的运行入口](<docs/public-usage.md#二运行>)创建、推进和重开 run。[分叉步骤](<docs/public-usage.md#六分叉>)说明目标 profile、事件输入及按引用读取的源 session 日志。
 
 ## 一、构建
 

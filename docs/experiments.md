@@ -105,7 +105,7 @@ node .build/cli/dist/main.js run result --dir runs/pilot --json
 一次实验至少保存：
 
 - profile、lockfile、world 文件和数据集的 id；
-- run 目录、lineage 目录和完整点 id；
+- run 目录和完整点 id；
 - 实际命令和环境（不记录凭据值）；
 - `run result` 的 `result.cut`、`activations` 和测量记录；
 - 与设计不一致的地方，以及未完成或未知的操作。

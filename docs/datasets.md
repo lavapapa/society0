@@ -23,7 +23,7 @@ Society0 把数据分成三类：世界里的可变记录、创建 run 时的初
 - `@society0/core/plain-init` 用配置里的 `initialActors` 建立普通主体。
 - `@society0/social/social-init` 在 `actors.seed` 之后建立 Social 成员、关系和配对。
 
-同一份 world 可以用于多次新 run；每次 run 仍然要有自己的目录和 lineage。
+同一份 world 可以用于多次新 run；每次 run 仍然要有自己的目录。
 
 ## 领域数据
 
@@ -94,7 +94,7 @@ await ctx.datasets.attach(tx, 'events-2026', object)
 ## 数据集的使用边界
 
 - 数据集只追加，不修改。需要修正数据时建立新的数据集 id，不要覆盖原对象。
-- 同一个 run 内的数据集对象通过 id 引用；分叉时对象引用随完整点保存。保留源 run 和目标 run 的 artifacts 与 lineage 目录，直到确认目标不再需要这些对象。
+- 同一个 run 内的数据集对象通过 id 引用；分叉时对象引用随完整点保存。保留源 run 和目标 run 的 run 目录与 artifacts 目录，直到确认目标不再需要这些对象。
 - `prepare` 的 `frameBytes` 不能超过 `maxFrameBytes`，单条记录不能超过 `maxRecordBytes`，分页条数不能超过 `maxPageItems`。
 - 超限返回明确错误：`DATASET_FRAME_BUDGET`、`JSONL_RECORD_BUDGET`、`DATASET_PAGE_BUDGET`、`DATASET_READ_BUDGET`。
 - 数据集内容和 SQL 世界数据是两条读取路径。要让主体通过信息查询看到数据，需要插件把数据集转成信息源或公开表，而不是让主体直接读 artifacts。
