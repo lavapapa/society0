@@ -32,11 +32,13 @@ function selection(fixtures, attempts = []) {
 }
 
 class FakeUpstream {
+  /** fail: true 只让 b 的首次请求失败；'always' 让 b 每次重跑都失败。 */
   constructor({fail = true} = {}) { this.fail = fail; this.calls = new Map(); }
   async prepare(request, context) {
     const calls = this.calls.get(context.operationId) ?? 0;
     this.calls.set(context.operationId, calls + 1);
-    if (this.fail && calls === 0 && !/\/r\d+$/.test(context.operationId) && context.operationId.includes('tick-1/b')) {
+    const first = calls === 0 && !/\/r\d+$/.test(context.operationId);
+    if (this.fail && (first || this.fail === 'always') && context.operationId.includes('tick-1/b')) {
       const settlement = {physicalRequestId: 'fake-failed-' + context.operationId, status: 'failed', httpStatus: 500, cause: 'MODEL_UPSTREAM_ERROR'};
       return selection([assistant([], 'error', 'MODEL_UPSTREAM_ERROR: 500')], [settlement]);
     }
@@ -46,12 +48,12 @@ class FakeUpstream {
   async close() {}
 }
 
-async function scenario({enabled, fail}) {
+async function scenario({maxAttempts = 2, fail}) {
   const f = await fixture({event: false, migrations: [perceptionMigration({consumer: 'd3'}), actorToolsMigration({consumer: 'd3'}), workspaceMigration({consumer: 'd3'})]});
   const c = f.ctx;
   const upstream = new FakeUpstream({fail});
   await runtime(f, {
-    runConfig: {autoRecover: {enabled, maxAttempts: 2, backoffMs: 1}},
+    runConfig: {autoRecover: {maxAttempts, backoffMs: 1}},
     sourceConfig: {proposals: [
       {id: 'tick-1', planKind: 'staged/1', payload: {nextCursor: '1', phases: [
         {id: 'a', activations: [{id: 'tick-1/a', actorId: 'a', momentId: 'm1', source: 'test', driver: 'llm/v1', input: {}}]},
@@ -70,6 +72,8 @@ async function scenario({enabled, fail}) {
   return {f, result, upstream};
 }
 
+const calls = (upstream, id) => [...upstream.calls].filter(([operation]) => operation.includes(id)).reduce((sum, [, count]) => sum + count, 0);
+
 async function facts(f) {
   const view = await f.ctx.database.snapshot({maxAgeMs: 30000});
   try {
@@ -79,18 +83,28 @@ async function facts(f) {
   } finally { await view.close(); }
 }
 
-test('D3-P3B autoRecover is off by default and a retryable pause stays paused', async () => {
-  const {f, result} = await scenario({enabled: false, fail: true});
+test('K7 an activation that keeps failing is degraded and the tick still reaches a complete point', async () => {
+  const {f, result, upstream} = await scenario({fail: 'always'});
   try {
-    assert.equal(result.status, 'paused');
-    assert.equal(result.reason, 'incomplete');
+    assert.equal(result.status, 'completed', JSON.stringify(result));
+    assert.equal(result.cut.frontier.completedCount, '2');
     const table = await facts(f);
     assert.deepEqual(table.posts.map(post => post.id), ['post-a']);
+    assert.equal(table.receipts.filter(row => row.actor_id === 'a').length, 1);
+    assert.equal(calls(upstream, 'tick-1/a'), 1);
+    assert.equal(calls(upstream, 'tick-1/b'), 3);
+    const [a, b] = result.activations.entries;
+    assert.deepEqual([a.actorId, a.reason, a.degraded], ['a', 'success', undefined]);
+    assert.deepEqual([b.actorId, b.reason, b.degraded], ['b', 'provider_error', true]);
+    const errors = f.host.diagnostics.snapshot().errors;
+    assert.equal(errors.filter(error => error.code === 'RUN_AUTO_RECOVER').length, 2);
+    const degraded = errors.filter(error => error.code === 'RUN_ACTIVATION_DEGRADED').map(error => JSON.parse(error.message));
+    assert.deepEqual(degraded.map(({actorId, reason, attempts}) => ({actorId, reason, attempts})), [{actorId: 'b', reason: 'provider_error', attempts: 2}]);
   } finally { await f.host.close(); }
 });
 
 test('D3-P3B autoRecover resumes the tick without duplicating completed writes', async () => {
-  const {f, result, upstream} = await scenario({enabled: true, fail: true});
+  const {f, result, upstream} = await scenario({fail: true});
   try {
     assert.equal(result.status, 'completed', JSON.stringify(result));
     const table = await facts(f);
@@ -99,20 +113,19 @@ test('D3-P3B autoRecover resumes the tick without duplicating completed writes',
     assert.equal(actorA.length, 1);
     const actorB = table.receipts.filter(row => row.actor_id === 'b');
     assert.equal(actorB.length, 1);
-    const calls = [...upstream.calls];
-    assert.equal(calls.find(([operation]) => operation.includes('tick-1/a'))?.[1], 1);
-    assert.equal(calls.filter(([operation]) => operation.includes('tick-1/b')).reduce((sum, [, count]) => sum + count, 0), 2);
+    assert.equal(calls(upstream, 'tick-1/a'), 1);
+    assert.equal(calls(upstream, 'tick-1/b'), 2);
     const events = f.host.diagnostics.snapshot().errors.filter(error => error.code === 'RUN_AUTO_RECOVER');
     assert.equal(events.length, 1);
     const event = JSON.parse(events[0].message);
     assert.equal(event.attempt, 1);
-    assert.equal(event.reason, 'provider_error');
+    assert.deepEqual(event.actors, [{actorId: 'b', reason: 'provider_error'}]);
     assert.equal(event.frontier, '0');
   } finally { await f.host.close(); }
 });
 
 test('D1b recovered tick reports each activation once with its final reason', async () => {
-  const {f, result} = await scenario({enabled: true, fail: true});
+  const {f, result} = await scenario({fail: true});
   try {
     assert.equal(result.status, 'completed', JSON.stringify(result));
     assert.ok(result.activations, JSON.stringify(result));
@@ -127,8 +140,8 @@ test('D1b recovered tick reports each activation once with its final reason', as
 });
 
 test('D3-P3B recovered world equals a clean run table for table', async () => {
-  const recovered = await scenario({enabled: true, fail: true});
-  const clean = await scenario({enabled: true, fail: false});
+  const recovered = await scenario({fail: true});
+  const clean = await scenario({fail: false});
   try {
     assert.equal(recovered.result.status, 'completed');
     assert.equal(clean.result.status, 'completed');

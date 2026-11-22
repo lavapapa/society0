@@ -97,16 +97,20 @@ test('PR06-T04 completion=true cannot cover a missing required SQL receipt; fail
         await f.host.close();
     }
 });
-test('PR06-T05 incomplete remains paused and final point does not advance', async () => {
-    const f = await fixture({ sourceConfig: { proposals: [proposals[0]] } });
+test('PR06-T05 K7 an activation that stays incomplete is degraded and the tick still reaches a complete point', async () => {
+    const f = await fixture({ sourceConfig: { proposals: [proposals[0]] }, runsConfig: { autoRecover: { maxAttempts: 1, backoffMs: 0 } } });
     try {
-        await f.ctx.plugin({ inject: ['drivers'], apply(ctx) { ctx.drivers.register('rule', { async activate(intent, context) { await context.database.transaction(context.writeLease, req('partial'), tx => tx.execute({ sql: "UPDATE s0_actors SET attributes='{}' WHERE id='a'" })); return { status: 'incomplete', value: { remaining: ['required'] }, evidence: { reason: 'budget' } }; } }); } });
+        let calls = 0;
+        await f.ctx.plugin({ inject: ['drivers'], apply(ctx) { ctx.drivers.register('rule', { async activate(intent, context) { calls++; await context.database.transaction(context.writeLease, req(context.operationId + '/partial'), tx => tx.execute({ sql: "UPDATE s0_actors SET attributes='{}' WHERE id='a'" })); return { status: 'incomplete', value: { remaining: ['required'] }, evidence: { reason: 'budget' } }; } }); } });
         const result = await f.ctx.runs.run(new AbortController().signal);
-        assert.equal(result.status, 'paused');
-        assert.equal(result.cut.id, f.root.id);
-        assert.equal(result.recoveryRequired, true);
-        assert.equal((await f.ctx.history.status()).state, 'dirty');
-        await assert.rejects(f.ctx.runs.pauseAtBoundary(), /RUN_NO_BOUNDARY/);
+        assert.equal(result.status, 'completed', JSON.stringify(result));
+        assert.equal(calls, 2);
+        assert.equal(result.cut.frontier.completedCount, '1');
+        assert.equal(result.recoveryRequired, undefined);
+        assert.deepEqual(result.activations.entries.map(entry => [entry.actorId, entry.reason, entry.degraded]), [['a', 'budget', true]]);
+        const degraded = f.host.diagnostics.snapshot().errors.filter(error => error.code === 'RUN_ACTIVATION_DEGRADED').map(error => JSON.parse(error.message));
+        assert.deepEqual(degraded.map(({ actorId, reason, attempts }) => ({ actorId, reason, attempts })), [{ actorId: 'a', reason: 'budget', attempts: 1 }]);
+        assert.equal((await f.ctx.history.current()).id, result.cut.id);
     }
     finally {
         await f.host.close();

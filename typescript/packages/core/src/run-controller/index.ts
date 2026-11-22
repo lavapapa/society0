@@ -12,11 +12,10 @@ import '../sqlite-history/index.js';
 export const Config = Schema.object({
     maxTransactionMs: Schema.natural().min(1).default(15000), maxPendingAcknowledgements: Schema.natural().min(1).default(1024), pauseTimeoutMs: Schema.natural().min(1).default(30000),
     maxTicks: Schema.natural().min(1),
+    /** 失败激活在进程内重跑的次数；用完后降级为该主体本步无行动，本步照常完成。 */
     autoRecover: Schema.object({
-        enabled: Schema.boolean().default(false),
         maxAttempts: Schema.natural().min(0).default(3),
-        backoffMs: Schema.natural().min(0).default(1000),
-        retryable: Schema.array(Schema.string()).default(['MODEL_UPSTREAM_ERROR', 'MODEL_RATE_LIMITED', 'MODEL_TIMEOUT'])
+        backoffMs: Schema.natural().min(0).default(1000)
     }).default({})
 });
 export const metadata: PluginMetadata = {
@@ -163,7 +162,8 @@ export class RunController extends Service {
             ...(!completed && code ? { code } : {}),
             ...(!completed && stage ? { stage } : {}),
             ...(!completed && slot ? { slot } : {}),
-            ...(warnings.length ? { warnings } : {})
+            ...(warnings.length ? { warnings } : {}),
+            ...(entry.status === 'failed' ? { degraded: true as const } : {})
         };
     }
     private async frontier() {
@@ -375,38 +375,52 @@ export class RunController extends Service {
         const phases = payload.phases.map(phase => ({ ...phase, activations: (phase.activations ?? []).filter((activation: { id?: unknown }) => typeof activation?.id !== 'string' || !recovery.completed.has(activation.id)) })).filter(phase => phase.activations.length);
         return { ...proposal, payload: { ...(proposal.payload as object), phases } as Json };
     }
-    /** 只把已经确定结算的上游错误当作可恢复原因；unknown/未结算一律不重试。 */
-    private recoverable(result: AdvanceResult): boolean {
-        const activations = (result.evidence as { activations?: readonly Record<string, unknown>[] })?.activations;
-        if (!Array.isArray(activations) || !this.config.autoRecover.enabled) return false;
-        const retryable = new Set(this.config.autoRecover.retryable);
-        for (const item of activations) {
-            if (item?.status === 'completed') continue;
-            const value = item?.value as { reason?: unknown } | undefined;
-            if (value?.reason !== 'provider_error') continue;
-            const evidence = item?.evidence as { modelAttempts?: readonly { cause?: unknown }[]; activation?: { modelAttempts?: readonly { cause?: unknown }[] } } | undefined;
-            const attempts = evidence?.modelAttempts ?? evidence?.activation?.modelAttempts ?? [];
-            if (attempts.some(attempt => retryable.has(String(attempt?.cause)))) return true;
-        }
-        return false;
+    /**
+     * 本步只因激活失败而未结算时返回这些失败激活；准入被拒或仍在等待的步不算。
+     * 只认 staged/1：filterRecovered 只会按 phases 剔除已完成激活；events/1 重跑会重复提交事件事务，且失败事件之后的事件尚未执行，不能降级跳过。
+     */
+    private failedActivations(result: AdvanceResult): Record<string, unknown>[] {
+        if (result.status !== 'incomplete' || result.frontier.codec !== 'staged/1') return [];
+        const evidence = result.evidence as { admissions?: readonly { kind?: unknown }[]; activations?: readonly Record<string, unknown>[] };
+        if (evidence?.admissions?.some(item => item?.kind === 'rejected') || !Array.isArray(evidence?.activations)) return [];
+        if (evidence.activations.some(item => item?.status === 'waiting')) return [];
+        return evidence.activations.filter(item => item?.status === 'incomplete');
     }
-    private reportRecovery(attempt: number, reason: string, frontier: Json) {
+    private failureReason(item: Record<string, unknown>): string {
+        const value = item.value as { reason?: unknown } | undefined, evidence = item.evidence as { reason?: unknown; kind?: unknown } | undefined;
+        return String(value?.reason ?? evidence?.reason ?? evidence?.kind ?? 'incomplete');
+    }
+    private report(code: string, detail: Record<string, unknown>) {
         try {
             const diagnostics = this.ctx.get('diagnostics', false) as { report(record: { code: string; message: string; phase: 'task' }): void } | undefined;
-            diagnostics?.report({ code: 'RUN_AUTO_RECOVER', message: JSON.stringify({ attempt, reason, frontier }), phase: 'task' });
+            diagnostics?.report({ code, message: JSON.stringify(detail), phase: 'task' });
         } catch {
         }
     }
+    /** 重试用完：失败激活结算为 failed（该主体本步无行动），本步以已提交的写入照常结算。 */
+    private async degrade(result: AdvanceResult, failed: Record<string, unknown>[], logicalTime: Json): Promise<AdvanceResult> {
+        const attempts = this.config.autoRecover.maxAttempts, metrics = metricsOf(this.ctx);
+        const failedSet = new Set(failed);
+        for (const item of failed) {
+            this.report('RUN_ACTIVATION_DEGRADED', { actorId: item.actorId, activationId: item.activationId, reason: this.failureReason(item), attempts, tick: this.tickText(logicalTime) });
+            metrics?.count('activations.degraded');
+        }
+        const evidence = result.evidence as { activations: readonly Record<string, unknown>[] };
+        return {
+            ...result, status: 'settled', requiredOperations: await this.settledOperations(result),
+            evidence: { ...evidence, activations: evidence.activations.map(item => failedSet.has(item) ? { ...item, status: 'failed', degraded: { reason: this.failureReason(item), attempts } } : item) } as unknown as Json
+        };
+    }
     private async recover(session: RunSession, proposal: Proposal, advance: { advance: AdvanceResult; completed: string[] }): Promise<boolean> {
-        if (!this.recoverable(advance.advance)) return false;
+        const failed = this.failedActivations(advance.advance);
+        if (!failed.length) return false;
         if (this.recovery?.proposalId !== proposal.id) this.recovery = { proposalId: proposal.id, attempts: 0, completed: new Set(), operations: new Set() };
         for (const id of advance.completed) this.recovery.completed.add(id);
         for (const operation of this.completedOperations(advance.advance)) this.recovery.operations.add(operation);
         for (const operation of await this.settledOperations(advance.advance)) this.recovery.operations.add(operation);
-        if (this.recovery.attempts >= this.config.autoRecover.maxAttempts) return false;
         this.recovery.attempts++;
         const attempt = this.recovery.attempts, delay = this.config.autoRecover.backoffMs * attempt;
-        this.reportRecovery(attempt, 'provider_error', session.frontier.value as Json);
+        this.report('RUN_AUTO_RECOVER', { attempt, frontier: session.frontier.value, actors: failed.map(item => ({ actorId: item.actorId, reason: this.failureReason(item) })) });
         if (delay) await new Promise(resolve => setTimeout(resolve, delay));
         return true;
     }
@@ -440,8 +454,14 @@ export class RunController extends Service {
             const completed = this.recovery?.proposalId === filtered.id ? this.completedOperations(raw) : [];
             for (const operation of completed) this.recovery!.operations.add(operation);
             const merged = this.recovery?.proposalId === filtered.id && this.recovery.operations.size ? { ...raw, requiredOperations: [...new Set([...raw.requiredOperations, ...this.recovery.operations])] } : raw;
-            const result = merged;
+            const failed = this.failedActivations(merged);
+            const retry = failed.length > 0 && (this.recovery?.proposalId === filtered.id ? this.recovery.attempts : 0) < this.config.autoRecover.maxAttempts;
+            const result = failed.length && !retry ? await this.degrade(merged, failed, logicalTime) : merged;
             this.recordActivations(result, logicalTime);
+            if (retry) {
+                const paused = await this.incompleteProposal(session, view, reservation, result);
+                return { kind: 'paused', result: paused, advance: result, completed: this.completedActivations(result) };
+            }
             const completion = view.completion.evaluate(result);
             if (result.status !== 'settled' || !completion.complete) {
                 const effective = result.status === 'incomplete' || !completion.complete ? { ...result, status: 'incomplete' as const } : result;
