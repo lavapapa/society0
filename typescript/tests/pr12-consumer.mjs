@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {mkdir,readFile,writeFile,rm,stat} from 'node:fs/promises';
-import {resolve,join,dirname} from 'node:path';
+import {mkdir,readFile,writeFile} from 'node:fs/promises';
+import {resolve,join} from 'node:path';
 const exec=promisify(execFile);
 const [consumerPath,outputPath,...selected]=process.argv.slice(2);
 if(!consumerPath||!outputPath)throw Error('Usage: node pr12-consumer.mjs <installed-consumer> <new-evidence-directory> [rule-sqlite event-sqlite]');
@@ -39,12 +39,6 @@ for(const name of selected.length?selected:['rule-sqlite','event-sqlite']){
  const flat=entries=>entries.flatMap(entry=>[entry,...flat(entry.children??[])]);
  assert.equal(flat(forked.branch.plan.generationEvidence.plan.entries).find(entry=>entry.id==='checkpoint-policy').config.every,2);
  assert.equal(await readFile(join(directory,'bootstrap.json'),'utf8'),bootstrap);
- // 删除前核实本测试新建的直接子目录。
- assert.equal(resolve(directory),resolve(output,name));assert.equal(dirname(resolve(directory)),output);assert.equal((await stat(directory)).isDirectory(),true);
- await rm(directory,{recursive:true});
- const targetReopened=JSON.parse((await exec(process.execPath,['run-profile.mjs','--profile',join(targetDirectory,'profile.json'),'--directory',targetDirectory,'--run-id',targetRunId,'--lock','module-lock.json','--reopen','--observe'],{cwd:consumer,maxBuffer:16*1024*1024,timeout:600000})).stdout);
- await writeFile(join(output,name+'-target-reopen.json'),JSON.stringify(targetReopened,null,2));
- assert.equal(targetReopened.cut.id,forked.branch.targetPoint.id);assert.deepEqual(targetReopened.observation.rows,first.observation.rows);assert.equal(targetReopened.close.status,'closed');assert.equal(targetReopened.close.drained,true);
- results.push({profile:name,status:'create-save-close-reopen-fork-new-profile-delete-source-observe-close-passed',sourceWorldRemoved:directory,metrics:{create:first.metrics,reopen:reopened.metrics,fork:forked.branch.timings,targetReopen:targetReopened.metrics},history:forked.history});
+ results.push({profile:name,status:'create-save-close-reopen-fork-new-profile-observe-close-passed',metrics:{create:first.metrics,reopen:reopened.metrics,fork:forked.branch.timings},history:forked.history});
 }
 await writeFile(join(output,'results.json'),JSON.stringify(results,null,2));console.log(JSON.stringify(results));

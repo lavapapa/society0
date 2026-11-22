@@ -5,6 +5,7 @@ import {fixture, runtime} from './pr10-support.mjs';
 import Workspace, {workspaceMigration} from '../.build/extras/dist/workspace/index.js';
 import {perceptionMigration} from '../.build/core/dist/perception/index.js';
 import {actorToolsMigration} from '../.build/core/dist/actor-tools/index.js';
+import {deferredWorkMigration} from '../.build/core/dist/deferred-work/index.js';
 
 const core = async name => (await import('../.build/core/dist/' + name + '/index.js')).default;
 const usage = {input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0}};
@@ -33,7 +34,7 @@ function selection(fixtures, attempts = []) {
 
 class FakeUpstream {
   /** fail: true 只让 b 的首次请求失败；'always' 让 b 每次重跑都失败。 */
-  constructor({fail = true} = {}) { this.fail = fail; this.calls = new Map(); }
+  constructor({fail = true, onPrepare} = {}) { this.fail = fail; this.onPrepare = onPrepare; this.calls = new Map(); }
   async prepare(request, context) {
     const calls = this.calls.get(context.operationId) ?? 0;
     this.calls.set(context.operationId, calls + 1);
@@ -43,15 +44,18 @@ class FakeUpstream {
       return selection([assistant([], 'error', 'MODEL_UPSTREAM_ERROR: 500')], [settlement]);
     }
     const actor = context.actorId;
+    this.onPrepare?.(actor);
     return selection([publish('post-' + actor), assistant([{type: 'text', text: 'done'}])]);
   }
   async close() {}
 }
 
-async function scenario({maxAttempts = 2, fail}) {
-  const f = await fixture({event: false, migrations: [perceptionMigration({consumer: 'd3'}), actorToolsMigration({consumer: 'd3'}), workspaceMigration({consumer: 'd3'})]});
+async function scenario({maxAttempts = 2, fail, deferred = false}) {
+  const f = await fixture({event: false, migrations: [perceptionMigration({consumer: 'd3'}), actorToolsMigration({consumer: 'd3'}), workspaceMigration({consumer: 'd3'}), ...(deferred ? [deferredWorkMigration({consumer: 'd3'})] : [])]});
   const c = f.ctx;
-  const upstream = new FakeUpstream({fail});
+  // 模拟激活过程中入队延后任务（如记忆整理）：a 成功、b 失败重试时，a 入队的任务不能丢。
+  const onPrepare = deferred ? actor => c.deferredWork.enqueue({kind: 'note', inputs: {actor}, produces: 'note/' + actor, maxLagTicks: 4}) : undefined;
+  const upstream = new FakeUpstream({fail, onPrepare});
   await runtime(f, {
     runConfig: {autoRecover: {maxAttempts, backoffMs: 1}},
     sourceConfig: {proposals: [
@@ -63,6 +67,7 @@ async function scenario({maxAttempts = 2, fail}) {
     ]},
   });
   await c.plugin(Workspace);
+  if (deferred) await c.plugin(await core('deferred-work'));
   for (const name of ['perception', 'exploration', 'mount-workspace', 'mount-results', 'plain', 'prompts', 'mount-context', 'exploration-shell', 'actor-tools', 'model-providers', 'agent-runtimes', 'agent-runtime-pi', 'inference-defaults']) {
     await c.plugin(await core(name), name === 'prompts' ? {sections: [{id: 'social', text: 'Publish the requested social post, then finish.'}]} : {});
   }
@@ -147,4 +152,16 @@ test('D3-P3B recovered world equals a clean run table for table', async () => {
     assert.equal(clean.result.status, 'completed');
     assert.deepEqual(await facts(recovered.f), await facts(clean.f));
   } finally { await recovered.f.host.close(); await clean.f.host.close(); }
+});
+
+test('K7 retry keeps deferred jobs enqueued by activations that already completed', async () => {
+  const {f, result} = await scenario({fail: true, deferred: true});
+  try {
+    assert.equal(result.status, 'completed', JSON.stringify(result));
+    const view = await f.ctx.database.snapshot({maxAgeMs: 30000});
+    try {
+      const rows = await view.query({sql: 'SELECT produces,enqueued_tick FROM deferred_jobs ORDER BY produces'}, {maxRows: 10, maxBytes: 65536});
+      assert.deepEqual(rows.map(row => [row.produces, String(row.enqueued_tick)]), [['note/a', '1'], ['note/b', '1']]);
+    } finally { await view.close(); }
+  } finally { await f.host.close(); }
 });

@@ -428,7 +428,8 @@ export class RunController extends Service {
         result: RunResult;
     }> {
         const proposal = session.proposal!;
-        this.deferred()?.begin();
+        // 同一提案的重试不清队列：已完成的激活会被 filterRecovered 剔除、不再重跑，它们入队的延后任务要留到成点时一起提交。
+        if (this.recovery?.proposalId !== proposal.id) this.deferred()?.begin();
         const filtered = this.filterRecovered(proposal);
         if (!view.runtime.planKinds.includes(filtered.planKind))
             throw Error('RUN_PLAN_KIND');
@@ -450,7 +451,7 @@ export class RunController extends Service {
             const result = failed.length && !retry ? await this.degrade(merged, failed, logicalTime) : merged;
             this.recordActivations(result, logicalTime);
             if (retry) {
-                const paused = await this.incompleteProposal(session, view, reservation, result);
+                const paused = await this.incompleteProposal(session, view, reservation, result, true);
                 return { kind: 'paused', result: paused, advance: result, completed: this.completedActivations(result) };
             }
             const completion = view.completion.evaluate(result);
@@ -502,8 +503,8 @@ export class RunController extends Service {
             signal.removeEventListener('abort', abort);
         }
     }
-    private async incompleteProposal(session: RunSession, view: GenerationView, reservation: ExecutionReservation, result: AdvanceResult): Promise<RunResult> {
-        this.deferred()?.discard();
+    private async incompleteProposal(session: RunSession, view: GenerationView, reservation: ExecutionReservation, result: AdvanceResult, retrying = false): Promise<RunResult> {
+        if (!retrying) this.deferred()?.discard();
         await reservation.release();
         await view.source.release(session.proposal!);
         session.proposal = undefined;
