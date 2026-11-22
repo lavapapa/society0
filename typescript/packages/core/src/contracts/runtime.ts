@@ -233,6 +233,8 @@ export interface RunActivationSummary {
     readonly stage?: string;
     /** SLOT_REQUIRED / SLOT_PENDING / SLOT_PROVIDER_MISSING 对应的槽位 key id。 */
     readonly slot?: string;
+    /** 重试用完后降级：该主体本步无行动，本步照常成点。 */
+    readonly degraded?: true;
 }
 export interface RunActivationSummaries {
     readonly entries: readonly RunActivationSummary[];

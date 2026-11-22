@@ -54,7 +54,7 @@ async function scenario({enabled, script}) {
   const c = f.ctx;
   const upstream = new ScriptedUpstream(script);
   await runtime(f, {
-    runConfig: {autoRecover: {enabled, maxAttempts: 2, backoffMs: 1}},
+    runConfig: {autoRecover: {maxAttempts: enabled ? 2 : 0, backoffMs: 1}},
     sourceConfig: {proposals: [
       {id: 'tick-1', planKind: 'staged/1', payload: {nextCursor: '1', phases: [
         {id: 'a', activations: [{id: 'tick-1/a', actorId: 'a', momentId: 'm1', source: 'test', driver: 'llm/v1', input: {}}]},
@@ -104,10 +104,10 @@ test('D3b rerun appends a marker and keeps aborted frames alongside the new cont
     assert.equal(new Set(ids).size, ids.length, 'duplicate thread message ids: ' + JSON.stringify(ids));
     const text = textOf(rows);
     assert.ok(text.includes('bad-1'), 'aborted assistant frame missing: ' + JSON.stringify(rows.map(row => [row.role, row.message_id])));
-    assert.ok(text.includes('上一次尝试因上游错误中断'), 'interrupt marker missing');
+    assert.ok(text.includes('上一次尝试失败中断'), 'interrupt marker missing');
     assert.ok(text.includes('good-new'), 'new tool call missing');
     assert.ok(text.includes('done'), 'new completion text missing');
-    const markers = rows.filter(row => String(row.role) === 'user' && String(row.payload).includes('上一次尝试因上游错误中断'));
+    const markers = rows.filter(row => String(row.role) === 'user' && String(row.payload).includes('上一次尝试失败中断'));
     assert.equal(markers.length, 1);
     assert.deepEqual(facts.posts.map(post => post.id), ['post-a', 'post-new']);
   } finally { await f.host.close(); }
@@ -141,7 +141,7 @@ test('D3b rerun completes from the already committed action when the model does 
     const facts = await table(f);
     assert.deepEqual(facts.posts.map(post => post.id), ['post-a', 'post-b']);
     assert.equal(facts.receipts.filter(row => row.actor_id === 'b').length, 1);
-    assert.ok(textOf(facts.thread).includes('上一次尝试因上游错误中断'));
+    assert.ok(textOf(facts.thread).includes('上一次尝试失败中断'));
   } finally { await f.host.close(); }
 });
 
@@ -164,16 +164,16 @@ test('D3b rerun reports an input mismatch while still replaying the committed re
   } finally { await f.host.close(); }
 });
 
-test('D3-P3B autoRecover off writes no interrupt marker', async () => {
+test('D3-P3B maxAttempts 0 degrades without an interrupt marker', async () => {
   const same = () => toolCall('publish-b', {id: 'post-b', content: 'post b'});
   const {f, result} = await scenario({
     enabled: false,
     script: (operationId, attempt) => operationId.includes('tick-1/b') ? (attempt === 0 ? failedB(same) : retriedB(same)) : aPost(),
   });
   try {
-    assert.equal(result.status, 'paused');
+    assert.equal(result.status, 'completed', JSON.stringify(result));
     const facts = await table(f);
-    const markers = facts.thread.filter(row => String(row.payload).includes('上一次尝试因上游错误中断'));
+    const markers = facts.thread.filter(row => String(row.payload).includes('上一次尝试失败中断'));
     assert.equal(markers.length, 0, JSON.stringify(facts.thread.map(row => [row.role, row.message_id])));
   } finally { await f.host.close(); }
 });
@@ -187,24 +187,24 @@ test('D3-P3B autoRecover on writes the interrupt marker with role user', async (
   try {
     assert.equal(result.status, 'completed', JSON.stringify(result));
     const facts = await table(f);
-    const markers = facts.thread.filter(row => String(row.payload).includes('上一次尝试因上游错误中断'));
+    const markers = facts.thread.filter(row => String(row.payload).includes('上一次尝试失败中断'));
     assert.equal(markers.length, 1, JSON.stringify(facts.thread.map(row => [row.role, row.message_id])));
     assert.equal(String(markers[0].role), 'user', JSON.stringify({...markers[0], seq: String(markers[0].seq)}));
   } finally { await f.host.close(); }
 });
 
-test('D3b autoRecover off never opens a recovery namespace', async () => {
+test('D3b maxAttempts 0 never opens a recovery namespace and keeps the committed write', async () => {
   const same = () => toolCall('publish-b', {id: 'post-b', content: 'post b'});
   const {f, result, upstream} = await scenario({
     enabled: false,
     script: (operationId, attempt) => operationId.includes('tick-1/b') ? (attempt === 0 ? failedB(same) : retriedB(same)) : aPost(),
   });
   try {
-    assert.equal(result.status, 'paused');
-    assert.equal(result.reason, 'incomplete');
+    assert.equal(result.status, 'completed', JSON.stringify(result));
+    assert.equal(result.activations.entries.find(entry => entry.actorId === 'b')?.degraded, true);
     assert.ok(upstream.calls.every(call => call.attempt === 0), JSON.stringify(upstream.calls));
     const facts = await table(f);
     assert.deepEqual(facts.posts.map(post => post.id), ['post-a', 'post-b']);
-    assert.equal(facts.thread.filter(row => String(row.payload).includes('上一次尝试因上游错误中断')).length, 0);
+    assert.equal(facts.thread.filter(row => String(row.payload).includes('上一次尝试失败中断')).length, 0);
   } finally { await f.host.close(); }
 });

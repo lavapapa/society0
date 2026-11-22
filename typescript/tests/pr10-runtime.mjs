@@ -7,13 +7,14 @@ import Repository, { measurementMigration } from '../.build/social/dist/measurem
 import Measurements from '../.build/social/dist/measurements/index.js';
 import Every from '../.build/social/dist/measurement-every/index.js';
 import RoundRobin from '../.build/social/dist/round-robin/index.js';
-test('PR10-T04 required final interview failure preserves settled observations and blocks final cut', async () => {
+test('PR10-T04 required final interview failure preserves settled observations and degrades the measurement activation', async () => {
     const f = await fixture({
         migrations: [measurementMigration]
     });
     try {
         const c = f.ctx;
         await runtime(f, {
+            runConfig: { autoRecover: { maxAttempts: 0 } },
             sourceConfig: {
                 proposals: [{
                         id: 'measure', planKind: 'staged/1', payload: {
@@ -56,10 +57,10 @@ test('PR10-T04 required final interview failure preserves settled observations a
             }
         });
         const result = await c.runs.run(new AbortController().signal);
-        assert.equal(result.status, 'paused');
-        assert.equal(result.reason, 'incomplete');
-        assert.equal((await c.history.current()).id, f.root.id);
-        assert.equal(result.recoveryRequired, true);
+        assert.equal(result.status, 'completed', JSON.stringify(result));
+        assert.equal(result.activations.entries[0].degraded, true);
+        assert.equal((await c.history.current()).id, result.cut.id);
+        assert.notEqual(result.cut.id, f.root.id);
         assert.equal((await c.sessions.find(identity.session, identity)).data.observation.original.response, '完整回答');
         const view = await c.database.snapshot({
             maxAgeMs: 30000
@@ -155,7 +156,7 @@ test('PR10-T06/T05 real fork resumes persisted round-robin actor without reseedi
         await f.host.close();
     }
 });
-test('PR10-T04 oversized interview response remains original evidence while final measurement is incomplete', async () => {
+test('PR10-T04 oversized interview response remains original evidence while final measurement is degraded', async () => {
     const f = await fixture({
         migrations: [measurementMigration]
     });
@@ -164,6 +165,7 @@ test('PR10-T04 oversized interview response remains original evidence while fina
     try {
         const c = f.ctx;
         await runtime(f, {
+            runConfig: { autoRecover: { maxAttempts: 0 } },
             sourceConfig: {
                 proposals: [{
                         id: 'oversized', planKind: 'staged/1', payload: {
@@ -202,9 +204,9 @@ test('PR10-T04 oversized interview response remains original evidence while fina
             }
         });
         const result = await c.runs.run(new AbortController().signal);
-        assert.equal(result.status, 'paused');
-        assert.equal(result.reason, 'incomplete');
-        assert.equal((await c.history.current()).id, f.root.id);
+        assert.equal(result.status, 'completed', JSON.stringify(result));
+        assert.equal(result.activations.entries[0].degraded, true);
+        assert.notEqual(result.cut.id, f.root.id);
         const recorded = await c.sessions.find(identity.session, identity);
         assert.equal(recorded.type, 'measurement', JSON.stringify(c.runs.diagnostics()));
         assert.equal(recorded.data.observation.original.response, original);
