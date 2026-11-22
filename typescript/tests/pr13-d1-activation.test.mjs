@@ -40,7 +40,7 @@ async function fixture({script=[actSum,finalTurn],driver={},perception}={}){
   try{
     for(const [plugin,config] of [[Prompts,{sections:[{id:'instructions',text:'Use tools then finish.'}],contexts:[]}],[ContextMount,{}],[ExplorationShell,{}],[ActorTools,{}],[ModelProviders,{}],[AgentRuntimes,{}],[AgentRuntimePi,{}],[InferenceDefaults,{}],[DriverRegistry,{}]])await run.host.ctx.plugin(plugin,config);
     let ctx;
-    await run.host.ctx.plugin({inject:['actions','modelProviders','drivers','actorTools','threads','contextMount','prompts','database','perceptions','artifacts','attempts','agentRuntimes','slots'],apply(c){ctx=c;
+    await run.host.ctx.plugin({inject:['actions','modelProviders','drivers','actorTools','threads','contextMount','prompts','database','perceptions','artifacts','sessions','agentRuntimes','slots'],apply(c){ctx=c;
       if(perception)c.perceptions.register(perception);
       for(const action of actionSet())c.actions.register(action);
       c.modelProviders.register('replay/v1',new ReplayProvider({driver:script}));

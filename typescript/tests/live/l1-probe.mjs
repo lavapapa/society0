@@ -260,7 +260,6 @@ try {
         await runProfile({
           profile: join(here, '..', '..', 'profiles', 'social-sqlite.json'),
           directory,
-          lineageDirectory: directory + '-lineage',
           runId: 'l1-' + spec.name + suffix,
           patches: patchesPath,
           lock: lockPath,

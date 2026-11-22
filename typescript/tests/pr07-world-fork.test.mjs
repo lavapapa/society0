@@ -12,7 +12,7 @@ import { Slots } from '../.build/host/dist/slots/index.js';
 import { ExecutionFence } from '../.build/core/dist/execution-fence/index.js';
 import { SqliteDatabase } from '../.build/core/dist/sqlite/index.js';
 import { ArtifactsLocal, artifactsMigration } from '../.build/core/dist/artifacts-local/index.js';
-import { Attempts } from '../.build/core/dist/attempts/index.js';
+import { Sessions } from '../.build/core/dist/session-log/index.js';
 import { Actors, actorsMigration } from '../.build/core/dist/actors/index.js';
 import ActorEligibility from '../.build/core/dist/actor-eligibility/index.js';
 import { Actions, actionsMigration } from '../.build/core/dist/actions/index.js';
@@ -29,7 +29,7 @@ import assert from 'node:assert/strict';
 import PlainInit from '../.build/core/dist/plain-init/index.js';
 const limits = { maxItems: 10, maxResponseBytes: 16384 }, req = operationId => ({ operationId, maxDurationMs: 20000, maxStatements: 1000, maxInputBytes: 1048576, maxChangedRows: 1000, maxCapturedBytes: 4194304 });
 const frontier = n => ({ codec: 'step/1', value: n, logicalTime: n, completedCount: String(n), pendingAcknowledgements: [] });
-async function fixture(directory, runId, authority, initialize = false) {
+async function fixture(directory, runId) {
     const host = await createHost({ boot: [] }), ctx = host.ctx;
     try {
         await ctx.plugin(OwnedResources);
@@ -43,11 +43,7 @@ async function fixture(directory, runId, authority, initialize = false) {
         await ctx.plugin(Initializers);
         await ctx.plugin(SqliteBootstrap, { maxTransactionMs: 20000 });
         await ctx.plugin(SqliteHistory, { directory, runId, generation: 'g', controlSequence: '0' });
-        await ctx.plugin(Attempts, { directory: authority, lineage: "world-lineage" });
-        if (initialize)
-            await ctx.attempts.initialize();
-        else
-            await ctx.attempts.verifyAuthority();
+        await ctx.plugin(Sessions, { directory });
         await ctx.plugin(Actors);
         await ctx.plugin(ActorEligibility);
         await ctx.plugin(ActionEntry.Actions);
@@ -81,8 +77,8 @@ async function act(env) {
         await reservation.release();
     }
 }
-test('PR07 a world action after the parent point replays in a true fork with the same lineage and logical operation', async () => {
-    const home = await mkdtemp(join(tmpdir(), 'pr07-world-fork-')), directory = join(home, 'source'), target = join(home, 'fork'), authority = join(home, 'authority'), source = await fixture(directory, 'source', authority, true);
+test('PR07 a world action after the parent point replays in a true fork with the same logical operation', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'pr07-world-fork-')), directory = join(home, 'source'), target = join(home, 'fork'), source = await fixture(directory, 'source');
     let branch;
     try {
         await source.ctx.plugin(PlainInit, { initialActors: [{ id: 'a', attributes: { initial: true } }] });
@@ -90,9 +86,12 @@ test('PR07 a world action after the parent point replays in a true fork with the
         assert.equal((await act(source)).status, 'completed');
         await source.ctx.history.fork({ operationId: 'fork-before-action', pointId: root.id, targetRunId: 'fork', targetDirectory: target });
         await source.host.close();
-        branch = await fixture(target, 'fork', authority);
+        branch = await fixture(target, 'fork');
         await branch.ctx.history.activate();
         assert.equal((await act(branch)).status, 'completed');
+        const events = [];
+        for await (const event of branch.ctx.sessions.read({ actorId: 'a', momentId: 'm' })) events.push(event.type);
+        assert.deepEqual(events, ['action'], 'the parent action after the fork point must not leak into the branch session');
         const view = await branch.ctx.database.snapshot({ maxAgeMs: 30000 });
         try {
             assert.deepEqual((await branch.ctx.actors.get('a', view)).attributes, { replayed: true });

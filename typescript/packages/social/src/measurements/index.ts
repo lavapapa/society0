@@ -37,7 +37,7 @@ export const api: ApiEntry = {
             }, "optional": false, "phase": "module"
         }, {
             "service": {
-                "key": "attempts", "protocol": "attempts", "major": 1, "capabilities": []
+                "key": "sessions", "protocol": "sessions", "major": 1, "capabilities": []
             }, "optional": false, "phase": "module"
         }, {
             "service": {
@@ -48,15 +48,12 @@ export const api: ApiEntry = {
 import { slotKey } from '@society0/host/slots';
 import type { TaskScope } from '@society0/host/tasks';
 import '@society0/core/drivers';
-import '@society0/core/attempts';
+import '@society0/core/session-log';
 import '../measurement-repository/index.js';
 import type { ActivationContext, ActivationResult } from '@society0/core/contracts/runtime';
 import type { Json } from '../contracts.js';
 import type { MeasurementObservation, PreparedMeasurement } from '../contracts.js';
-import type { AttemptIdentity, AttemptRecord } from '@society0/core/attempts';
-import type { ArtifactRef } from '@society0/core/artifacts-local';
-import type { StoredValue } from '@society0/core/contracts/data';
-import { jsonByteBound, prepareValue, textChunks } from '@society0/core/results';
+import { jsonByteBound } from '@society0/core/results';
 import { transactionRequest } from '../paging.js';
 export interface SamplingPolicy {
     id: string;
@@ -74,24 +71,6 @@ declare module '@society0/host' {
         measurements: Measurements;
     }
 }
-const FAILURE_INLINE = 4096;
-const ENVELOPE_SLACK = 256;
-interface InterviewEnvelope {
-    ok: boolean;
-    failure?: StoredValue;
-    original?: StoredValue;
-    observation?: PreparedMeasurement;
-    evidence?: ArtifactRef | null;
-    bytes?: string;
-    envelope?: ArtifactRef;
-}
-type PersistResult = {
-    status: 'stored';
-    measurement: PreparedMeasurement;
-} | {
-    status: 'rejected';
-    code: 'MEASUREMENT_RESULT_BYTES' | 'MEASUREMENT_RESULT_INVALID';
-};
 class MeasurementFailure extends Error {
     constructor(readonly text: string, options?: {
         cause?: unknown;
@@ -104,25 +83,9 @@ class MeasurementFailure extends Error {
     }
 }
 const failureText = (error: unknown) => String(error);
-function measurementRefs(value?: PreparedMeasurement) {
-    const refs: ArtifactRef[] = [];
-    for (const stored of value ? [value.value, value.original, value.source] : [])
-        if (stored.kind === 'reference')
-            refs.push(stored.ref.object);
-    return refs;
-}
-function refsOf(envelope: InterviewEnvelope) {
-    const refs = measurementRefs(envelope.observation);
-    for (const stored of [envelope.failure, envelope.original])
-        if (stored?.kind === 'reference')
-            refs.push(stored.ref.object);
-    if (envelope.evidence)
-        refs.push(envelope.evidence);
-    return refs;
-}
 export class Measurements extends Service {
     static Config = Config;
-    static inject = ['measurementRepository', 'database', 'drivers', 'slots', 'tasks', 'attempts', 'artifacts'];
+    static inject = ['measurementRepository', 'database', 'drivers', 'slots', 'tasks', 'sessions', 'artifacts'];
     private specs = new Map<string, {
         spec: MeasurementSpec;
         retention: Retention;
@@ -248,160 +211,22 @@ export class Measurements extends Service {
             throw error;
         }
     }
+    /** 访谈是外部调用：收到的结果先原样写进 actor × moment 的 session（校验失败也保留），测量值照常进 measurement 仓库。 */
     private async interview(spec: MeasurementSpec, context: ActivationContext, operationId: string) {
-        const identity = {
-            lineage: this.ctx.attempts.authority().lineage, operationId, attempt: 0
-        };
-        const claim = await this.ctx.attempts.claim(identity, {
-            actorId: context.actorId, momentId: context.momentId, logicalTime: context.logicalTime, specId: spec.id
-        });
-        if (claim.status === 'unknown')
-            throw new MeasurementFailure('MEASUREMENT_ATTEMPT_UNKNOWN');
-        if (claim.status === 'existing')
-            return this.replayInterview(claim.record);
+        const session = { actorId: context.actorId, momentId: context.momentId }, address = { operationId, attempt: 0, specId: spec.id, logicalTime: context.logicalTime };
         let observation: MeasurementObservation;
         try {
             observation = await spec.observe(context);
         }
         catch (error) {
-            return this.failedInterview(identity, error, context.signal);
+            this.ctx.sessions.append(session, 'attempt/failed', { ...address, cause: failureText(error), original: (error as { original?: Json })?.original ?? null });
+            throw new MeasurementFailure(failureText(error), { cause: error });
         }
-        let persisted: PersistResult;
-        try {
-            persisted = await this.persistObservation(identity, observation, context.signal);
-        }
-        catch (cause) {
-            return this.raiseUnknown(cause);
-        }
-        if (persisted.status === 'rejected')
-            throw new MeasurementFailure(persisted.code);
-        return persisted.measurement;
-    }
-    private async failedInterview(identity: AttemptIdentity, error: unknown, signal?: AbortSignal): Promise<never> {
-        let text: string;
-        try {
-            text = failureText(error);
-            const original = await this.storeOne((error as {
-                original?: Json;
-            })?.original ?? null, signal);
-            const failure = await this.storeFailure(text, signal);
-            await this.settleEnvelope(identity, {
-                ok: false, failure, original
-            }, signal);
-        }
-        catch (cause) {
-            return this.raiseUnknown(cause);
-        }
-        throw new MeasurementFailure(text, {
-            cause: error
-        });
-    }
-    private async persistObservation(identity: AttemptIdentity, observation: MeasurementObservation, signal?: AbortSignal): Promise<PersistResult> {
+        this.ctx.sessions.append(session, 'measurement', { ...address, observation });
         const check = this.checkResult(observation);
-        if (check === 'MEASUREMENT_RESULT_INVALID') {
-            await this.settleEnvelope(identity, {
-                ok: false, failure: await this.storeFailure(check, signal)
-            }, signal);
-            return {
-                status: 'rejected', code: check
-            };
-        }
-        if (check === 'MEASUREMENT_RESULT_BYTES') {
-            await this.settleOversize(identity, observation, signal);
-            return {
-                status: 'rejected', code: check
-            };
-        }
-        const stored = await this.ctx.measurementRepository.prepare(observation, signal);
-        await this.settleEnvelope(identity, {
-            ok: true, observation: stored
-        }, signal);
-        return {
-            status: 'stored', measurement: stored
-        };
-    }
-    private raiseUnknown(cause: unknown): never {
-        if (cause instanceof MeasurementFailure && cause.text === 'MEASUREMENT_ATTEMPT_UNKNOWN')
-            throw cause;
-        throw new MeasurementFailure('MEASUREMENT_ATTEMPT_UNKNOWN', {
-            cause
-        });
-    }
-    private async replayInterview(record: AttemptRecord): Promise<PreparedMeasurement> {
-        if (record.status !== 'settled')
-            throw new MeasurementFailure('MEASUREMENT_ATTEMPT_UNKNOWN');
-        const saved = await this.envelope(record.result);
-        if (!saved.ok)
-            throw new MeasurementFailure(await this.failure(saved.failure!));
-        for (const ref of measurementRefs(saved.observation))
-            await this.ctx.attempts.materialize(ref);
-        return saved.observation!;
-    }
-    private async envelope(result: unknown): Promise<InterviewEnvelope> {
-        if (!result || typeof result !== 'object' || !('envelope' in result))
-            return result as InterviewEnvelope;
-        const ref = (result as {
-            envelope: ArtifactRef;
-        }).envelope;
-        return JSON.parse((await this.read(ref, this.ctx.attempts.evidenceMaxObjectBytes)).toString()) as InterviewEnvelope;
-    }
-    private async failure(value: StoredValue) {
-        if (value.kind === 'inline')
-            return String(value.value);
-        return String(JSON.parse((await this.read(value.ref.object, this.ctx.artifacts.maxObjectBytes)).toString()));
-    }
-    private async read(ref: ArtifactRef, limit: number) {
-        const bytes = Number(ref.bytes);
-        if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > limit)
-            throw new MeasurementFailure('MEASUREMENT_ENVELOPE_BUDGET');
-        const chunks: Uint8Array[] = [];
-        for await (const chunk of this.ctx.attempts.readArtifact(ref))
-            chunks.push(chunk);
-        return Buffer.concat(chunks);
-    }
-    private async settleEnvelope(identity: AttemptIdentity, envelope: InterviewEnvelope, signal?: AbortSignal) {
-        const refs = refsOf(envelope), text = JSON.stringify(envelope);
-        if (Buffer.byteLength(text) + ENVELOPE_SLACK <= this.ctx.attempts.maxRecordBytes) {
-            await this.ctx.attempts.settle(identity, envelope, refs);
-            return;
-        }
-        const ref = await this.ctx.attempts.stageEvidence(textChunks(text, this.ctx.attempts.evidenceChunkBytes, signal), 'application/json', {
-            signal
-        });
-        await this.ctx.attempts.settle(identity, {
-            envelope: ref
-        }, [ref, ...refs]);
-    }
-    private async settleOversize(identity: AttemptIdentity, observation: MeasurementObservation, signal?: AbortSignal) {
-        const failure: StoredValue = {
-            kind: 'inline', value: 'MEASUREMENT_RESULT_BYTES'
-        };
-        const limit = this.ctx.attempts.evidenceMaxObjectBytes;
-        const bound = jsonByteBound(observation, limit);
-        if (bound > limit) {
-            await this.settleEnvelope(identity, {
-                ok: false, failure, evidence: null, bytes: '>' + limit
-            }, signal);
-            return;
-        }
-        const evidence = await this.ctx.attempts.stageEvidence(textChunks(JSON.stringify(observation), this.ctx.attempts.evidenceChunkBytes, signal), 'application/json', {
-            signal
-        });
-        await this.settleEnvelope(identity, {
-            ok: false, failure, evidence, bytes: String(bound)
-        }, signal);
-    }
-    private async storeOne(value: Json, signal?: AbortSignal) {
-        return (await this.ctx.measurementRepository.prepare({
-            value: null, original: value, source: null
-        }, signal)).original;
-    }
-    private storeFailure(text: string, signal?: AbortSignal) {
-        // 内联与主库引用分别沿用各自的有效容量。
-        const limit = Math.max(FAILURE_INLINE, this.ctx.artifacts.maxObjectBytes);
-        if (jsonByteBound(text, limit) > limit)
-            throw new Error('MEASUREMENT_FAILURE_BYTES');
-        return prepareValue(text, FAILURE_INLINE, this.ctx.artifacts, signal);
+        if (check !== 'ok')
+            throw new MeasurementFailure(check);
+        return this.ctx.measurementRepository.prepare(observation, context.signal);
     }
 }
 export default Measurements;

@@ -5,7 +5,7 @@ import type { Disposer, Invocation, Lease } from './common.js';
 import type { ActionReceipt } from './domain.js';
 import type { SelectionLease } from '@society0/host/slots';
 import { slotKey } from '@society0/host/slots';
-import type { PhysicalStatus } from '../attempts/transport.js';
+import type { SessionKey } from '../session-log/store.js';
 
 /** 由模型provider准备并绑定的快照；外层Lease覆盖请求、工具及持久化结算。 */
 export interface ResolvedModelSelection {
@@ -18,14 +18,14 @@ export interface ResolvedModelSelection {
   /** 直接连接Models.streamSimple；保持原生事件及签名，避免经过ModelEvent往返转换。 */
   readonly streamFn: StreamFn;
   readonly attemptIds?: readonly string[];
-  /** 本selection已结算的物理请求；登记发生在ledger写入成功之后。 */
+  /** 本selection已结算的物理请求；结论事件写入 session 日志后登记。 */
   readonly attemptSettlements?: readonly ModelAttemptSettlement[];
   drain?():Promise<void>;
 }
-/** 物理模型请求的持久结论；仅在attempt ledger写入成功后登记。非pi provider（如replay）不登记，空数组不表示没有物理请求。 */
+/** 物理模型请求的结论：response 为拿到可用回包，其余一律 failed（可重试）。非pi provider（如replay）不登记，空数组不表示没有物理请求。 */
 export interface ModelAttemptSettlement {
   readonly physicalRequestId: string;
-  readonly status: PhysicalStatus;
+  readonly status: 'response' | 'failed';
   readonly httpStatus: number | null;
   readonly cause: string | null;
   /** 重试得到的attempt记录其来源物理请求和等待间隔；首次attempt省略。 */
@@ -35,6 +35,8 @@ export interface ModelAttemptSettlement {
 export interface ModelSelectionRequest {
   readonly provider: string;
   readonly model: string;
+  /** 请求与回包落到哪个 session 日志（主体 × 线程）。 */
+  readonly session: SessionKey;
   readonly reasoning?: SimpleStreamOptions['reasoning'];
   /** 线程策略给出的稳定标识；同一线程复用同一值。 */
   readonly sessionId?: string;
@@ -77,7 +79,7 @@ export interface UndispatchedToolReceipt {
 export type InferenceStopReason =
   | 'success' | 'context_limit' | 'output_limit' | 'budget_exhausted'
   | 'required_action_failed' | 'tool_failed' | 'cancelled' | 'provider_error'
-  | 'transport_unknown' | 'persistence_unknown' | 'persistence_error'
+  | 'persistence_unknown' | 'persistence_error'
   | 'BUDGET_OUTPUT_TOO_SMALL';
 /** pi-ai 实际可用于输出的 token 低于 driver output 槽时的本地拒绝证据；未发请求。 */
 export interface OutputBudgetDiagnostics {
@@ -96,7 +98,7 @@ export interface InferenceOutcome {
   readonly actionReceipts: readonly InferenceActionReceipt[];
   readonly undispatched: readonly UndispatchedToolReceipt[];
   readonly attemptIds: readonly string[];
-  /** 与selection登记一致；unknown表示物理请求已有未知外部后果。 */
+  /** 与selection登记一致。 */
   readonly modelAttempts: readonly ModelAttemptSettlement[];
   /** 本激活实际发起的工具调用数；摘要用。 */
   readonly toolCalls?: number;

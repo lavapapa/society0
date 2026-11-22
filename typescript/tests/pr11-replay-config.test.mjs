@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import Replay, { Config, metadata } from '../.build/core/dist/replay/index.js';
 import { compileLayers } from '../.build/host/dist/profile-loader/compiler.js';
 
-const externalServices = ['history', 'attempts', 'artifacts'];
+const externalServices = ['sessions'];
 const layer = { kind: 'profile', uri: 'replay-config.json', version: '1', patches: [{ insert: [{ id: 'run', name: 'run', group: true, lifetime: 'run', config: [{ id: 'replay', name: 'replay', config: { mode: 'replay' } }] }] }] };
 
 test('RV3-17-T01 replay exposes no unconsumed mode field', async () => {

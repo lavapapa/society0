@@ -12,7 +12,7 @@ import { fail, bytes } from '../information/page.js';
 import { prepareValue, attachValue, readValue } from '../results/payload.js';
 import { isActionRejection, type ActionRejectionError } from './rejection.js';
 import { suggestedCallsFromRefs } from './suggest.js';
-import '../attempts/index.js';
+import '../session-log/index.js';
 import '../artifacts-local/index.js';
 
 /**
@@ -57,7 +57,6 @@ export interface ActionAuthority {
     findings(reader: Reader): Promise<readonly { ruleId: string; reason: string }[]>;
     available(reader: Reader): Promise<ActionAvailability>;
 }
-function references(value: StoredValue) { return value.kind === 'reference' ? [value.ref.object] : []; }
 function failureCode(cause: unknown, code?: string): string {
     if (code) return code;
     const value = (cause as { code?: string } | null)?.code;
@@ -141,7 +140,7 @@ export function inputHelpFields(definition: ActionDefinition, input: Json, help:
         message: options.message ?? `输入不符合 ${definition.name} 的 input schema；请按 example 与 fieldHints 改正后重试。`,
     };
 }
-/** 输入校验失败是业务拒绝：回执带字段路径、错误计数和 input schema 摘要，不 claim attempt。 */
+/** 输入校验失败是业务拒绝：回执带字段路径、错误计数和 input schema 摘要，不执行也不写 session。 */
 export function validateInput(entry: ActionRegistration, input: Json, operationId: string): ActionReceipt | undefined {
     if (entry.input(input))
         return undefined;
@@ -164,11 +163,12 @@ export class ActionExecutionFailure extends Error {
 /** 一次行动持有注册租约；快照筛查、外部执行与最终事务边界分别落实。 */
 export class ActionCall {
     private attempt;
+    private session;
     private committed = new Set<string>();
     private scope: DiscoveryScope;
     /** 最近一次提交的 revision；没有写事务时退化为逻辑时间，供 delivery.visibleRevision 使用。 */
     private revision: string;
-    constructor(private ctx: Context, private entry: ActionRegistration, private input: Json, private activation: ActivationContext, private authority: ActionAuthority) { this.attempt = { lineage: ctx.attempts.authority().lineage, operationId: entry.definition.effect === 'external' ? 'action:' + activation.operationId : 'action-run:' + JSON.stringify([activation.runId, activation.operationId]), attempt: 0 }; this.scope = { actorId: activation.actorId, momentId: activation.momentId, logicalTime: activation.logicalTime, query: null }; this.revision = String(activation.logicalTime); }
+    constructor(private ctx: Context, private entry: ActionRegistration, private input: Json, private activation: ActivationContext, private authority: ActionAuthority) { this.attempt = { operationId: 'action:' + activation.operationId, attempt: 0 }; this.session = { actorId: activation.actorId, momentId: activation.momentId }; this.scope = { actorId: activation.actorId, momentId: activation.momentId, logicalTime: activation.logicalTime, query: null }; this.revision = String(activation.logicalTime); }
     get deliveredRevision() { return this.revision; }
     private rejectedReceipt(code: string): ActionReceipt {
         return {
@@ -350,44 +350,9 @@ export class ActionCall {
             parameters: [request.operationId, this.activation.operationId, this.activation.actorId, this.activation.momentId, this.entry.definition.name, this.entry.registrationId, JSON.stringify(input), encoded, this.authority.target ? targetText(this.authority.target) : null, this.authority.offer?.key ?? null, this.authority.offer?.provider ?? null],
         });
     }
-    private async claim(input: StoredValue) { while (true) {
-        this.activation.signal.throwIfAborted();
-        const claim = await this.ctx.attempts.claim(this.attempt, { name: this.entry.definition.name, registrationId: this.entry.registrationId, input }, references(input));
-        if (claim.status === 'send-permitted')
-            return;
-        if (claim.status === 'unknown')
-            throw Object.assign(new Error('ACTION_ATTEMPT_UNKNOWN'), { code: 'ACTION_ATTEMPT_UNKNOWN', storage: true, reason: claim.reason });
-        if (claim.record.status === 'unknown')
-            return this.unknownAttempt(claim.record, this.entry.definition.effect === 'external');
-        if (this.entry.definition.effect === 'external')
-            return fail('ACTION_ATTEMPT_EXISTS');
-        this.attempt.attempt++;
-    } }
-    private unknownAttempt(record: { result?: unknown }, external: boolean): never {
-        if (external) return fail('ACTION_ATTEMPT_UNKNOWN');
-        const stored = record.result as { code?: string; commit?: unknown } | undefined;
-        const code = stored?.code === 'SQLITE_COMMIT_UNKNOWN' || stored?.code === 'SQLITE_SEGMENT_FAILED' ? stored.code : 'ACTION_ATTEMPT_UNKNOWN';
-        throw Object.assign(new Error(code), { code, storage: true, ...(stored?.commit ? { commit: stored.commit } : {}) });
-    }
-    private async returned(receipt: ActionReceipt) { const raw = await prepareValue(receipt as unknown as Json, 16384, this.ctx.artifacts); await this.ctx.attempts.settle(this.attempt, { status: 'returned', receipt: raw }, [...references(raw), ...receipt.artifacts]); }
-    private async failed(error: ActionExecutionFailure): Promise<'external-unknown' | 'storage-unknown' | 'settled' | 'absent'> { const existing = await this.ctx.attempts.probe(this.attempt); if (existing.status !== 'found' || existing.record.status !== 'pending')
-        return 'absent'; const facts = { code: error.code, message: error.message, requiredOperations: error.requiredOperations }; if (this.entry.definition.effect === 'external') {
-        const raw = await prepareValue(facts as unknown as Json, 0, this.ctx.artifacts);
-        await this.ctx.attempts.markUnknown(this.attempt, error.message.toWellFormed(), [...references(raw), ...error.artifacts]);
-        return 'external-unknown';
-    } if (error.code === 'SQLITE_COMMIT_UNKNOWN' || error.code === 'SQLITE_SEGMENT_FAILED') {
-        const cause = error.cause as { committed?: boolean; receipt?: unknown } | undefined;
-        const result = { ...facts, ...(error.code === 'SQLITE_SEGMENT_FAILED' ? { commit: { committed: true, receipt: cause?.receipt } } : {}) };
-        await this.ctx.attempts.markUnknown(this.attempt, error.message.toWellFormed(), error.artifacts, result);
-        return 'storage-unknown';
-    } await this.ctx.attempts.settle(this.attempt, { status: 'failed', ...facts }, error.artifacts); return 'settled'; }
-    private async rejected(error: unknown): Promise<never> { const failure = new ActionExecutionFailure(error, this.committed); let kind: 'external-unknown' | 'storage-unknown' | 'settled' | 'absent'; try {
-        kind = await this.failed(failure);
-    }
-    catch (evidenceError) {
-        throw new ActionExecutionFailure(new AggregateError([error, evidenceError], 'Action failure evidence could not be persisted'), this.committed);
-    } if (kind === 'external-unknown')
-        throw new ActionExecutionFailure(error, this.committed, 'ACTION_ATTEMPT_UNKNOWN'); throw failure; }
+    /** 执行结果（含领域拒绝回执）写进 actor × moment 的 session。 */
+    private returned(receipt: ActionReceipt) { this.ctx.sessions.append(this.session, 'action', { ...this.attempt, name: this.entry.definition.name, registrationId: this.entry.registrationId, input: this.input, receipt }); }
+    private rejected(error: unknown): never { const failure = new ActionExecutionFailure(error, this.committed); this.ctx.sessions.append(this.session, 'attempt/failed', { ...this.attempt, name: this.entry.definition.name, registrationId: this.entry.registrationId, cause: failure.code, message: failure.message, requiredOperations: failure.requiredOperations }); throw failure; }
     async run() {
         const invalid = validateInput(this.entry, this.input, this.activation.operationId);
         if (invalid)
@@ -396,11 +361,11 @@ export class ActionCall {
         if (early)
             return early;
         const input = await prepareValue(this.input, 16384, this.ctx.artifacts, this.activation.signal);
-        await this.claim(input);
+        this.activation.signal.throwIfAborted();
         try {
             const returned = await this.entry.definition.execute(this.input, this.context(input));
             const receipt: ActionReceipt = { ...returned, requiredOperations: [...this.committed] };
-            await this.returned(receipt);
+            this.returned(receipt);
             if (!this.entry.output(receipt.value))
                 return fail('ACTION_OUTPUT');
             this.activation.signal.throwIfAborted();
@@ -409,13 +374,8 @@ export class ActionCall {
         catch (error) {
             if (isActionRejection(error)) {
                 const receipt = this.actionRejectionReceipt(error);
-                try {
-                    await this.returned(receipt);
-                    return receipt;
-                }
-                catch (persistence) {
-                    return this.rejected(persistence);
-                }
+                this.returned(receipt);
+                return receipt;
             }
             return this.rejected(error);
         }

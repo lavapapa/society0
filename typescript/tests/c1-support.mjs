@@ -64,7 +64,7 @@ export async function driverFixture({text = 'x'.repeat(300), crashAfter, message
         [DriverRegistry, {}]
     ]) await run.host.ctx.plugin(plugin, config);
     let ctx;
-    await run.host.ctx.plugin({inject: ['actions', 'modelProviders', 'drivers', 'actorTools', 'threads', 'contextMount', 'prompts', 'database', 'perceptions', 'artifacts', 'attempts', 'agentRuntimes', 'slots'], apply(c) { ctx = c; }});
+    await run.host.ctx.plugin({inject: ['actions', 'modelProviders', 'drivers', 'actorTools', 'threads', 'contextMount', 'prompts', 'database', 'perceptions', 'artifacts', 'sessions', 'agentRuntimes', 'slots'], apply(c) { ctx = c; }});
     const fixture = messages ?? [assistant([{type: 'text', text}])];
     const provider = new ReplayProvider({driver: fixture});
     let calls = 0;

@@ -28,18 +28,16 @@ for (const [status, code] of [[500, 'MODEL_UPSTREAM_ERROR'], [429, 'MODEL_RATE_L
       const models = createModels({credentials, authContext: {env: async () => undefined, fileExists: async () => false}});
       models.setProvider(createProvider({id: 'offline', models: [model], auth: {apiKey: envApiKeyAuth('explicit', [])}, api: completions}));
       const context = run.context('l1-upstream-' + status);
-      provider = new PiModelProvider(models, run.ctx.attempts, {runId: context.runId, providerId: 'offline', maxEventBytes: 65536, maxRawBytes: 1048576, maxRequestBytes: 1048576, options: {maxTokens: 64, maxRetries: 2, transport: 'sse'}, timeoutMs: 10000});
-      selected = await provider.prepare({provider: 'pi/v1', model: 'offline'}, context);
+      provider = new PiModelProvider(models, run.ctx.sessions.log, {runId: context.runId, providerId: 'offline', maxEventBytes: 65536, maxRawBytes: 1048576, options: {maxTokens: 64, maxRetries: 2, transport: 'sse'}, timeoutMs: 10000});
+      selected = await provider.prepare({session:{actorId:'a',momentId:'m'},provider: 'pi/v1', model: 'offline'}, context);
       const stream = await selected.value.streamFn(selected.value.model, {messages: [{role: 'user', content: 'error fixture', timestamp: 0}]}, {});
       for await (const event of stream) {}
       await selected.value.drain();
       assert.equal(requests, 3);
-      const found = await run.ctx.attempts.probe({lineage: run.ctx.attempts.authority().lineage, operationId: modelOperationId(context, 1), attempt: 0});
-      assert.equal(found.status, 'found');
-      assert.equal(found.record.status, 'settled');
-      assert.equal(found.record.result.status, 'failed');
-      assert.match(String(found.record.result.error), new RegExp(code));
-      assert.match(String(found.record.result.cause ?? found.record.result.error), new RegExp(code));
+      const found = await run.ctx.sessions.find({actorId: 'a', momentId: 'm'}, {operationId: modelOperationId(context, 1), attempt: 0});
+      assert.equal(found.type, 'attempt/failed');
+      assert.match(String(found.data.error), new RegExp(code));
+      assert.match(String(found.data.cause ?? found.data.error), new RegExp(code));
     } finally {
       await selected?.release().catch(() => {});
       await provider?.close();

@@ -58,10 +58,10 @@ async function activate(toolChoice) {
             [AgentRuntimes, {}], [AgentRuntimePi, {}], [InferenceDefaults, {}], [DriverRegistry, {}]
         ]) await run.host.ctx.plugin(plugin, config);
         let ctx;
-        await run.host.ctx.plugin({inject: ['actions', 'modelProviders', 'drivers', 'actorTools', 'threads', 'contextMount', 'prompts', 'database', 'perceptions', 'artifacts', 'attempts', 'agentRuntimes', 'slots'], apply(c) {
+        await run.host.ctx.plugin({inject: ['actions', 'modelProviders', 'drivers', 'actorTools', 'threads', 'contextMount', 'prompts', 'database', 'perceptions', 'artifacts', 'sessions', 'agentRuntimes', 'slots'], apply(c) {
             ctx = c;
             c.actions.register({name: 'demo.publish', effect: 'read', inputSchema: {type: 'object', properties: {content: {type: 'string'}}, required: ['content']}, outputSchema: {}, available: async () => true, execute: async (input, context) => ({operationId: context.operationId, status: 'completed', value: input, original: null, artifacts: []})});
-            const provider = new PiModelProvider(gate.models, c.attempts, {runId: 'pr07', providerId: 'offline', maxEventBytes: 65536, maxRawBytes: 1048576, maxRequestBytes: 1048576, options: {maxTokens: 256, maxRetries: 0, transport: 'sse'}, timeoutMs: 5000, jsonTimeoutMs: 180000, transport: 'json'});
+            const provider = new PiModelProvider(gate.models, c.sessions.log, {runId: 'pr07', providerId: 'offline', maxEventBytes: 65536, maxRawBytes: 1048576, options: {maxTokens: 256, maxRetries: 0, transport: 'sse'}, timeoutMs: 5000, jsonTimeoutMs: 180000, transport: 'json'});
             c.modelProviders.register('pi/v1', provider);
         }});
         await run.host.ctx.plugin(DriverLlm, {name: 'llm/d7', provider: 'pi/v1', model: 'offline', maxRequests: 4, maxToolCalls: 2, requiredActions: [{name: 'demo.publish', minimumCompleted: 1}], toolChoice});

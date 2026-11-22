@@ -189,7 +189,6 @@ try {
   const report = await runProfile({
     profile: join(here, '..', '..', 'profiles', 'social-sqlite.json'),
     directory: runDirectory,
-    lineageDirectory: runDirectory + '-lineage',
     runId: 'd9',
     patches: patchesPath,
     lock: lockPath,

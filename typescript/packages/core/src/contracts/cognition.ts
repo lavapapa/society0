@@ -1,7 +1,7 @@
 /** 生产契约：embedding 可选，记忆 SQL 为原始向量与索引进度的依据。 */
 import type { Disposer, Invocation, Json, Lease } from './common.js';
 import type { ArtifactRef } from '../artifacts-local/store.js';
-import type { AttemptIdentity } from '../attempts/ledger.js';
+import type { OperationAttempt } from '../session-log/store.js';
 import type { SqliteReadView, SqliteTransaction } from '../sqlite/contracts.js';
 import type { Page, PageRequest } from './data.js';
 import type { ActivationContext } from './runtime.js';
@@ -13,7 +13,7 @@ export interface EmbeddingIdentity {
   readonly model: string;
   readonly dimensions: number;
 }
-export interface EmbeddingOrigin { readonly attempt: AttemptIdentity; readonly itemIndex: number }
+export interface EmbeddingOrigin { readonly attempt: OperationAttempt; readonly itemIndex: number }
 export interface EmbeddingUse {
   readonly inputIndex: number;
   readonly vector: readonly number[];
@@ -33,8 +33,8 @@ export interface EmbeddingLimits {
 }
 export interface EmbeddingProvider {
   readonly identity: EmbeddingIdentity;
-  /** 物理输入已合批，itemIndex 对应物理批次位置；成本写入该 attempt。抛错可附带 physical:'not_dispatched'|'failed'|'response'；缺省视为unknown。 */
-  embed(texts: readonly string[], attempt: AttemptIdentity, signal: AbortSignal): Promise<{ readonly items: readonly { readonly itemIndex: number; readonly vector: readonly number[] }[]; readonly usage: Json; readonly original: Json | ArtifactRef }>;
+  /** 物理输入已合批，itemIndex 对应物理批次位置；raw 为原始回包正文。抛错即该次尝试失败，可附带 httpStatus；broker 负责重试。 */
+  embed(texts: readonly string[], attempt: OperationAttempt, signal: AbortSignal): Promise<{ readonly items: readonly { readonly itemIndex: number; readonly vector: readonly number[] }[]; readonly usage: Json; readonly raw?: string }>;
   close(): Promise<void>;
 }
 export interface Embeddings {

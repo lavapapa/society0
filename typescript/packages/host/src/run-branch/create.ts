@@ -6,6 +6,6 @@ import '../run-directory/index.js';
 export async function createBranch(ctx:Context,plan:BranchPlan,generation:CompositionPlan,source:BranchSourcePort,planReference:BranchPlanReference){
  if(ctx.runDirectory.list().some(run=>run.runId===plan.target.targetRunId))throw Error('RUN_EXISTS');
  const request={plan,generation,planReference};const point=await source.prepare(request);
- const handle=await ctx.runDirectory.create({runId:plan.target.targetRunId,lineage:{kind:'existing'},generation,mount:plan.target.mount,prepare:async(_target,phase)=>{if(!phase)throw Error('BRANCH_PHASE_REQUIRED');return source.open(request,phase,point)}});
+ const handle=await ctx.runDirectory.create({runId:plan.target.targetRunId,generation,mount:plan.target.mount,prepare:async(_target,phase)=>{if(!phase)throw Error('BRANCH_PHASE_REQUIRED');return source.open(request,phase,point)}});
  return {handle,point};
 }

@@ -237,7 +237,7 @@ test('PR10-T05/T20 independent fork resumes Social feed cursor and persisted con
             operationId: 'perception-fork', pointId: result.cut.id, targetRunId: 'perception-branch', targetDirectory: directory
         });
         branch = await fixture({
-            restore: true, directory, runId: 'perception-branch', attemptDirectory: f.attemptDirectory
+            restore: true, directory, runId: 'perception-branch'
         });
         const restored = [];
         await install(branch, [...first, proposal('perceive-restored', 'c', 'conversation', 'rule', '3')], restored);

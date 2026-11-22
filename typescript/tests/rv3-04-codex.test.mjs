@@ -16,18 +16,18 @@ async function exercise(run,port,name){
   await credentials.modify('codex-offline',async()=>({type:'oauth',access:token(),refresh:'fixture-refresh',expires:Date.now()+3600000}));
   const models=createModels({credentials,authContext:{env:async()=>undefined,fileExists:async()=>false}});
   models.setProvider(createProvider({id:'codex-offline',models:[modelFor(port)],auth:{oauth:{name:'fixture oauth',isSubscription:true,login:async()=>{throw Error('LOGIN_UNUSED')},refresh:async()=>{throw Error('REFRESH_UNUSED')},toAuth:async credential=>({apiKey:credential.access})}},api:codex}));
-  const provider=new PiModelProvider(models,run.ctx.attempts,{runId:'pr07',providerId:'codex-offline',maxEventBytes:65536,maxRawBytes:1048576,maxRequestBytes:1048576,options:{maxTokens:256,maxRetries:0,transport:'sse'},timeoutMs:2000});
+  const provider=new PiModelProvider(models,run.ctx.sessions.log,{runId:'pr07',providerId:'codex-offline',maxEventBytes:65536,maxRawBytes:1048576,options:{maxTokens:256,maxRetries:0,transport:'sse'},timeoutMs:2000});
   const context=run.context(name);
   let selected;
   try {
-    selected=await provider.prepare({provider:'pi/v1',model:'codex-offline'},context);
+    selected=await provider.prepare({session:{actorId:'a',momentId:'m'},provider:'pi/v1',model:'codex-offline'},context);
     try {
       const stream=await selected.value.streamFn(selected.value.model,{messages:[{role:'user',content:'hi',timestamp:0}]},{});
       for await (const _ of stream) {}
     } catch {}
     await selected.value.drain();
     const settlements=[...(selected.value.attemptSettlements??[])];
-    const probe=await run.ctx.attempts.probe({lineage:run.ctx.attempts.authority().lineage,operationId:modelOperationId(context,1),attempt:0});
+    const probe=await run.ctx.sessions.find({actorId:'a',momentId:'m'},{operationId:modelOperationId(context,1),attempt:0});
     return {settlements,probe};
   } finally {
     await selected?.release().catch(()=>{});
@@ -50,17 +50,15 @@ test('RV3-04-T04 codex physical outcome follows recorded dispatch facts',async()
     await server.close();
     assert.equal(result.settlements[0]?.status,'failed');
     assert.equal(result.settlements[0]?.httpStatus,400);
-    assert.equal(result.probe.record.status,'settled');
-    assert.equal(result.probe.record.result.status,'failed');
-    assert.equal(result.probe.record.result.httpStatus,400);
+    assert.equal(result.probe.type,'attempt/failed');
+    assert.equal(result.probe.data.httpStatus,400);
 
     server=await withServer(complete(429,JSON.stringify({error:{message:'usage limit fixture'}})));
     result=await exercise(run,server.port,'rv304-codex-429');
     await server.close();
     assert.equal(result.settlements[0]?.status,'failed');
-    assert.equal(result.probe.record.status,'settled');
-    assert.equal(result.probe.record.result.status,'failed');
-    assert.match(String(result.probe.record.result.error), /MODEL_RATE_LIMITED/);
+    assert.equal(result.probe.type,'attempt/failed');
+    assert.match(String(result.probe.data.error), /MODEL_RATE_LIMITED/);
   } finally {
     await run.close();
   }

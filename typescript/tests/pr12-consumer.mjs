@@ -34,18 +34,17 @@ for(const name of selected.length?selected:['rule-sqlite','event-sqlite']){
  const forked=JSON.parse((await exec(process.execPath,['run-profile-branch.mjs','--profile','profiles/'+name+'.json','--directory',directory,'--run-id',name,'--lock','module-lock.json','--target-profile',targetProfile,'--target-directory',targetDirectory,'--target-run-id',targetRunId],{cwd:consumer,maxBuffer:16*1024*1024,timeout:600000})).stdout);
  await writeFile(join(output,name+'-branch.json'),JSON.stringify(forked,null,2));
  assert.equal(forked.branch.closed,true);assert.equal(forked.close.status,'closed');assert.equal(forked.close.drained,true);
- assert.equal(forked.branch.targetPoint.runId,targetRunId);assert.deepEqual(forked.branch.observation.rows,first.observation.rows);assert.deepEqual(forked.branch.authority,first.lineage);
+ assert.equal(forked.branch.targetPoint.runId,targetRunId);assert.deepEqual(forked.branch.observation.rows,first.observation.rows);
  assert.equal(forked.branch.sourcePoint.id,reopened.cut.id);assert.equal(forked.branch.targetPoint.frontier.completedCount,'1');assert.equal(forked.branch.status.state,'clean');
  const flat=entries=>entries.flatMap(entry=>[entry,...flat(entry.children??[])]);
  assert.equal(flat(forked.branch.plan.generationEvidence.plan.entries).find(entry=>entry.id==='checkpoint-policy').config.every,2);
  assert.equal(await readFile(join(directory,'bootstrap.json'),'utf8'),bootstrap);
- // 删除前核实本测试新建的直接子目录；authority必须位于该world目录之外。
+ // 删除前核实本测试新建的直接子目录。
  assert.equal(resolve(directory),resolve(output,name));assert.equal(dirname(resolve(directory)),output);assert.equal((await stat(directory)).isDirectory(),true);
- assert.ok(!resolve(first.lineage.directory).startsWith(resolve(directory)+'/'));
  await rm(directory,{recursive:true});
- const targetReopened=JSON.parse((await exec(process.execPath,['run-profile.mjs','--profile',join(targetDirectory,'profile.json'),'--directory',targetDirectory,'--run-id',targetRunId,'--lock','module-lock.json','--lineage-directory',first.lineage.directory,'--lineage',first.lineage.lineage,'--reopen','--observe'],{cwd:consumer,maxBuffer:16*1024*1024,timeout:600000})).stdout);
+ const targetReopened=JSON.parse((await exec(process.execPath,['run-profile.mjs','--profile',join(targetDirectory,'profile.json'),'--directory',targetDirectory,'--run-id',targetRunId,'--lock','module-lock.json','--reopen','--observe'],{cwd:consumer,maxBuffer:16*1024*1024,timeout:600000})).stdout);
  await writeFile(join(output,name+'-target-reopen.json'),JSON.stringify(targetReopened,null,2));
  assert.equal(targetReopened.cut.id,forked.branch.targetPoint.id);assert.deepEqual(targetReopened.observation.rows,first.observation.rows);assert.equal(targetReopened.close.status,'closed');assert.equal(targetReopened.close.drained,true);
- results.push({profile:name,status:'create-save-close-reopen-fork-new-profile-delete-source-observe-close-passed',sourceWorldRemoved:directory,lineage:first.lineage,metrics:{create:first.metrics,reopen:reopened.metrics,fork:forked.branch.timings,targetReopen:targetReopened.metrics},history:forked.history});
+ results.push({profile:name,status:'create-save-close-reopen-fork-new-profile-delete-source-observe-close-passed',sourceWorldRemoved:directory,metrics:{create:first.metrics,reopen:reopened.metrics,fork:forked.branch.timings,targetReopen:targetReopened.metrics},history:forked.history});
 }
 await writeFile(join(output,'results.json'),JSON.stringify(results,null,2));console.log(JSON.stringify(results));

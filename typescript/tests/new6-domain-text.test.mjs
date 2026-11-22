@@ -42,8 +42,8 @@ const count=async(f,sql)=>String((await f.read(view=>view.query({sql},{maxRows:1
 const snapshotCount=async(f,sql)=>{const view=await f.ctx.database.snapshot({maxAgeMs:30000});try{return String((await view.query({sql},{maxRows:1,maxBytes:1024}))[0].n)}finally{await view.close()}};
 
 test('NEW-6-T06 Social raw text fields fail before the write transaction',async t=>{
- const root=await directory(t),evidence=await directory(t),attempts=join(evidence,'attempts');await mkdir(attempts);
- const f=await fixture({directory:root,attemptDirectory:attempts});let reservation;
+ const root=await directory(t);
+ const f=await fixture({directory:root});let reservation;
  try{
   reservation=await f.ctx.executionFence.reserve({id:'domain'});
   const notifications=await snapshotCount(f,'SELECT count(*) AS n FROM social_notifications');
@@ -71,8 +71,8 @@ test('NEW-6-T06 Social raw text fields fail before the write transaction',async 
 });
 
 test('NEW-6-T07 Social JSON payloads preserve lone surrogates while raw fields stay validated',async t=>{
- const root=await directory(t),evidence=await directory(t),attempts=join(evidence,'attempts');await mkdir(attempts);
- const f=await fixture({directory:root,attemptDirectory:attempts});let reservation;
+ const root=await directory(t);
+ const f=await fixture({directory:root});let reservation;
  try{
   reservation=await f.ctx.executionFence.reserve({id:'json'});
   const run=(name,input,id)=>f.ctx.actions.execute('social.'+name,input,activation(f,reservation,id));

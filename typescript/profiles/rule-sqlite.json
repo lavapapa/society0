@@ -60,11 +60,10 @@
               }
             },
             {
-              "id": "attempts",
-              "name": "@society0/core/attempts",
+              "id": "sessions",
+              "name": "@society0/core/session-log",
               "config": {
-                "directory": "./attempts",
-                "lineage": "example"
+                "directory": "./run"
               }
             },
             {

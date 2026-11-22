@@ -5,7 +5,7 @@ import {Prompts} from '../.build/core/dist/prompts/index.js';import {ContextMoun
 
 async function contextEnv(prompts){const run=await fixture();try{
  for(const [plugin,config] of [[Prompts,prompts],[ContextMount,{}],[ExplorationShell,{}],[ActorTools,{}],[ModelProviders,{}],[AgentRuntimes,{}],[InferenceDefaults,{}],[DriverRegistry,{}]])await run.host.ctx.plugin(plugin,config);
- let ctx;await run.host.ctx.plugin({inject:['actions','modelProviders','drivers','actorTools','threads','contextMount','prompts','database','perceptions','artifacts','attempts','agentRuntimes','slots'],apply(c){ctx=c}});
+ let ctx;await run.host.ctx.plugin({inject:['actions','modelProviders','drivers','actorTools','threads','contextMount','prompts','database','perceptions','artifacts','sessions','agentRuntimes','slots'],apply(c){ctx=c}});
  return {run,ctx};
  }catch(error){await run.close();throw error}}
 

@@ -44,7 +44,6 @@ for (const [tool, call] of Object.entries(calls)) {
         } finally {
             await driver.release();
         }
-        assert.notEqual(result.reason, 'transport_unknown');
         assert.equal(requests.length, 2, JSON.stringify(requests));
         assert.ok(requests[1].some(message => message.role === 'toolResult'), JSON.stringify(requests[1]));
     });

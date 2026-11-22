@@ -53,7 +53,7 @@ async function assemble(name,composition){
   await host.ctx.plugin(Perceptions);
   if(composition.some(item=>item.name==='@society0/core/action-files')){
    await host.ctx.database.applyMigrations([actorsMigration,actionsMigration({consumer:'b9-mounts'})]);
-   host.ctx.provide('attempts',{});
+   host.ctx.provide('sessions',{});
    await host.ctx.plugin(Actors);
    await host.ctx.plugin(ActorEligibility);
    await host.ctx.plugin(Actions,{});

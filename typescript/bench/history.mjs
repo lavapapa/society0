@@ -17,7 +17,6 @@ import ArtifactsLocal, { artifactsMigration } from '../.build/core/dist/artifact
 import Initializers from '../.build/core/dist/initializers/index.js';
 import SqliteBootstrap from '../.build/core/dist/sqlite-bootstrap/index.js';
 import SqliteHistory from '../.build/core/dist/sqlite-history/index.js';
-import Attempts from '../.build/core/dist/attempts/index.js';
 
 export const REQUIRED_REPORT_FIELDS = ['schemaVersion', 'mode', 'generatedAt', 'scale', 'operations', 'counters', 'durationMs'];
 const request = operationId => ({ operationId, maxDurationMs: 60000, maxStatements: 1000, maxInputBytes: 1048576, maxChangedRows: 10000, maxCapturedBytes: 4194304 });
@@ -39,10 +38,8 @@ export async function runChain(length, options = {}) {
         await ctx.plugin(Initializers);
         await ctx.plugin(SqliteBootstrap, { maxTransactionMs: 60000 });
         await ctx.plugin(SqliteHistory, { directory, runId, generation: 'g', controlSequence: '0', ...(options.historyConfig ?? {}) });
-        await ctx.plugin(Attempts, { directory: join(base, 'lineage'), lineage: 'c9-history' });
-        await ctx.plugin({ inject: ['initializers', 'attempts'], apply(pluginCtx) {
+        await ctx.plugin({ inject: ['initializers'], apply(pluginCtx) {
             pluginCtx.initializers.register({ id: 'seed', after: [], async initialize(context) {
-                await pluginCtx.attempts.initialize();
                 await context.database.transaction(context.writeLease, request('seed'), async tx => {
                     await tx.execute({ sql: 'INSERT INTO note VALUES(1,?)', parameters: ['root'] });
                 });

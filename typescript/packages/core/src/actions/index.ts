@@ -37,7 +37,7 @@ export const metadata: PluginMetadata = { "title": "actions", "summary": "动态
   { "path": "/maxAlternatives", "mode": "boundary", "affectsResults": true, "secret": false },
   { "path": "/labels", "mode": "recreate", "affectsResults": true, "secret": false }
 ], "scope": "generation", "allowedScopes": ["generation"], "hostAbi": "society0/host/1" };
-export const api: ApiEntry = { "exportPath": "./actions", "provides": [{ "key": "actions", "protocol": "actions", "major": 1, "capabilities": [] }], "requires": [{ "service": { "key": "artifacts", "protocol": "artifacts", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "slots", "protocol": "slots", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "database", "protocol": "database", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "attempts", "protocol": "attempts", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "actorEligibility", "protocol": "actorEligibility", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }] };
+export const api: ApiEntry = { "exportPath": "./actions", "provides": [{ "key": "actions", "protocol": "actions", "major": 1, "capabilities": [] }], "requires": [{ "service": { "key": "artifacts", "protocol": "artifacts", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "slots", "protocol": "slots", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "database", "protocol": "database", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "sessions", "protocol": "sessions", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "actorEligibility", "protocol": "actorEligibility", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }] };
 import { Context, Service } from '@society0/cordis';
 import { randomUUID } from 'node:crypto';
 import { Ajv, type ValidateFunction } from 'ajv';
@@ -48,7 +48,7 @@ import type { SqliteReadView, SqliteTransaction, SqliteMigration, TransactionReq
 import type { ActorEligibility } from '../contracts/eligibility.js';
 import { after, identity, page, fail, bounds, bytes, RegistryClock } from '../information/page.js';
 import '../sqlite/index.js';
-import '../attempts/index.js';
+import '../session-log/index.js';
 import '../artifacts-local/index.js';
 import { prepareValue, attachValue } from '../results/payload.js';
 const key = slotKey<ActionRegistration>('society/action');
@@ -65,7 +65,7 @@ declare module '@society0/cordis' {
 type Reader = SqliteReadView | SqliteTransaction;
 export class Actions extends Service {
     static Config = Config;
-    static inject = ['slots', 'database', 'attempts', 'actorEligibility', 'artifacts'];
+    static inject = ['slots', 'database', 'sessions', 'actorEligibility', 'artifacts'];
     private validator = new Ajv({ strict: false, allErrors: true });
     private registryClock = new RegistryClock();
     readonly metrics = { eligibilityScans: 0, keysetCandidates: 0, offerProviderCalls: 0 };

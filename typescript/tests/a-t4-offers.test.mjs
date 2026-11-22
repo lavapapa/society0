@@ -124,8 +124,7 @@ test('A-T4 offer 层、目标复查、拒绝回执与 v2 回执表', async (t) =
             assert.equal(missing.status, 'rejected');
             assert.equal(missing.value.code, 'ACTION_NOT_OFFERED');
             assert.deepEqual(missing.value.alternatives.map((ref) => ref.target), [targetText(t1)]);
-            const identity = { lineage: 'pr07', operationId: 'action-run:' + JSON.stringify(['pr07', 'a4-not-offered']), attempt: 0 };
-            assert.equal((await ctx.attempts.probe(identity)).status, 'absent');
+            assert.equal(await ctx.sessions.find({ actorId: 'a', momentId: 'm' }, { operationId: 'action:a4-not-offered', attempt: 0 }), undefined);
         });
 
         await t.test('初检与最终事务之间 offer 消失：抛出 ACTION_INELIGIBLE 且不写回执', async () => {

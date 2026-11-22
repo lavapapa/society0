@@ -10,7 +10,7 @@ const prompts = await import('../.build/core/dist/prompts/index.js');
 const modelPi = await import('../.build/core/dist/model-pi/index.js');
 const social = await import('../.build/social/dist/social/index.js');
 
-const externalServices = ['slots', 'actions', 'database', 'exploration', 'resources', 'information', 'perceptions', 'socialRepository', 'recommendations', 'actors', 'actorEligibility', 'artifacts', 'attempts', 'tasks', 'history', 'replay', 'modelProviders', 'modelCredentials', 'vectorProviders', 'drivers', 'threads', 'results', 'workspace', 'initializers', 'sqliteBootstrap', 'executionFence'];
+const externalServices = ['slots', 'actions', 'database', 'exploration', 'resources', 'information', 'perceptions', 'socialRepository', 'recommendations', 'actors', 'actorEligibility', 'artifacts', 'sessions', 'tasks', 'history', 'replay', 'modelProviders', 'modelCredentials', 'vectorProviders', 'drivers', 'threads', 'results', 'workspace', 'initializers', 'sqliteBootstrap', 'executionFence'];
 const layer = insert => ({ kind: 'profile', uri: 'strict-config.json', version: '1', patches: [{ insert }] });
 const run = config => ({ id: 'run', name: 'run', group: true, lifetime: 'run', config });
 const generation = config => ({ id: 'generation', name: 'generation', group: true, lifetime: 'generation', config });

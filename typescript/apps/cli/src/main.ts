@@ -25,9 +25,9 @@ const PLATFORM_USAGE = [
     'Commands:',
     '  check --profile <p> [--lock <f>] [--patches <f>] [--world <f>] [--base <d>] [--credentials-env <NAME>] --json',
     '  lock --base <d> --out <lock.json> <package>... --json',
-    '  run start --profile <p> --dir <run> [--lineage <d>] [--ticks N] [--world <f>] [--base <d>] [--credentials-env <NAME>] --detach --json',
+    '  run start --profile <p> --dir <run> [--ticks N] [--world <f>] [--base <d>] [--credentials-env <NAME>] --detach --json',
     '  run resume --dir <run> [--ticks N] [--credentials-env <NAME>] --detach --json',
-    '  run branch --dir <source> --target-dir <target> [--target-profile <p>] [--patches <f>] [--point-id <id>] [--base <d>] [--lock <f>] [--lineage <d>] --json',
+    '  run branch --dir <source> --target-dir <target> [--target-profile <p>] [--patches <f>] [--point-id <id>] [--base <d>] [--lock <f>] --json',
     '  run status --dir <run> --json',
     '  run result --dir <run> --json',
     '',
@@ -67,7 +67,6 @@ function startOptions(values: Record<string, string | boolean | undefined>, mode
     return {
         profile: values.profile as string,
         dir: values.dir as string,
-        lineage: values.lineage as string | undefined,
         lock: values.lock as string | undefined,
         patches: values.patches as string | undefined,
         base: values.base as string | undefined,
@@ -104,7 +103,7 @@ function parsePlatform(argv: string[]): PlatformInvocation | number {
     if (command === '__worker') {
         let values;
         try {
-            ({ values } = parseArgs({ args: argv.slice(1), options: { mode: { type: 'string' }, profile: { type: 'string' }, dir: { type: 'string' }, lineage: { type: 'string' }, lock: { type: 'string' }, patches: { type: 'string' }, base: { type: 'string' }, world: { type: 'string' }, 'credentials-env': { type: 'string' }, ticks: { type: 'string' } } }));
+            ({ values } = parseArgs({ args: argv.slice(1), options: { mode: { type: 'string' }, profile: { type: 'string' }, dir: { type: 'string' }, lock: { type: 'string' }, patches: { type: 'string' }, base: { type: 'string' }, world: { type: 'string' }, 'credentials-env': { type: 'string' }, ticks: { type: 'string' } } }));
         }
         catch { return usage(); }
         if (!values.profile || !values.dir || (values.mode !== 'start' && values.mode !== 'resume')) return usage();
@@ -113,7 +112,7 @@ function parsePlatform(argv: string[]): PlatformInvocation | number {
     if (command === 'run' && subcommand) {
         let values;
         try {
-            ({ values } = parseArgs({ args: argv.slice(2), options: { profile: { type: 'string' }, dir: { type: 'string' }, 'target-dir': { type: 'string' }, 'target-profile': { type: 'string' }, 'point-id': { type: 'string' }, lineage: { type: 'string' }, lock: { type: 'string' }, patches: { type: 'string' }, base: { type: 'string' }, world: { type: 'string' }, 'credentials-env': { type: 'string' }, ticks: { type: 'string' }, detach: { type: 'boolean' }, json: { type: 'boolean' }, help: { type: 'boolean', short: 'h' } } }));
+            ({ values } = parseArgs({ args: argv.slice(2), options: { profile: { type: 'string' }, dir: { type: 'string' }, 'target-dir': { type: 'string' }, 'target-profile': { type: 'string' }, 'point-id': { type: 'string' }, lock: { type: 'string' }, patches: { type: 'string' }, base: { type: 'string' }, world: { type: 'string' }, 'credentials-env': { type: 'string' }, ticks: { type: 'string' }, detach: { type: 'boolean' }, json: { type: 'boolean' }, help: { type: 'boolean', short: 'h' } } }));
         }
         catch { return usage(); }
         if (values.help) { console.log(PLATFORM_USAGE); return 0; }
@@ -140,8 +139,7 @@ function parsePlatform(argv: string[]): PlatformInvocation | number {
                     patches: absolute(values.patches),
                     pointId: values['point-id'],
                     base: absolute(values.base),
-                    lock: absolute(values.lock),
-                    lineage: absolute(values.lineage)
+                    lock: absolute(values.lock)
                 }
             };
         }

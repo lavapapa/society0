@@ -35,7 +35,7 @@ test('PR10-T04 required final interview failure preserves settled observations a
                 ctx.measurements.register({
                     id: 'interview-observation', kind: 'interview', required: true, async observe(context) {
                         identity = {
-                            lineage: c.attempts.authority().lineage, operationId: context.operationId + '/measurement/interview-observation', attempt: 0
+                            session: { actorId: context.actorId, momentId: context.momentId }, operationId: context.operationId + '/measurement/interview-observation', attempt: 0
                         };
                         return {
                             value: {
@@ -60,7 +60,7 @@ test('PR10-T04 required final interview failure preserves settled observations a
         assert.equal(result.reason, 'incomplete');
         assert.equal((await c.history.current()).id, f.root.id);
         assert.equal(result.recoveryRequired, true);
-        assert.equal((await c.attempts.probe(identity)).record.result.observation.original.value.response, '完整回答');
+        assert.equal((await c.sessions.find(identity.session, identity)).data.observation.original.response, '完整回答');
         const view = await c.database.snapshot({
             maxAgeMs: 30000
         });
@@ -127,7 +127,7 @@ test('PR10-T06/T05 real fork resumes persisted round-robin actor without reseedi
             operationId: 'fork', pointId: first.cut.id, targetRunId: 'branch', targetDirectory: target
         });
         branch = await fixture({
-            restore: true, directory: target, runId: 'branch', attemptDirectory: f.attemptDirectory
+            restore: true, directory: target, runId: 'branch'
         });
         await runtime(branch, {
             source: RoundRobin, sourceConfig: {
@@ -186,7 +186,7 @@ test('PR10-T04 oversized interview response remains original evidence while fina
                 ctx.measurements.register({
                     id: 'large-interview', kind: 'interview', required: true, async observe(context) {
                         identity = {
-                            lineage: c.attempts.authority().lineage, operationId: context.operationId + '/measurement/large-interview', attempt: 0
+                            session: { actorId: context.actorId, momentId: context.momentId }, operationId: context.operationId + '/measurement/large-interview', attempt: 0
                         };
                         return {
                             value: {
@@ -205,13 +205,9 @@ test('PR10-T04 oversized interview response remains original evidence while fina
         assert.equal(result.status, 'paused');
         assert.equal(result.reason, 'incomplete');
         assert.equal((await c.history.current()).id, f.root.id);
-        const record = (await c.attempts.probe(identity)).record;
-        assert.equal(record.status, 'settled', JSON.stringify(c.runs.diagnostics()));
-        const chunks = [];
-        for await (const chunk of c.attempts.readArtifact(record.result.evidence))
-            chunks.push(Buffer.from(chunk));
-        const saved = JSON.parse(Buffer.concat(chunks));
-        assert.equal(saved.original.response, original);
+        const recorded = await c.sessions.find(identity.session, identity);
+        assert.equal(recorded.type, 'measurement', JSON.stringify(c.runs.diagnostics()));
+        assert.equal(recorded.data.observation.original.response, original);
     }
     finally {
         await f.host.close();

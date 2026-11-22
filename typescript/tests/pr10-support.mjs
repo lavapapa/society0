@@ -7,7 +7,7 @@ import SlotStrategies from '../.build/host/dist/slot-strategies/index.js';
 import Slots from '../.build/host/dist/slots/index.js';
 const core = async (name) => import('../.build/core/dist/' + name + '/index.js');
 const social = async (name) => import('../.build/social/dist/' + name + '/index.js');
-const [Fence, Database, Artifacts, Initializers, Bootstrap, History, Attempts, Actors, Eligibility, Actions, Information, Results, Threads] = await Promise.all(['execution-fence', 'sqlite', 'artifacts-local', 'initializers', 'sqlite-bootstrap', 'sqlite-history', 'attempts', 'actors', 'actor-eligibility', 'actions', 'information', 'results', 'thread'].map(core));
+const [Fence, Database, Artifacts, Initializers, Bootstrap, History, Sessions, Actors, Eligibility, Actions, Information, Results, Threads] = await Promise.all(['execution-fence', 'sqlite', 'artifacts-local', 'initializers', 'sqlite-bootstrap', 'sqlite-history', 'session-log', 'actors', 'actor-eligibility', 'actions', 'information', 'results', 'thread'].map(core));
 const [Repo, Init, Topology, Social, Neighbors] = await Promise.all(['social-repository', 'social-init', 'topology-edges', 'social', 'propagation-neighbors'].map(social));
 const source = {
     package: '@society0/social', version: '0.1.0', entry: 'test'
@@ -25,8 +25,6 @@ export async function fixture(options = {}) {
     const c = host.ctx;
     const directory = options.directory ?? await mkdtemp(join(tmpdir(), 'pr10-'));
     const runId = options.runId ?? 'social';
-    const attemptDirectory = options.attemptDirectory ?? await mkdtemp(join(tmpdir(), 'pr10-evidence-'));
-    const lineage = options.lineage ?? 'social';
     try {
         await c.plugin(OwnedResources, { closeTimeoutMs: 120000 });
         for (const plugin of [TaskSupervisor, CompositionStrategies, SlotStrategies, Slots, Fence.default])
@@ -44,13 +42,7 @@ export async function fixture(options = {}) {
         await c.plugin(History.default, {
             directory, runId, generation: 'g', controlSequence: '0'
         });
-        await c.plugin(Attempts.default, {
-            directory: attemptDirectory, lineage, ...(options.attempts ?? {})
-        });
-        if (options.restore)
-            await c.attempts.verifyAuthority();
-        else
-            await c.attempts.initialize();
+        await c.plugin(Sessions.default, { directory });
         await c.plugin(Actors.default, { seed: options.seedActors ?? true });
         await c.plugin(Eligibility.default);
         await c.plugin(Results.default);
@@ -106,7 +98,7 @@ export async function fixture(options = {}) {
             await c.plugin(Neighbors.default);
         }
         return {
-            host, ctx: c, directory, root, runId, attemptDirectory
+            host, ctx: c, directory, root, runId
         };
     }
     catch (error) {

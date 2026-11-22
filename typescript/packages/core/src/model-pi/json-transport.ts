@@ -4,14 +4,14 @@ export type ModelTransport='sse'|'json';
 /** 未配置的模型默认走非流式；sse 只作为按模型的可选项。 */
 export function resolveTransport(configured:Readonly<Record<string,ModelTransport>>|undefined,modelId:string):ModelTransport{return configured?.[modelId]==='sse'?'sse':'json'}
 
-interface JsonTransportOptions{timeoutMs:number;onWireBody:(body:unknown,signal:AbortSignal)=>Promise<void>;onResponse:(text:string)=>Promise<void>}
+interface JsonTransportOptions{timeoutMs:number;onResponse:(text:string)=>void}
 const jsonHeaders=(headers:HeadersInit|undefined)=>{const value=new Headers(headers);value.delete('content-length');return value};
 
 function chunk(payload:Record<string,unknown>){return 'data: '+JSON.stringify(payload)+'\n\n'}
 function envelope(response:Response,body:any,extra:Record<string,unknown>){return {id:body?.id??response.headers.get('x-request-id')??'json-transport',object:'chat.completion.chunk',created:body?.created??0,model:body?.model??'',synthetic:true,...extra}}
 function failed(response:Response,code:string){return new Response('data: '+JSON.stringify({error:{message:code,code},synthetic:true})+'\n\n',{status:200,headers:{'content-type':'text/event-stream'}})}
 function contentText(value:unknown):string|undefined{if(typeof value==='string')return value;if(Array.isArray(value)){const text=value.map(part=>typeof part==='string'?part:typeof (part as {text?:unknown})?.text==='string'?(part as {text:string}).text:'').join('');return text||undefined}return undefined}
-/** 同时接受 Request 与 init 携带的信号，并把整次请求（含归档与回包读取）交给同一个截止时间。 */
+/** 同时接受 Request 与 init 携带的信号，并把整次请求（含回包读取）交给同一个截止时间。 */
 function requestSignal(input:Request|undefined,init:RequestInit|undefined):AbortSignal[]{
   const signals:(AbortSignal|null|undefined)[]=[input?.signal,init?.signal];
   return [...new Set(signals.filter((value):value is AbortSignal=>value instanceof AbortSignal))];
@@ -53,10 +53,8 @@ export function jsonTransport(inner:typeof fetch,options:JsonTransportOptions):t
     body.stream=false;delete body.stream_options;
     const signal=AbortSignal.any([...requestSignal(request,init??undefined),AbortSignal.timeout(options.timeoutMs)]);
     signal.throwIfAborted();
-    await options.onWireBody(body,signal);
-    signal.throwIfAborted();
     const response=await inner(input,{...init,method:'POST',body:JSON.stringify(body),headers:jsonHeaders(init?.headers??request?.headers),signal});
     if(!response.ok)return response;
-    const text=await readText(response,signal);await options.onResponse(text);return synthesize(response,text);
+    const text=await readText(response,signal);options.onResponse(text);return synthesize(response,text);
   };
 }
