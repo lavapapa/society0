@@ -1402,6 +1402,18 @@ async function spawnDetached(main: string, args: string[], dir: string): Promise
     }
 }
 
+/** run resume 的 profile 等参数取自 entry-status；前台与 --detach 两条路径共用。 */
+export async function resumeOptions(options: StartOptions): Promise<StartOptions> {
+    if (options.mode !== 'resume')
+        return options;
+    const status = await readStatus(options.dir);
+    if (status.state === 'running' && alive(status.pid))
+        throw new PlatformError('RUN_ALREADY_RUNNING', `run 仍在运行（pid ${status.pid}）`, '先停止现有进程或等待它结束');
+    if (status.state === 'completed')
+        throw new PlatformError('RUN_COMPLETED', 'run 已完成，没有可续跑的 frontier', '用 run result 读取结果');
+    return { ...options, profile: status.profile, ticks: options.ticks ?? status.ticks, lock: options.lock ?? status.lock, patches: options.patches ?? status.patches, base: options.base ?? status.base, world: options.world ?? status.world, credentialsEnv: options.credentialsEnv ?? status.credentialsEnv };
+}
+
 export async function startRun(main: string, options: StartOptions): Promise<Record<string, unknown>> {
     options = {
         ...options,
@@ -1419,14 +1431,7 @@ export async function startRun(main: string, options: StartOptions): Promise<Rec
     await mkdir(dirname(options.dir), { recursive: true });
     if (options.mode === 'start')
         await requireFresh(resolve(options.dir));
-    if (options.mode === 'resume') {
-        const status = await readStatus(options.dir);
-        if (status.state === 'running' && alive(status.pid))
-            throw new PlatformError('RUN_ALREADY_RUNNING', `run 仍在运行（pid ${status.pid}）`, '先停止现有进程或等待它结束');
-        if (status.state === 'completed')
-            throw new PlatformError('RUN_COMPLETED', 'run 已完成，没有可续跑的 frontier', '用 run result 读取结果');
-        options = { ...options, profile: status.profile, ticks: options.ticks ?? status.ticks, lock: options.lock ?? status.lock, patches: options.patches ?? status.patches, base: options.base ?? status.base, world: options.world ?? status.world, credentialsEnv: options.credentialsEnv ?? status.credentialsEnv };
-    }
+    options = await resumeOptions(options);
     const pid = await spawnWorker(main, options);
     const now = new Date().toISOString();
     const status: RunStatus = {

@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { createHost, type BootEntry } from '@society0/host';
 import type {} from '@society0/host/commands';
-import { checkProfile, generateLock, PlatformError, runBranch, runResult, runStatus, startRun, worker, ERROR_SCHEMA, type BranchOptions, type CheckReport, type StartOptions } from './platform.js';
+import { checkProfile, generateLock, PlatformError, resumeOptions, runBranch, runResult, runStatus, startRun, worker, ERROR_SCHEMA, type BranchOptions, type CheckReport, type StartOptions } from './platform.js';
 
 interface Invocation { boot: string; command?: string; input: unknown }
 type PlatformInvocation =
@@ -185,7 +185,7 @@ async function runPlatform(invocation: PlatformInvocation): Promise<number> {
         case 'resume': {
             const options = invocation.options;
             if (!options.detach) {
-                const code = await worker(options);
+                const code = await worker(await resumeOptions(options));
                 printJson(await runStatus(options.dir));
                 return code;
             }
