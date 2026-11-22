@@ -1,33 +1,232 @@
-import type {FileHandle} from 'node:fs/promises';
-import {Config} from './config.js';
-import {mkdir,open,rename,chmod,stat,link} from 'node:fs/promises';
-import {join,resolve} from 'node:path';
-import {randomUUID} from 'node:crypto';
-import type {SqliteTransaction,SqliteMigration} from '../sqlite/contracts.js';
-import {atomicJson,bounded,copyBounded,exists,fault,fileChunks,id,jsonFile,syncDirectory} from './files.js';
-export interface ArtifactRef {readonly id:string;readonly bytes:string;readonly mediaType:string}
-export interface ArtifactOptions {directory:string;chunkBytes?:number;maxObjectBytes?:number;maxActive?:number;onPhase?:(phase:string,ref:ArtifactRef)=>Promise<void>|void}
-export const artifactsMigration:SqliteMigration={owner:'artifacts-local',from:0,to:1,after:[],source:{package:'@society0/core',entry:'artifacts-local',version:1},statements:[{sql:'CREATE TABLE s0_artifacts(id TEXT PRIMARY KEY NOT NULL,bytes TEXT NOT NULL,media_type TEXT NOT NULL,revision INTEGER NOT NULL);CREATE INDEX s0_artifacts_revision ON s0_artifacts(revision,id)'}]};
-export async function inspectArtifact(directory:string,artifactId:string,maxObjectBytes=Number.MAX_SAFE_INTEGER):Promise<ArtifactRef>{const ref=await jsonFile<ArtifactRef>(join(directory,'objects',id(artifactId),'ref.json'),16384);if(ref.id!==artifactId||!/^\d+$/.test(ref.bytes)||typeof ref.mediaType!=='string')throw fault('ARTIFACT_METADATA');const size=Number(ref.bytes);bounded(size,'object bytes',maxObjectBytes);if((await stat(join(directory,'objects',artifactId,'data'))).size!==size)throw fault('ARTIFACT_SIZE');return Object.freeze(ref)}
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, open, readdir, rename, rm, stat } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import type { SqliteTransaction, SqliteMigration } from "../sqlite/contracts.js";
+import { Config } from "./config.js";
+import { bounded, fault, fileChunks, syncDirectory } from "./files.js";
+export interface ArtifactRef {
+  readonly id: string;
+  readonly bytes: string;
+  readonly mediaType: string;
+}
+/** pack 文件引用；path 相对运行目录（可带 ../ 指向父世界）。 */
+export interface PackRef {
+  path: string;
+  bytes: string;
+}
+export interface ArtifactOptions {
+  directory: string;
+  chunkBytes?: number;
+  maxObjectBytes?: number;
+}
+interface Located {
+  ref: ArtifactRef;
+  file: string;
+  offset: number;
+}
+export const artifactsMigration: SqliteMigration = {
+  owner: "artifacts-local",
+  from: 0,
+  to: 1,
+  after: [],
+  source: { package: "@society0/core", entry: "artifacts-local", version: 1 },
+  statements: [
+    {
+      sql: "CREATE TABLE s0_artifacts(id TEXT PRIMARY KEY NOT NULL,bytes TEXT NOT NULL,media_type TEXT NOT NULL,revision INTEGER NOT NULL);CREATE INDEX s0_artifacts_revision ON s0_artifacts(revision,id)",
+    },
+  ],
+};
+/**
+ * 内容寻址对象：stage 写到 objects/staging/<sha>（不 fsync）；发布点时 seal 把本点登记的对象
+ * 封成一个 pack（[正文][索引 JSON][8 字节索引长度]），只 fsync 两次。打开时清空暂存区，
+ * 由 history 用最新点的 pack 列表调用 load()。
+ */
 export class LocalArtifacts {
- readonly directory:string;readonly chunkBytes:number;readonly maxObjectBytes:number;private maxActive:number;private closing=false;private operations=new Set<Promise<unknown>>();private slots=0;private queue:{grant():void;fail(error:Error):void}[]=[];private pins=new Map<string,number>();private waiters=new Set<()=>void>();private closed?:Promise<void>;
- private constructor(private options:ArtifactOptions){const config=Config(options);this.directory=resolve(config.directory);this.chunkBytes=config.chunkBytes;this.maxObjectBytes=config.maxObjectBytes;this.maxActive=config.maxActive}
- static async open(options:ArtifactOptions){const store=new LocalArtifacts(options);await mkdir(join(store.directory,'objects'),{recursive:true});return store}
- private available(){if(this.closing)throw fault('ARTIFACT_CLOSED')}
- private pin(artifact:string){this.available();this.pins.set(artifact,(this.pins.get(artifact)??0)+1);let released=false;return()=>{if(released)return;released=true;const count=this.pins.get(artifact)!-1;if(count)this.pins.set(artifact,count);else this.pins.delete(artifact);for(const resolve of this.waiters)resolve();this.waiters.clear()}}
- /** maxActive 限制在途写入数：满额时按到达顺序排队等待槽位（可随 signal 取消），关闭时排队者以 ARTIFACT_CLOSED 拒绝。 */
- private track<T>(work:()=>Promise<T>,signal?:AbortSignal):Promise<T>{try{this.available();signal?.throwIfAborted()}catch(error){return Promise.reject(error)}if(this.slots<this.maxActive){this.slots++;return this.start(work)}return new Promise<T>((resolve,reject)=>{const onAbort=()=>{const index=this.queue.indexOf(entry);if(index>=0){this.queue.splice(index,1);reject(signal!.reason)}};const entry={grant:()=>{signal?.removeEventListener('abort',onAbort);resolve(this.start(work))},fail:(error:Error)=>{signal?.removeEventListener('abort',onAbort);reject(error)}};signal?.addEventListener('abort',onAbort,{once:true});this.queue.push(entry)})}
- /** 持有槽位后同步启动，close 时已在 operations 中的操作必被等待；结束时槽位直接转交队首。 */
- private start<T>(work:()=>Promise<T>):Promise<T>{const promise=work();this.operations.add(promise);return promise.finally(()=>{this.operations.delete(promise);const next=this.queue.shift();if(next)next.grant();else this.slots--})}
- async inspect(artifactId:string):Promise<ArtifactRef>{this.available();return inspectArtifact(this.directory,artifactId,this.maxObjectBytes)}
- private async writeChunk(file:FileHandle,chunk:Uint8Array){let offset=0;while(offset<chunk.length){const result=await file.write(chunk,offset,chunk.length-offset,null);if(!result.bytesWritten)throw fault('ARTIFACT_SHORT_WRITE');offset+=result.bytesWritten}}
- private async writeObject(path:string,source:AsyncIterable<Uint8Array>,signal?:AbortSignal){const file=await open(path,'wx');let bytes=0;try{for await(const chunk of source){signal?.throwIfAborted();if(!(chunk instanceof Uint8Array)||chunk.byteLength>this.chunkBytes)throw fault('ARTIFACT_CHUNK_BUDGET');bytes+=chunk.byteLength;if(bytes>this.maxObjectBytes)throw fault('ARTIFACT_SIZE_BUDGET');await this.writeChunk(file,chunk)}signal?.throwIfAborted();await file.sync();await file.chmod(0o444);await file.sync();return bytes}finally{await file.close()}}
- stage(source:AsyncIterable<Uint8Array>,mediaType:string,options:{signal?:AbortSignal}={}):Promise<ArtifactRef>{return this.track(async()=>{if(typeof mediaType!=='string'||Buffer.byteLength(mediaType)>1024)throw fault('ARTIFACT_MEDIA_TYPE');const artifactId=randomUUID(),folder=join(this.directory,'objects',artifactId);await mkdir(folder);const temp=join(folder,'data.pending'),bytes=await this.writeObject(temp,source,options.signal);const ref=Object.freeze({id:artifactId,bytes:String(bytes),mediaType});await this.options.onPhase?.('data-synced',ref);options.signal?.throwIfAborted();await rename(temp,join(folder,'data'));await syncDirectory(folder);await atomicJson(join(folder,'ref.json'),ref,16384);await syncDirectory(join(this.directory,'objects'));await this.options.onPhase?.('sealed',ref);return ref},options.signal)}
- async reference(tx:SqliteTransaction,ref:ArtifactRef){const actual=await this.inspect(ref.id);if(actual.bytes!==ref.bytes||actual.mediaType!==ref.mediaType)throw fault('ARTIFACT_REF');await tx.execute({sql:'INSERT INTO s0_artifacts(id,bytes,media_type,revision) VALUES(?,?,?,?) ON CONFLICT(id) DO NOTHING',parameters:[ref.id,ref.bytes,ref.mediaType,BigInt(tx.baseRevision)+1n]})}
- async* read(ref:ArtifactRef,range?:{offset:string;length:number},options:{signal?:AbortSignal}={}):AsyncIterable<Uint8Array>{const release=this.pin(ref.id);try{const actual=await this.inspect(ref.id);if(actual.bytes!==ref.bytes||actual.mediaType!==ref.mediaType)throw fault('ARTIFACT_REF');const offset=Number(range?.offset??0),length=range?.length??Number(ref.bytes)-offset;bounded(offset,'offset');bounded(length,'length');if(offset+length>Number(ref.bytes))throw fault('ARTIFACT_RANGE');yield*fileChunks(join(this.directory,'objects',id(ref.id),'data'),this.chunkBytes,offset,length,options.signal)}finally{release()}}
- async localFile(ref:ArtifactRef){const release=this.pin(ref.id);try{const actual=await this.inspect(ref.id);if(actual.bytes!==ref.bytes||actual.mediaType!==ref.mediaType)throw fault('ARTIFACT_REF');return {path:join(this.directory,'objects',id(ref.id),'data'),release:async()=>release()}}catch(error){release();throw error}}
- async copyTo(ref:ArtifactRef,target:LocalArtifacts,options:{signal?:AbortSignal}={}):Promise<{mode:'reused'|'hardlink'|'copy';bytes:number}>{return target.track(async()=>{const folder=join(target.directory,'objects',id(ref.id));if(await exists(join(folder,'ref.json'))){const current=await target.inspect(ref.id);if(current.bytes!==ref.bytes||current.mediaType!==ref.mediaType)throw fault('ARTIFACT_REF');return {mode:'reused',bytes:0}}const borrowed=await this.localFile(ref);try{await mkdir(folder);await target.options.onPhase?.('copy-start',ref);options.signal?.throwIfAborted();const sourceInfo=await stat(borrowed.path),targetInfo=await stat(folder);let mode:'hardlink'|'copy';if(sourceInfo.dev===targetInfo.dev){await link(borrowed.path,join(folder,'data'));mode='hardlink'}else{await copyBounded(borrowed.path,join(folder,'data'),target.chunkBytes,options.signal);await chmod(join(folder,'data'),0o444);mode='copy'}options.signal?.throwIfAborted();await atomicJson(join(folder,'ref.json'),ref,16384);await syncDirectory(join(target.directory,'objects'));return {mode,bytes:mode==='copy'?Number(ref.bytes):0}}finally{await borrowed.release()}},options.signal)}
- async materializeFrom(ref:ArtifactRef,source:LocalArtifacts){return source.copyTo(ref,this)}
- diagnostics(){return {active:this.operations.size,pins:[...this.pins.entries()],closing:this.closing}}
- close():Promise<void>{return this.closed??=(async()=>{this.closing=true;for(const entry of this.queue.splice(0))entry.fail(fault('ARTIFACT_CLOSED'));await Promise.allSettled([...this.operations]);while(this.pins.size)await new Promise<void>(resolve=>this.waiters.add(resolve))})()}
+  readonly directory: string;
+  readonly chunkBytes: number;
+  readonly maxObjectBytes: number;
+  private packed = new Map<string, Located>();
+  private staged = new Map<string, ArtifactRef>();
+  private constructor(options: ArtifactOptions) {
+    const config = Config(options);
+    this.directory = resolve(config.directory);
+    this.chunkBytes = config.chunkBytes;
+    this.maxObjectBytes = config.maxObjectBytes;
+  }
+  static async open(options: ArtifactOptions) {
+    const store = new LocalArtifacts(options);
+    await rm(join(store.directory, "staging"), { recursive: true, force: true });
+    for (const name of ["staging", "packs", "cache"]) await mkdir(join(store.directory, name), { recursive: true });
+    return store;
+  }
+  private stagingPath(id: string) {
+    return join(this.directory, "staging", id);
+  }
+  /** 读入 pack 尾部索引。base 是 pack 路径的基准目录（运行目录）。 */
+  async load(packs: readonly PackRef[], base: string) {
+    for (const pack of packs) {
+      const file = resolve(base, pack.path),
+        handle = await open(file, "r");
+      try {
+        const size = Number(pack.bytes),
+          tail = Buffer.alloc(8);
+        await handle.read(tail, 0, 8, size - 8);
+        const length = Number(tail.readBigUInt64BE()),
+          index = Buffer.alloc(length);
+        await handle.read(index, 0, length, size - 8 - length);
+        for (const entry of JSON.parse(index.toString("utf8")) as {
+          id: string;
+          offset: number;
+          bytes: string;
+          mediaType: string;
+        }[])
+          if (!this.packed.has(entry.id))
+            this.packed.set(entry.id, {
+              ref: Object.freeze({ id: entry.id, bytes: entry.bytes, mediaType: entry.mediaType }),
+              file,
+              offset: entry.offset,
+            });
+      } finally {
+        await handle.close();
+      }
+    }
+  }
+  async inspect(artifactId: string): Promise<ArtifactRef> {
+    const ref = this.packed.get(artifactId)?.ref ?? this.staged.get(artifactId);
+    if (!ref) throw fault("ARTIFACT_MISSING", artifactId);
+    return ref;
+  }
+  async stage(
+    source: AsyncIterable<Uint8Array>,
+    mediaType: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<ArtifactRef> {
+    if (typeof mediaType !== "string" || Buffer.byteLength(mediaType) > 1024) throw fault("ARTIFACT_MEDIA_TYPE");
+    const temp = join(this.directory, "staging", randomUUID() + ".pending"),
+      hash = createHash("sha256"),
+      file = await open(temp, "wx");
+    let bytes = 0;
+    try {
+      for await (const chunk of source) {
+        options.signal?.throwIfAborted();
+        if (!(chunk instanceof Uint8Array) || chunk.byteLength > this.chunkBytes) throw fault("ARTIFACT_CHUNK_BUDGET");
+        bytes += chunk.byteLength;
+        if (bytes > this.maxObjectBytes) throw fault("ARTIFACT_SIZE_BUDGET");
+        hash.update(chunk);
+        let offset = 0;
+        while (offset < chunk.length)
+          offset += (await file.write(chunk, offset, chunk.length - offset, null)).bytesWritten;
+      }
+    } catch (error) {
+      await file.close();
+      await rm(temp, { force: true });
+      throw error;
+    }
+    await file.close();
+    const id = hash.digest("hex"),
+      existing = this.packed.get(id)?.ref ?? this.staged.get(id);
+    if (existing) {
+      await rm(temp, { force: true });
+      return existing;
+    }
+    await rename(temp, this.stagingPath(id));
+    const ref = Object.freeze({ id, bytes: String(bytes), mediaType });
+    this.staged.set(id, ref);
+    return ref;
+  }
+  async reference(tx: SqliteTransaction, ref: ArtifactRef) {
+    await tx.execute({
+      sql: "INSERT INTO s0_artifacts(id,bytes,media_type,revision) VALUES(?,?,?,?) ON CONFLICT(id) DO NOTHING",
+      parameters: [ref.id, ref.bytes, ref.mediaType, BigInt(tx.baseRevision) + 1n],
+    });
+  }
+  /** 发布点时调用：把 refs 中仍在暂存区的对象封成一个 pack（返回绝对路径），清空暂存区。没有新对象时返回 undefined。 */
+  async seal(refs: readonly ArtifactRef[]): Promise<PackRef | undefined> {
+    const fresh = refs.filter((ref) => !this.packed.has(ref.id));
+    let pack: PackRef | undefined;
+    if (fresh.length) {
+      const name = randomUUID() + ".pack",
+        target = join(this.directory, "packs", name),
+        temp = target + ".pending",
+        file = await open(temp, "wx"),
+        index: { id: string; offset: number; bytes: string; mediaType: string }[] = [];
+      let offset = 0;
+      try {
+        for (const ref of fresh) {
+          if (!this.staged.has(ref.id)) throw fault("ARTIFACT_MISSING", ref.id);
+          index.push({ id: ref.id, offset, bytes: ref.bytes, mediaType: ref.mediaType });
+          for await (const chunk of fileChunks(this.stagingPath(ref.id), this.chunkBytes)) {
+            let written = 0;
+            while (written < chunk.length)
+              written += (await file.write(chunk, written, chunk.length - written, offset + written)).bytesWritten;
+            offset += chunk.length;
+          }
+        }
+        const json = Buffer.from(JSON.stringify(index)),
+          tail = Buffer.alloc(8);
+        tail.writeBigUInt64BE(BigInt(json.length));
+        await file.write(json, 0, json.length, offset);
+        await file.write(tail, 0, 8, offset + json.length);
+        await file.sync();
+        offset += json.length + 8;
+      } finally {
+        await file.close();
+      }
+      await rename(temp, target);
+      await syncDirectory(join(this.directory, "packs"));
+      for (const entry of index)
+        this.packed.set(entry.id, { ref: this.staged.get(entry.id)!, file: target, offset: entry.offset });
+      pack = { path: target, bytes: String(offset) };
+    }
+    await this.clearStaging();
+    return pack;
+  }
+  /** 丢弃全部暂存对象（打开时、封存后、回退到点时）。 */
+  async clearStaging() {
+    this.staged.clear();
+    for (const name of await readdir(join(this.directory, "staging")))
+      await rm(join(this.directory, "staging", name), { force: true });
+  }
+  private locate(ref: ArtifactRef) {
+    const packed = this.packed.get(ref.id);
+    if (packed) return { file: packed.file, offset: packed.offset };
+    if (this.staged.has(ref.id)) return { file: this.stagingPath(ref.id), offset: 0 };
+    throw fault("ARTIFACT_MISSING", ref.id);
+  }
+  async *read(
+    ref: ArtifactRef,
+    range?: { offset: string; length: number },
+    options: { signal?: AbortSignal } = {},
+  ): AsyncIterable<Uint8Array> {
+    const location = this.locate(ref),
+      offset = Number(range?.offset ?? 0),
+      length = range?.length ?? Number(ref.bytes) - offset;
+    bounded(offset, "offset");
+    bounded(length, "length");
+    if (offset + length > Number(ref.bytes)) throw fault("ARTIFACT_RANGE");
+    yield* fileChunks(location.file, this.chunkBytes, location.offset + offset, length, options.signal);
+  }
+  /** 暂存对象直接给暂存路径；已封存对象写出到 cache/<sha>。 */
+  async localFile(ref: ArtifactRef) {
+    const location = this.locate(ref);
+    if (!this.packed.has(ref.id)) return { path: location.file, release: async () => {} };
+    const path = join(this.directory, "cache", ref.id);
+    try {
+      await stat(path);
+    } catch {
+      const temp = path + "." + randomUUID() + ".pending",
+        file = await open(temp, "wx");
+      try {
+        for await (const chunk of this.read(ref)) await file.write(chunk);
+      } finally {
+        await file.close();
+      }
+      await rename(temp, path);
+    }
+    return { path, release: async () => {} };
+  }
+  diagnostics() {
+    return { packed: this.packed.size, staged: this.staged.size };
+  }
+  async close() {}
 }

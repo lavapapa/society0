@@ -8,7 +8,6 @@ import SlotStrategies from '../.build/host/dist/slot-strategies/index.js';
 import Slots from '../.build/host/dist/slots/index.js';
 import ArtifactsLocal,{artifactsMigration} from '../.build/core/dist/artifacts-local/index.js';
 import SqliteHistory from '../.build/core/dist/sqlite-history/index.js';
-import Attempts from '../.build/core/dist/attempts/index.js';
 import SqliteDatabase,{Database} from '../.build/core/dist/sqlite/index.js';
 import ExecutionFence,{ExecutionGate} from '../.build/core/dist/execution-fence/index.js';
 import Initializers from '../.build/core/dist/initializers/index.js';
@@ -20,9 +19,8 @@ export async function* body(chunks){for(let i=0;i<chunks;i++)yield Buffer.alloc(
 export async function fixture(options={}) {
  const directory=options.directory??await mkdtemp(join(tmpdir(),'pr05-world-'));
  const generation=options.generation??'g1';const runId=options.runId??'source',lineage=options.lineage??'lineage';
- const authorityDirectory=options.authorityDirectory??join(dirname(directory),'pr05-lineage-'+randomUUID());
  const host=await hostApi.createHost({boot:[]}),ctx=host.ctx;
- const f={host,ctx,directory,runId,lineage,authorityDirectory,seedCalls:0,options,operations:[]};
+ const f={host,ctx,directory,runId,lineage,seedCalls:0,options,operations:[]};
  try {
   await ctx.plugin(hostApi.OwnedResources);
   await ctx.plugin(hostApi.TaskSupervisor,{concurrency:8,maxPending:128,maxBytes:16777216});
@@ -31,14 +29,11 @@ export async function fixture(options={}) {
   await ctx.plugin(SqliteDatabase,{directory,runId,generation,maxTransactionMs:30000,...options.database});
   await ctx.plugin(Initializers);await ctx.plugin(SqliteBootstrap,{maxTransactionMs:20000});
   await ctx.plugin(SqliteHistory,{directory,runId,generation,controlSequence:options.controlSequence??'0',...options.history});
-  if(options.attempts)await ctx.plugin(Attempts,{directory:authorityDirectory,lineage,...(options.attemptChunkBytes===undefined?{}:{chunkBytes:options.attemptChunkBytes})});
   Object.assign(f,{database:ctx.database,fence:ctx.executionFence,history:ctx.history,artifacts:ctx.artifacts});
   if(options.onPhase)ctx.history.bindIOObserver(options.onPhase);
-  await ctx.plugin({inject:['initializers','artifacts',...(options.attempts?['attempts']:[])],apply(ctx){ctx.initializers.register({id:'seed',after:[],async initialize(context){
+  await ctx.plugin({inject:['initializers','artifacts'],apply(ctx){ctx.initializers.register({id:'seed',after:[],async initialize(context){
    f.seedCalls++;
-   if(options.attempts)await ctx.attempts.initialize();
    if(options.bodyChunks)f.body=await ctx.artifacts.stage(body(options.bodyChunks),'application/octet-stream');
-   if(options.unknownAttempt){f.attemptIdentity={lineage,operationId:'external-seed',attempt:0};f.claim=await ctx.attempts.claim(f.attemptIdentity,{body:f.body},f.body?[f.body]:[]);if(f.claim.status!=='send-permitted')throw Error('fixture authority did not grant first send');await ctx.attempts.markUnknown(f.attemptIdentity,'response lost');}
    await context.database.transaction(context.writeLease,request('seed'),async tx=>{
     await tx.execute({sql:'INSERT INTO note VALUES(?,?)',parameters:[1n,options.rows?'x'.repeat(4000):'root']});
     await tx.execute({sql:'INSERT INTO audit VALUES(1,0)'});

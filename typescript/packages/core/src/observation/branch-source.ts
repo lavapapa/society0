@@ -8,20 +8,19 @@ import type {ForkRequest} from '../sqlite-history/index.js';
 import type {SqliteMigration} from '../sqlite/contracts.js';
 import {branchOrigin,ORIGIN_MAX_BYTES} from './branch-origin.js';
 import {atomicJson} from '../artifacts-local/files.js';
-import '../sqlite-bootstrap/index.js';import '../attempts/index.js';
+import '../sqlite-bootstrap/index.js';
 type Point=Awaited<ReturnType<SqliteHistory['fork']>>;
 /** Core owns SQL preparation; the complete native profile owns every target plugin. */
 export class SqliteBranchSource extends Service implements BranchSourcePort {
- static inject=['history','attempts','artifacts','database'];
+ static inject=['history','artifacts','database'];
  constructor(ctx:Context){super(ctx,'branchSource')}
  async describe(pointId:string){return this.ctx.history.describe(pointId)}
  async probe(plan:BranchPlan){const result=await this.ctx.history.probeFork({operationId:plan.operationId,targetDirectory:plan.target.targetDirectory});return result.status==='prepared'?{status:'prepared' as const,root:result.point}:result}
  private validateTarget({plan,generation}:BranchPreparation){
   const config=(key:string)=>targetConfig(generation,key);
-  const database=config('database'),history=config('history'),artifacts=config('artifacts'),attempts=config('attempts'),authority=this.ctx.attempts.authority();
+  const database=config('database'),history=config('history'),artifacts=config('artifacts');
   validateIdentity(plan,'database',database);validateIdentity(plan,'history',history);
   if(history.controlSequence!==plan.target.controlSequence||resolve(artifacts.directory as string)!==join(plan.target.targetDirectory,'artifacts'))throw Error('BRANCH_TARGET_CONFIGURATION');
-  if(resolve(attempts.directory as string)!==resolve(authority.directory)||attempts.lineage!==authority.lineage)throw Error('BRANCH_ATTEMPT_AUTHORITY');
   config('sqliteBootstrap');
  }
  async prepare(request:BranchPreparation):Promise<BranchPoint>{
@@ -36,9 +35,9 @@ export class SqliteBranchSource extends Service implements BranchSourcePort {
  }
  async open({plan}:BranchPreparation,phase:RunPreparationPhase,root:BranchPoint){
   let ctx:Context|undefined;
-  await phase.run.plugin({name:'branch.reopen',inject:['database','history','attempts','sqliteBootstrap'],apply(c){ctx=c}});
+  await phase.run.plugin({name:'branch.reopen',inject:['database','history','sqliteBootstrap'],apply(c){ctx=c}});
   if(!ctx)throw Error('BRANCH_REOPEN_PENDING');
-  await ctx.attempts.verifyAuthority();const point=root as Point;
+  const point=root as Point;
   const reopened=await ctx.sqliteBootstrap.create({operationId:plan.operationId,runId:plan.target.targetRunId,directory:plan.target.targetDirectory,input:{},migrations:[],initialFrontier:point.frontier,initialControl:{generation:point.generation,controlSequence:point.controlSequence,planId:plan.operationId},requiredInitializerIds:[]});
   if(!isDeepStrictEqual(reopened,root))throw Error('BRANCH_REOPEN_ROOT_MISMATCH');
   await ctx.history.activate();return {root,metadata:ctx.database.metadata,database:ctx.database,state:'clean' as const};

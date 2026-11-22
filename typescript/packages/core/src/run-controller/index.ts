@@ -205,18 +205,9 @@ export class RunController extends Service {
             return cut;
         }
         const operationId = 'cut-' + randomUUID();
-        let next: CompletePoint;
-        try {
-            next = await this.ctx.history.publish(lease, {
-                operationId, id: operationId, parentId: cut.id, expectedRevision: sealedRevision, requiredOperations
-            });
-        }
-        catch (error) {
-            const probe = await this.ctx.history.probe(operationId);
-            if (probe.status !== 'published')
-                throw error;
-            next = probe.point;
-        }
+        const next: CompletePoint = await this.ctx.history.publish(lease, {
+            operationId, id: operationId, parentId: cut.id, expectedRevision: sealedRevision, requiredOperations
+        });
         this.latestCut = next;
         this.ctx.executionFence.resume(lease);
         for (const proposal of this.pending)

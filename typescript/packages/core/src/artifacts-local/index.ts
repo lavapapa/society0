@@ -2,7 +2,7 @@ import {Config} from './config.js';
 export {Config,metadata,api} from './config.js';
 import {Context,Service} from '@society0/cordis';
 import '@society0/host/resources';
-import {LocalArtifacts,artifactsMigration,type ArtifactOptions,type ArtifactRef} from './store.js';
+import {LocalArtifacts,artifactsMigration,type ArtifactOptions,type ArtifactRef,type PackRef} from './store.js';
 import type {SqliteTransaction} from '../sqlite/contracts.js';
 export * from './store.js';
 export const migrations = [artifactsMigration];
@@ -19,8 +19,9 @@ export class ArtifactsLocal extends Service {
  localFile(ref:ArtifactRef){return this.store.localFile(ref)}
  inspect(id:string){return this.store.inspect(id)}
  reference(tx:SqliteTransaction,ref:ArtifactRef){return this.store.reference(tx,ref)}
- copyTo(ref:ArtifactRef,target:LocalArtifacts,options?:{signal?:AbortSignal}){return this.store.copyTo(ref,target,options)}
- materializeFrom(ref:ArtifactRef,source:LocalArtifacts){return this.store.materializeFrom(ref,source)}
+ load(packs:readonly PackRef[],base:string){return this.store.load(packs,base)}
+ seal(refs:readonly ArtifactRef[]){return this.store.seal(refs)}
+ clearStaging(){return this.store.clearStaging()}
  diagnostics(){return this.store.diagnostics()}
  close(){return this.closeOwned()}
 }

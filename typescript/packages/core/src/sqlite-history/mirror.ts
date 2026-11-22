@@ -1,12 +1,92 @@
-import {mkdir,readFile,readdir,rm,stat,writeFile} from 'node:fs/promises';
-import {dirname,join,relative,resolve,sep} from 'node:path';
-import {randomUUID} from 'node:crypto';
-import {atomicJson,copyBounded,exists,fault,jsonFile,syncDirectory,syncFile} from '../artifacts-local/files.js';
-import {nativeJob,transformFile} from './io.js';
-import {PointFiles,type PointRecord,type Segment} from './points.js';
-export interface MirrorOptions {directory:string;policy?:'every-point'|'interval';intervalMs?:number;maxLagPoints?:number;onPhase?:(phase:string,pointId:string)=>Promise<void>|void}
-export type MirrorChain=Awaited<ReturnType<PointFiles['dependencies']>>;
-function inside(parent:string,child:string){const base=resolve(parent),target=resolve(child);return target===base||target.startsWith(base+sep)}
-async function copyMissing(source:string,target:string){if(await exists(target)){const [a,b]=await Promise.all([stat(source),stat(target)]);if(a.size===b.size)return false;await rm(target,{force:true})}await mkdir(dirname(target),{recursive:true});await copyBounded(source,target,65536);await syncFile(target);await syncDirectory(dirname(target));return true}
-export async function mirrorChain(chain:MirrorChain,source:string,target:string,maxManifestBytes:number,onPhase?:(phase:string,pointId:string)=>Promise<void>|void){if(inside(source,target)||inside(target,source))throw fault('HISTORY_MIRROR_PATH');for(const folder of ['history/points','history/segments','history/roots','history/materializations','artifacts/objects'])await mkdir(join(target,folder),{recursive:true});const files=new Map<string,string>();if(chain.root)files.set(chain.root.path,chain.root.path);for(const segment of chain.segments)files.set(segment.path,segment.path);for(const id of chain.pointIds)files.set('history/points/'+id+'.json','history/points/'+id+'.json');for(const id of chain.pointIds){const material='history/materializations/'+id+'.json';if(await exists(join(source,material)))files.set(material,material)}for(const artifact of chain.artifacts){files.set('artifacts/objects/'+artifact.id+'/data','artifacts/objects/'+artifact.id+'/data');files.set('artifacts/objects/'+artifact.id+'/ref.json','artifacts/objects/'+artifact.id+'/ref.json')}for(const [relativeSource] of files){await onPhase?.('mirror-file',chain.point.id);await copyMissing(join(source,relativeSource),join(target,relativeSource))}if(await exists(join(source,'bootstrap.json')))await copyMissing(join(source,'bootstrap.json'),join(target,'bootstrap.json'));await onPhase?.('mirror-before-descriptor',chain.point.id);for(const id of [...chain.pointIds].reverse()){const path='history/points/'+id+'.json';const value=await jsonFile<PointRecord>(join(source,path),maxManifestBytes);await atomicJson(join(target,path),value,maxManifestBytes)}await onPhase?.('mirror-descriptor-written',chain.point.id)}
-export async function restoreFromMirror(source:string,target:string,maxManifestBytes=1048576){if(inside(source,target)||inside(target,source))throw fault('HISTORY_MIRROR_PATH');await mkdir(target,{recursive:true});for(const folder of ['history/points','history/segments','history/roots','history/materializations','artifacts/objects'])await mkdir(join(target,folder),{recursive:true});for(const folder of ['history/points','history/segments','history/roots','history/materializations','artifacts/objects']){const root=join(source,folder);for(const name of await readdir(root).catch(()=>[] as string[])){if(folder==='artifacts/objects'){for(const file of await readdir(join(root,name)))await copyMissing(join(root,name,file),join(target,folder,name,file))}else if(folder==='history/points'&&!name.endsWith('.json'))continue;else await copyMissing(join(root,name),join(target,folder,name))}}if(await exists(join(source,'bootstrap.json')))await copyMissing(join(source,'bootstrap.json'),join(target,'bootstrap.json'));let latest:PointRecord|undefined;for(const name of await readdir(join(source,'history','points'))){if(!name.endsWith('.json'))continue;const point=await jsonFile<PointRecord>(join(source,'history','points',name),maxManifestBytes);if(!latest||BigInt(point.sequence)>BigInt(latest.sequence))latest=point}if(!latest)throw fault('HISTORY_NO_POINT');const files=new PointFiles({directory:target,runId:latest.runId,maxManifestBytes,maxDependencies:10000},async artifact=>jsonFile(join(target,'artifacts','objects',artifact,'ref.json'),16384));const chain=await files.dependencies(latest.id);const database=join(target,'world.sqlite');await nativeJob({operation:'backup',path:files.file(chain.root),target:database});const staging=join(target,'history','staging');await mkdir(staging,{recursive:true});for(const segment of chain.segments){const raw=join(staging,randomUUID()+'.changeset');let paths:string[]=[];try{const decoded=await transformFile(files.file(segment),raw,'decompress',65536,Math.max(Number(segment.rawBytes)+1048576,1048576));if(decoded.bytes!==Number(segment.rawBytes))throw fault('HISTORY_SEGMENT_SIZE');paths=[raw];if(segment.format==='society0/changeset-container/1'){const container=await readFile(raw);paths=[];let offset=0;while(offset<container.length){const length=Number(container.readBigUInt64BE(offset));offset+=8;const path=join(staging,randomUUID()+'.changeset');await writeFile(path,container.subarray(offset,offset+length),{flag:'wx'});paths.push(path);offset+=length}}await nativeJob({operation:'apply',path:database,segments:paths,maxBytes:Math.max(Number(segment.rawBytes),1)})}finally{await rm(raw,{force:true});for(const path of paths)await rm(path,{force:true})}}await syncFile(database);await syncDirectory(target);return latest}
+import { mkdir, readFile, readdir, rm, stat, writeFile, copyFile } from "node:fs/promises";
+import { dirname, join, resolve, sep } from "node:path";
+import { randomUUID } from "node:crypto";
+import { atomicJson, fault, jsonFile, syncDirectory } from "../artifacts-local/files.js";
+import { nativeJob, transformFile } from "./io.js";
+import { PointFiles, type Chain, type PointRecord } from "./points.js";
+function inside(parent: string, child: string) {
+  const base = resolve(parent),
+    target = resolve(child);
+  return target === base || target.startsWith(base + sep);
+}
+/** 只补齐镜像里缺的或长度不同的文件；pack 与 segment 不可变，session 只追加。 */
+async function copyMissing(source: string, target: string) {
+  const size = (await stat(source)).size;
+  const current = await stat(target).then(
+    (info) => info.size,
+    () => -1,
+  );
+  if (current === size) return;
+  await mkdir(dirname(target), { recursive: true });
+  await copyFile(source, target);
+}
+/** 镜像本运行目录自己的文件（../ 引用的父世界 pack 由父目录自己的镜像负责）。 */
+export async function mirrorChain(
+  chain: Chain,
+  source: string,
+  target: string,
+  onPhase?: (phase: string, pointId: string) => Promise<void> | void,
+) {
+  if (inside(source, target) || inside(target, source)) throw fault("HISTORY_MIRROR_PATH");
+  const files = new Set<string>([chain.root.path, ...chain.segments.map((segment) => segment.path)]);
+  for (const pack of chain.point.packs) if (!pack.path.startsWith("..")) files.add(pack.path);
+  for (const id of chain.pointIds) {
+    const material = "history/materializations/" + id + ".json";
+    if (await stat(join(source, material)).then(() => true, () => false)) files.add(material);
+  }
+  for (const name of await readdir(join(source, "sessions")).catch(() => [] as string[])) files.add("sessions/" + name);
+  for (const name of ["bootstrap.json"]) if (await stat(join(source, name)).then(() => true, () => false)) files.add(name);
+  for (const relative of files) {
+    await onPhase?.("mirror-file", chain.point.id);
+    await copyMissing(join(source, relative), join(target, relative));
+  }
+  await onPhase?.("mirror-before-descriptor", chain.point.id);
+  for (const id of [...chain.pointIds].reverse()) {
+    const path = "history/points/" + id + ".json";
+    await atomicJson(join(target, path), await jsonFile<PointRecord>(join(source, path), 16 * 1048576), 16 * 1048576);
+  }
+  await syncDirectory(target);
+  await onPhase?.("mirror-descriptor-written", chain.point.id);
+}
+/** 从镜像恢复：复制整个镜像目录，按最新点重建 world.sqlite。 */
+export async function restoreFromMirror(source: string, target: string) {
+  if (inside(source, target) || inside(target, source)) throw fault("HISTORY_MIRROR_PATH");
+  const walk = async (relative: string): Promise<void> => {
+    for (const entry of await readdir(join(source, relative), { withFileTypes: true }).catch(() => []))
+      if (entry.isDirectory()) await walk(join(relative, entry.name));
+      else await copyMissing(join(source, relative, entry.name), join(target, relative, entry.name));
+  };
+  await walk("");
+  const files = await PointFiles.open(target);
+  const latest = files.latest();
+  if (!latest) throw fault("HISTORY_NO_POINT");
+  const chain = await files.dependencies(latest.id),
+    database = join(target, "world.sqlite"),
+    staging = join(target, "history", "staging");
+  await nativeJob({ operation: "backup", path: files.file(chain.root), target: database });
+  await mkdir(staging, { recursive: true });
+  for (const segment of chain.segments) {
+    const raw = join(staging, randomUUID() + ".changeset");
+    let paths: string[] = [raw];
+    try {
+      await transformFile(files.file(segment), raw, "decompress", 65536, Number(segment.rawBytes) + 1048576);
+      if (segment.format === "society0/changeset-container/1") {
+        const container = await readFile(raw);
+        paths = [];
+        for (let offset = 0; offset < container.length; ) {
+          const length = Number(container.readBigUInt64BE(offset)),
+            path = join(staging, randomUUID() + ".changeset");
+          offset += 8;
+          await writeFile(path, container.subarray(offset, offset + length), { flag: "wx" });
+          paths.push(path);
+          offset += length;
+        }
+      }
+      await nativeJob({ operation: "apply", path: database, segments: paths, maxBytes: Math.max(Number(segment.rawBytes), 1) });
+    } finally {
+      await rm(raw, { force: true });
+      for (const path of paths) await rm(path, { force: true });
+    }
+  }
+  return latest;
+}
